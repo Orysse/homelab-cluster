@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - site.yaml
+configMapGenerator:
+  - name: site-files
+    namespace: site
+    files:
+      - index.txt
+      - nginx.conf
+    options:
+      annotations:
+        # Contenu livré tel quel : Flux ne doit pas y chercher de ${variables}.
+        kustomize.toolkit.fluxcd.io/substitute: disabled

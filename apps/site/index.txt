@@ -1,0 +1,38 @@
+
+        __              ___
+       /\ \            /\_ \
+   __  \ \ \____     __\//\ \     ___
+ /'__`\ \ \ '__`\  /'__`\\ \ \   /'___\
+/\ \L\.\_\ \ \L\ \/\  __/ \_\ \_/\ \__/
+\ \__/.\_\\ \_,__/\ \____\/\____\ \____\
+ \/__/\/_/ \/___/  \/____/\/____/\/____/
+
+
+  homelab-nix -- one NUC, three microVMs, one k3s cluster, zero clicks.
+
+  This page is a plain .txt file in a Nix flake, served by nginx in k3s,
+  in a microVM, on a NUC sitting next to a home router.
+
+
+      internet
+         :
+         v
+   [ home router ] ---------> 192.168.1.240   (MetalLB, L2)
+                                    |
+                               [ traefik ]
+                                    |
+          +-------------------------+-------------------------+
+          |                         |                         |
+     [ kube-1 ]                [ kube-2 ]                [ kube-3 ]
+   control-plane                 agent                     agent
+          |                         |                         |
+          +------------ microvm.nix on nuc1 (NixOS) ----------+
+
+
+  Everything above is declared in Nix: the host, the VMs, the cluster,
+  and this text. Rebuild, and it all comes back exactly the same.
+
+  Which pod answered you?
+
+      curl -sI <this site> | grep -i x-served-by
+

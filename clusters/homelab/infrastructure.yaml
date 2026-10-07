@@ -32,6 +32,10 @@ spec:
     name: homelab-cluster
   path: ./infrastructure/configs
   prune: true
+  decryption:                 # fichiers *.sops.yaml (voir .sops.yaml)
+    provider: sops
+    secretRef:
+      name: sops-age          # posé par le socle (clé age dérivée de kube-1)
   postBuild:
     substituteFrom:
       - kind: ConfigMap

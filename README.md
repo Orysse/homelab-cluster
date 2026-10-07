@@ -49,7 +49,23 @@ exclure un objet : annotation `kustomize.toolkit.fluxcd.io/substitute: disabled`
 ## Règles
 
 - Images et charts **figés** (tag / version). Jamais `:latest`.
-- **Aucun secret en clair** : le repo est public.
+- **Aucun secret en clair** : le repo est public. Les secrets sont des fichiers
+  `*.sops.yaml`, chiffrés avec sops (voir ci-dessous).
+
+## Secrets (sops + age)
+
+Un Secret s'écrit en clair dans `<chemin>/<nom>.sops.yaml`, puis se chiffre sur place :
+
+```bash
+sops --encrypt --in-place apps/<app>/<nom>.sops.yaml   # chiffre data/stringData seulement
+sops apps/<app>/<nom>.sops.yaml                        # éditer (déchiffre/rechiffre)
+```
+
+Destinataires (`.sops.yaml`) : la clé perso de l'admin (`~/.config/sops/age/keys.txt`,
+sauvegardée dans KeePassXC) et `kube-1`, dont la clé SSH d'hôte convertie en age est posée
+par le socle dans `flux-system/sops-age`. Flux déchiffre `infra-configs` et `apps`.
+Si kube-1 change d'identité : mettre à jour sa clé dans `.sops.yaml`, puis
+`sops updatekeys <fichier>` sur chaque secret.
 - Fichiers de config montés depuis une ConfigMap : passer par `configMapGenerator`
   (nom suffixé d'un hash => les pods redémarrent quand le contenu change).
 

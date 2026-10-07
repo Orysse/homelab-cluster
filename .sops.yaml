@@ -2,7 +2,7 @@
 # manifest reste lisible et diffable. Fichiers concernés : *.sops.yaml.
 # Destinataires : l'admin + kube-1 (clé SSH d'hôte convertie en age ; Flux la reçoit via
 # le Secret flux-system/sops-age, posé par le socle).
-# Clé privée de l'admin : ~/.config/sops/age/keys.txt (sauvegarde : KeePassXC).
+# Clé privée de l'admin : ~/.config/sops/age/keys.txt (sauvegarde : Bitwarden).
 keys:
   - &admin age1s6hy57p80hu633xwvq2408hnh7djhh8chp7jen90uqpyymjg0upqrcg6y4
   - &kube-1 age1vheyl8p09efd0080vhar893dud22hktq4wst0uhd66x96xng6pqqr8rdep

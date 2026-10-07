@@ -1,0 +1,34 @@
+# Token API Cloudflare pour cert-manager (DNS-01). Zone abe.lc, droit DNS Edit.
+# Éditer : sops infrastructure/configs/cloudflare-api-token.sops.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cloudflare-api-token
+    namespace: cert-manager
+type: Opaque
+stringData:
+    api-token: ENC[AES256_GCM,data:ttPcXmizs5JoWeT9I98hDqXHoj2K0NQrz12sHNN2AJ7uzUp2XO+BQtyLO0YdM999WCCmhbU=,iv:i5oEXjnsGvOj6o3qht+nHPY/n4peA3Fz5ig5GCgUkq4=,tag:ZfkhS2bydKwZjXluG3D0mQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB4L2R5TFRSUXJ2Y0dSRmUw
+            ZXIxTnc0V1pKVUQxK0ljY3NnellDZDVIRHhVCjZNY1ZaOVRoSTVsbVFOUE9MWk5N
+            bkZQVEVZTG5GNmV6UlRiRk9BY2ZXSkkKLS0tIG9acnJwWkI3N2VDTDAvQkk2YllF
+            aTA5NXBJZllhbG5YSEFEbzdjbmZNb1EKUqrwtyzB6e/b9L0YBrJWVJ1M/WZT0FtZ
+            ophjnqzokm2BTiNqUsucmoQRMDfS3fVRUfLrmWTF+jG+UipZ1g0riQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1s6hy57p80hu633xwvq2408hnh7djhh8chp7jen90uqpyymjg0upqrcg6y4
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTNWVuN1J0cW50ZHVxZXV5
+            SXhaN3E1Z3BFY0ZVbkRYZWJFR3lJQ0ZqZHhnCk1ISC9xS1p6UDBoS2QwL09acTVV
+            UnZ0dWJkT3pLWnJuT3E5ditObmtsZEkKLS0tIEtxVnBVL2FBL1Z0SXJvenVLYUQy
+            aHg4Z1JjWkQ1UDhLeVp5WDlRd0h5REUKvPEMCEK4m2tDIGCnaojGFvtf7m5kAnmF
+            IESQa53fijFNsdX5A1d9Vca90Lhj55GyWbXKCzn4Fpeb52XHPFYEDw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1vheyl8p09efd0080vhar893dud22hktq4wst0uhd66x96xng6pqqr8rdep
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-07T23:49:42Z"
+    mac: ENC[AES256_GCM,data:ZhcFcV7Lu0jWSpdMEnUCbrcn/dT+bXatWDLnBS+4p2vO3ha38s45dNcjLGhNBmKAu+B1xPsDmzFgs8/dkj9pTqtBjgYH9NDMpaQSH6jLAraugNT+NVyF3WfFApNu1rld3FYuQNyjtmenz4UTG63yETkctbaaK3QgIzyZt/qzmGQ=,iv:f8vL9Bcf0bMQnc+gSs/FonEZaX3e/MxqUCX9+3o/C7A=,tag:f7DZcPOg0CZp4Tmh+g/aNQ==,type:str]
+    version: 3.13.3

@@ -1,0 +1,13 @@
+# Traefik est fourni par k3s ; on surcharge seulement ses values :
+# son Service LoadBalancer prend l'IP d'entrée fixe du cluster.
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |
+    service:
+      annotations:
+        metallb.io/loadBalancerIPs: ${INGRESS_ADDRESS}

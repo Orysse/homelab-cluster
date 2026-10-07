@@ -1,0 +1,38 @@
+# Ordre d'application : infra-controllers -> infra-configs -> apps (voir apps.yaml).
+#
+# Les variables ${INGRESS_ADDRESS}, ${INGRESS_POOL}, ${DOMAIN} viennent de la ConfigMap
+# flux-system/cluster-vars, écrite par le socle Nix depuis sa topologie
+# (homelab-nix : modules/topology/topology.nix). Ne pas les redéfinir ici.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-controllers
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: homelab-cluster
+  path: ./infrastructure/controllers
+  prune: true
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-configs
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers   # les CRD de MetalLB doivent exister
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: homelab-cluster
+  path: ./infrastructure/configs
+  prune: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-vars

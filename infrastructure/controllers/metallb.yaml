@@ -1,0 +1,35 @@
+# MetalLB (mode L2) : donne de vraies IP du LAN aux Services LoadBalancer.
+# Remplace le servicelb de k3s (désactivé côté socle).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metallb-system
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: metallb
+  namespace: metallb-system
+spec:
+  interval: 24h
+  url: https://metallb.github.io/metallb
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: metallb
+  namespace: metallb-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: metallb
+      version: "0.16.1"
+      sourceRef:
+        kind: HelmRepository
+        name: metallb
+  values:
+    # Mode L2 uniquement : pas de backend BGP (frr-k8s, activé par défaut depuis 0.15).
+    frrk8s:
+      enabled: false

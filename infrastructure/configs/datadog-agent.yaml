@@ -1,0 +1,45 @@
+# Agent Datadog du cluster, décrit en une ressource ; l'operator en déduit le DaemonSet
+# (un agent par nœud) et le Cluster Agent. Site et nom du cluster viennent du socle
+# (cluster-vars), comme pour l'agent du host nuc1 : les deux se corrèlent dans Datadog.
+#
+# Clé d'API : Secret datadog/datadog-secret (clé "api-key"), chiffré avec sops dans
+# datadog-secret.sops.yaml.
+---
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog
+  namespace: datadog
+spec:
+  global:
+    site: ${DD_SITE}
+    clusterName: ${CLUSTER_NAME}
+    credentials:
+      apiSecret:
+        secretName: datadog-secret
+        keyName: api-key
+    tags:
+      - cluster:${CLUSTER_NAME}
+    # Spécificités k3s : containerd embarqué, certificat kubelet auto-signé.
+    criSocketPath: /run/k3s/containerd/containerd.sock
+    kubelet:
+      tlsVerify: false
+  features:
+    logCollection:                 # logs de tous les conteneurs
+      enabled: true
+      containerCollectAll: true
+    liveContainerCollection:
+      enabled: true
+    liveProcessCollection:
+      enabled: true
+    orchestratorExplorer:          # vue des ressources Kubernetes dans Datadog
+      enabled: true
+    kubeStateMetricsCore:          # état des Deployments, pods, nœuds…
+      enabled: true
+    eventCollection:
+      collectKubernetesEvents: true
+    clusterChecks:
+      enabled: true
+    prometheusScrape:              # Traefik, MetalLB… via les annotations prometheus.io/*
+      enabled: true
+      enableServiceEndpoints: true

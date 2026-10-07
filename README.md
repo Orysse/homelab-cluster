@@ -14,8 +14,9 @@ clusters/homelab/          point d'entrée de Flux (le socle pointe ici)
 └─ apps.yaml               apps (après infra-configs)
 
 infrastructure/
-├─ controllers/            ce qui installe des CRD : MetalLB
-└─ configs/                ce qui les utilise : pool d'IP MetalLB, config de Traefik
+├─ controllers/            ce qui installe des CRD : MetalLB, cert-manager, Datadog Operator
+└─ configs/                ce qui les utilise : pool d'IP MetalLB, config de Traefik,
+                           [émetteurs Let's Encrypt, agent Datadog : en attente de leurs secrets]
 
 apps/                      une app = un dossier, listé dans apps/kustomization.yaml
 └─ site/                   page publique en texte brut (index.txt) à la racine du domaine

@@ -3,3 +3,8 @@ kind: Kustomization
 resources:
   - metallb-pool.yaml
   - traefik.yaml
+  # À activer une fois les secrets chiffrés ajoutés (*.sops.yaml, voir README) :
+  # - cloudflare-api-token.sops.yaml
+  # - cluster-issuers.yaml
+  # - datadog-secret.sops.yaml
+  # - datadog-agent.yaml

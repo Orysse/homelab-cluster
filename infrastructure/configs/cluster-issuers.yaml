@@ -1,0 +1,40 @@
+# Émetteurs Let's Encrypt, validation DNS-01 via l'API Cloudflare (zone du domaine).
+# DNS-01 : pas besoin que le cluster soit joignable depuis Internet, et permet le wildcard.
+# Toujours tester avec "letsencrypt-staging" (certificats non reconnus, limites larges)
+# avant "letsencrypt" (prod, limites strictes).
+#
+# Token : Secret cert-manager/cloudflare-api-token (clé "api-token"), chiffré avec sops
+# dans cloudflare-api-token.sops.yaml. Droits : Zone > DNS > Edit, sur la seule zone du domaine.
+# Pas d'e-mail ACME (facultatif) : le repo est public.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-account
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token

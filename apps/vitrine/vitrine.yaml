@@ -1,7 +1,7 @@
 # vitrine.abe.lc, for homelab-cluster: copy this directory to apps/vitrine/ and add
 # "- vitrine" to apps/kustomization.yaml. abe.lc itself stays on apps/site.
-# The image is built by this repository's CI and pushed to ghcr.io/orysse/vitrine;
-# Renovate bumps the tag (a plain increasing number, the CI run number).
+# The image is built by this repository's CI and pushed to ghcr.io/orysse/vitrine on each vX.Y.Z tag;
+# Renovate bumps the version.
 ---
 apiVersion: v1
 kind: Namespace
@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nginx
-          image: ghcr.io/orysse/vitrine:1
+          image: ghcr.io/orysse/vitrine:0.2.0
           ports:
             - name: http
               containerPort: 8080

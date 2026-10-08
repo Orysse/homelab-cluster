@@ -1,0 +1,33 @@
+# Flux -> Datadog events: every reconciliation that changes something (new revision
+# applied, upgrade, failure) becomes a Datadog event. Overlay "sources:flux" on any graph
+# to see which push changed it. API key: flux-datadog.sops.yaml.
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: datadog
+  namespace: flux-system
+spec:
+  type: datadog
+  address: https://api.${DD_SITE}
+  secretRef:
+    name: flux-datadog
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: datadog
+  namespace: flux-system
+spec:
+  providerRef:
+    name: datadog
+  eventSeverity: info
+  eventMetadata:                  # sent as event tags
+    env: homelab
+    cluster: ${CLUSTER_NAME}
+  eventSources:
+    - { kind: Kustomization, name: "*" }
+    - { kind: HelmRelease, name: "*", namespace: metallb-system }
+    - { kind: HelmRelease, name: "*", namespace: cert-manager }
+    - { kind: HelmRelease, name: "*", namespace: datadog }
+    - { kind: GitRepository, name: "*" }

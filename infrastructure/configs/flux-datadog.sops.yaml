@@ -1,0 +1,45 @@
+# Datadog API key used by Flux's notification-controller to post deploy events
+# (dedicated key "homelab-flux-events", revocable without touching the agents).
+# Edit: sops infrastructure/configs/flux-datadog.sops.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+    name: flux-datadog
+    namespace: flux-system
+type: Opaque
+stringData:
+    token: ENC[AES256_GCM,data:NuyThsyO1tmyYX80uRjiIgoYGP/Eb79BQNmFfflAthg=,iv:/rIBrqkrDpoDqosvPCRf+MmWBKWp72UJ8tmUhmBLy9I=,tag:qA7IS3thRznd0LskH1T9jw==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMdzNsVVlEOWxKbGtzMXFy
+            dHFhYmpOdjBWUGc2blB1OHhmb2pQVHdmUnpVCmUxbkd1SlNUUEhZcWVLV0lXNDk0
+            RG1MNUo3Smo1aE9hUjZWL2JYYkgzdFkKLS0tIFJtekFnSVZHV1BmaCtVOWoyRXhk
+            azZuem12RXRmam41KysxT293SFNmYmcKjVdqFp0wGqRuGKE3kgB2u65yVXjf1FrS
+            57PXLk9/HWHy2BzXfQDDE22t12FzpW0/rVV2Wy+hyGfokuVmyj9OJQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1uzjc82ya0szkyht2txxjsk03csk7cpap524lz9v8gjxsaqxlaejsr3tkcc
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHBpdi1wMjU2IGo4YVdFdyBBNFczQ1p5
+            RmdLMk5HRFFYRGpzemhSandUWVRGRERhaGNQVmFlclUzazkvSwo0Vk1mWDgvMm5G
+            NExJbEhrODFHbjh0TEg1aDdIOXJxNVRRbVpZVEJ0N21RCi0tLSBsd3p2aVJ0UHJQ
+            bkxqYTdNcW9VNTV5bTJqVU1TNXZnVEhNL3lJSEs0bm9RCvuOkWwphsDWqYlMzSpc
+            0phB9nST53bs24xNP84SjmKhSaulThyTEtwdEWWE6aOsjHZwj1HDtwe5IUxERB7J
+            PK0=
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1yubikey1q23p5ysmjm8ukvad9xefunvaq7fz06zsf72jr0vj20z2j48sjjh2jm256cs
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKSlBkWGQ1TmVCU3RrMWJi
+            K1NxeFkzTWlBYk92empud0c1QTFnUDZ5aURvCkw1VnFXbXhOMWFCOTJmODRlYmxK
+            dXNQUHNmNTV0ZExCRFkrMGc0YzZLWU0KLS0tIG0zaUc3UjF1NWphZkxKV0M5L2RN
+            OHJ2YXpPL0t1a3p2R0h6bmhFOVRwZlUKmkOfUDPuYISDfB20ODMbbHFPR9Lsjp2C
+            wXxvnRh5PDaxEzKmMOYj74pRZ9NUXFsyT32HfrCueBeC8Htp7oApLg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age15lxalve0wl20hk7ygx5h9khexfgsws8ucue6txvfz7dgtsvsugqskgwuyc
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-08T17:37:11Z"
+    mac: ENC[AES256_GCM,data:Qfpe2yQ+11VO0uIUTeUd9/XgqHTxIweZJSK7eAnfYv/k412TzNxckuDXFrZw07efCymRxUEnyRHnPX0fZWk7sREz+FueVRN1vSs+UoQJFaPEa1fv1KJzE4w01NbwymEFhAbL9yyYLuwV8z+AiZMZ1nHDKgAfzDi3lzTuXRwTMqg=,iv:Scjut4Ohq7jW7my5xbeGVhSBOkLO15aQXDam16JMfOA=,tag:/OFk5iLvw26Th+ELqYbtsA==,type:str]
+    version: 3.13.3

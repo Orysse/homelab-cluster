@@ -10,3 +10,5 @@ resources:
   - certificate.yaml
   - datadog-secret.sops.yaml
   - datadog-agent.yaml
+  - flux-datadog.sops.yaml
+  - flux-datadog.yaml

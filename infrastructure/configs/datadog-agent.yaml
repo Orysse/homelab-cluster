@@ -32,6 +32,61 @@ spec:
       enabled: true
     kubeStateMetricsCore:
       enabled: true
+      # Flux 2.x controllers no longer export a ready/not-ready gauge: read it from the
+      # objects' status instead (same idea as fluxcd/flux2-monitoring-example).
+      # -> kubernetes_state_customresource.flux_resource_info{ready:true|false,...}
+      collectCrMetrics:
+        - groupVersionKind: { group: kustomize.toolkit.fluxcd.io, version: v1, kind: Kustomization }
+          resourcePlural: kustomizations
+          metricNamePrefix: flux
+          metrics:
+            - name: resource_info
+              help: Flux object state (ready, suspended, applied revision)
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    flux_kind: [kind]
+                    flux_name: [metadata, name]
+                    flux_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
+                    suspended: [spec, suspend]
+                    revision: [status, lastAppliedRevision]
+        - groupVersionKind: { group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease }
+          resourcePlural: helmreleases
+          metricNamePrefix: flux
+          metrics:
+            - name: resource_info
+              help: Flux object state (ready, suspended, chart version)
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    flux_kind: [kind]
+                    flux_name: [metadata, name]
+                    flux_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
+                    suspended: [spec, suspend]
+                    revision: [status, lastAttemptedRevision]
+        - groupVersionKind: { group: source.toolkit.fluxcd.io, version: v1, kind: GitRepository }
+          resourcePlural: gitrepositories
+          metricNamePrefix: flux
+          metrics:
+            - name: resource_info
+              help: Flux object state (ready, suspended, fetched revision)
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    flux_kind: [kind]
+                    flux_name: [metadata, name]
+                    flux_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
+                    suspended: [spec, suspend]
+                    revision: [status, artifact, revision]
     eventCollection:
       collectKubernetesEvents: true
     clusterChecks:

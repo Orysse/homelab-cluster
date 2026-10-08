@@ -1,4 +1,4 @@
-
+Bonjour,
        _            _
   __ _| |__   ___  | | ___
  / _` | '_ \ / _ \ | |/ __|
@@ -65,3 +65,8 @@ PROS AND CONS
 | Versioned, reviewable infrastructure | Guests are tied to NixOS and to the  |
 | with rollback                        | host's Nix store                     |
 +--------------------------------------+--------------------------------------+
+
+--
+Abel Chartier
+EPITA - FORGE - SRS 2027
+"Nix <3"

@@ -4,6 +4,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: site
+  labels:
+    gateway-access: public
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -60,21 +62,19 @@ spec:
       port: 80
       targetPort: http
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: site
   namespace: site
 spec:
-  ingressClassName: traefik
+  parentRefs:
+    - name: public
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - ${DOMAIN}
   rules:
-    - host: ${DOMAIN}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: site
-                port:
-                  name: http
+    - backendRefs:
+        - name: site
+          port: 80

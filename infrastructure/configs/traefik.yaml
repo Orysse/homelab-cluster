@@ -1,4 +1,5 @@
 # Traefik is installed by k3s: only its values are overridden here.
+# Routing: Gateway API (gateway.yaml). The chart's own Gateway is disabled.
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -7,6 +8,11 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |
+    providers:
+      kubernetesGateway:
+        enabled: true
+    gateway:
+      enabled: false
     service:
       annotations:
         metallb.io/loadBalancerIPs: ${INGRESS_ADDRESS}

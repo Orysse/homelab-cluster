@@ -137,9 +137,9 @@ spec:
             init_config:
             instances:
               - openmetrics_endpoint: http://%%host%%:8080/metrics
-# Read access for the custom resource metrics above: the operator does not grant it
-# (Kustomizations and GitRepositories only happened to be covered by the orchestrator
-# explorer's role).
+# Read access to the Flux objects of the custom resource metrics above, held by the
+# OPERATOR: it adds these rules to the kube-state-metrics role, and Kubernetes only lets
+# it grant permissions it holds itself (otherwise its whole reconcile fails).
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -166,5 +166,5 @@ roleRef:
   name: datadog-ksm-flux
 subjects:
   - kind: ServiceAccount
-    name: datadog-cluster-agent
+    name: datadog-operator
     namespace: datadog

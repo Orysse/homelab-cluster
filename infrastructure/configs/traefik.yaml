@@ -1,5 +1,6 @@
 # Traefik is installed by k3s: only its values are overridden here.
-# Routing: Gateway API (gateway.yaml). The chart's own Gateway is disabled.
+# Routing: Gateway API. GatewayClass and Gateway are declared in gateway.yaml, so the
+# chart must not create its own (it would conflict with ours on the class name).
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -12,6 +13,8 @@ spec:
       kubernetesGateway:
         enabled: true
     gateway:
+      enabled: false
+    gatewayClass:
       enabled: false
     service:
       annotations:

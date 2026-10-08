@@ -15,8 +15,8 @@ clusters/homelab/          Flux entry point (the base points here)
 
 infrastructure/
 ├─ controllers/            what installs CRDs: MetalLB, cert-manager, Datadog Operator
-└─ configs/                what uses them: MetalLB IP pool, Traefik settings and security
-                           headers, Let's Encrypt issuers, wildcard certificate, Datadog agent
+└─ configs/                what uses them: MetalLB IP pool, Traefik settings, Gateway,
+                           security headers, Let's Encrypt issuers, wildcard certificate, Datadog agent
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 └─ site/                   plain-text page (index.txt) at the domain apex
@@ -32,7 +32,7 @@ The network is defined **once**, in the base's Nix topology, which publishes the
 
 | Variable | Value | Used for |
 |---|---|---|
-| `${DOMAIN}` | `abe.lc` | Ingress hosts, certificate |
+| `${DOMAIN}` | `abe.lc` | HTTPRoute hostnames, certificate |
 | `${INGRESS_ADDRESS}` | `192.168.1.240` | Traefik's LoadBalancer IP |
 | `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IPs MetalLB may assign |
 | `${CLUSTER_NAME}` | `homelab` | Datadog cluster name and tag |
@@ -43,13 +43,15 @@ annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 
 ## Adding an app
 
-1. `apps/<app>/<app>.yaml`: Namespace, Deployment, Service, Ingress (start from `site/`).
-   Pinned image tag, `resources` always set, host `<subdomain>.${DOMAIN}`.
+1. `apps/<app>/<app>.yaml`: Namespace (label `gateway-access: public`), Deployment, Service,
+   HTTPRoute attached to `kube-system/public` (start from `site/`). Pinned image tag,
+   `resources` always set, hostname `<subdomain>.${DOMAIN}`.
 2. `apps/<app>/kustomization.yaml` listing that file.
 3. One line in `apps/kustomization.yaml`.
 4. `git push`.
 
-HTTPS is automatic: Traefik serves the `*.abe.lc` wildcard certificate by default, redirects
+HTTPS is automatic: the `public` Gateway (Gateway API, served by Traefik) terminates TLS
+with the `*.abe.lc` wildcard certificate; Traefik redirects
 HTTP to HTTPS and adds the security headers (HSTS, nosniff, frame deny, referrer policy).
 
 ## Rules

@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: infra-configs   # point d'entrée (MetalLB + Traefik) prêt
+    - name: infra-configs
   interval: 10m
   sourceRef:
     kind: GitRepository
@@ -14,10 +14,10 @@ spec:
   path: ./apps
   prune: true
   wait: true
-  decryption:                 # fichiers *.sops.yaml (voir .sops.yaml)
+  decryption:
     provider: sops
     secretRef:
-      name: sops-age          # posé par le socle (clé age dérivée de kube-1)
+      name: sops-age          # posé par le socle (homelab-nix : k3s/flux-sops.nix)
   postBuild:
     substituteFrom:
       - kind: ConfigMap

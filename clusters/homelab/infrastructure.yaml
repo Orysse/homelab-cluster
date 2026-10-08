@@ -1,8 +1,4 @@
-# Ordre d'application : infra-controllers -> infra-configs -> apps (voir apps.yaml).
-#
-# Les variables ${INGRESS_ADDRESS}, ${INGRESS_POOL}, ${DOMAIN} viennent de la ConfigMap
-# flux-system/cluster-vars, écrite par le socle Nix depuis sa topologie
-# (homelab-nix : modules/topology/topology.nix). Ne pas les redéfinir ici.
+# ${VARIABLES} : ConfigMap flux-system/cluster-vars, générée depuis la topologie du socle.
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -25,17 +21,17 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: infra-controllers   # les CRD de MetalLB doivent exister
+    - name: infra-controllers   # CRD de MetalLB, cert-manager, Datadog
   interval: 10m
   sourceRef:
     kind: GitRepository
     name: homelab-cluster
   path: ./infrastructure/configs
   prune: true
-  decryption:                 # fichiers *.sops.yaml (voir .sops.yaml)
+  decryption:
     provider: sops
     secretRef:
-      name: sops-age          # posé par le socle (clé age dérivée de kube-1)
+      name: sops-age          # posé par le socle (homelab-nix : k3s/flux-sops.nix)
   postBuild:
     substituteFrom:
       - kind: ConfigMap

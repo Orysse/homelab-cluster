@@ -10,5 +10,5 @@ configMapGenerator:
       - nginx.conf
     options:
       annotations:
-        # Contenu livré tel quel : Flux ne doit pas y chercher de ${variables}.
+        # Texte libre : Flux n'y substitue pas de ${variables}.
         kustomize.toolkit.fluxcd.io/substitute: disabled

@@ -1,12 +1,10 @@
-# Certificat wildcard du domaine, servi par défaut par Traefik pour toutes les apps :
-# une app n'a rien à déclarer pour être en HTTPS.
-# issuerRef : letsencrypt (prod). Validé d'abord avec letsencrypt-staging le 2026-10-08.
+# Certificat par défaut de Traefik : les apps n'ont rien à déclarer pour être en HTTPS.
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard
-  namespace: kube-system        # namespace de Traefik
+  namespace: kube-system        # même namespace que Traefik et le TLSStore
 spec:
   secretName: wildcard-tls
   dnsNames:
@@ -19,7 +17,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: TLSStore
 metadata:
-  name: default                 # le store "default" = certificat par défaut de Traefik
+  name: default                 # nom réservé : store par défaut de Traefik
   namespace: kube-system
 spec:
   defaultCertificate:

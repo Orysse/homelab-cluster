@@ -1,4 +1,3 @@
-# Une ligne par app. Ajouter une app = un dossier apps/<app>/ + une ligne ici.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

@@ -3,10 +3,8 @@ kind: Kustomization
 resources:
   - metallb-pool.yaml
   - traefik.yaml
-  # HTTPS : token Cloudflare (sops) -> émetteurs Let's Encrypt -> certificat wildcard
   - cloudflare-api-token.sops.yaml
   - cluster-issuers.yaml
   - certificate.yaml
-  # Observabilité : clé API (sops) -> agent Datadog (operator)
   - datadog-secret.sops.yaml
   - datadog-agent.yaml

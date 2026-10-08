@@ -1,5 +1,3 @@
-# Datadog Operator : gère l'agent Datadog (DaemonSet sur chaque nœud + Cluster Agent)
-# à partir d'une seule ressource DatadogAgent (infrastructure/configs/datadog-agent.yaml).
 ---
 apiVersion: v1
 kind: Namespace

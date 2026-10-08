@@ -1,5 +1,3 @@
-# cert-manager : émet et renouvelle les certificats TLS (Let's Encrypt).
-# Les émetteurs (ClusterIssuer) sont dans infrastructure/configs.
 ---
 apiVersion: v1
 kind: Namespace
@@ -32,7 +30,6 @@ spec:
   values:
     crds:
       enabled: true
-    # Résolution DNS-01 via des serveurs publics, pas via le DNS du LAN (box),
-    # pour vérifier ce que Let's Encrypt verra réellement.
+    # Vérifier la propagation DNS-01 comme Let's Encrypt la verra, pas via le DNS de la box.
     dns01RecursiveNameserversOnly: true
     dns01RecursiveNameservers: "1.1.1.1:53,9.9.9.9:53"

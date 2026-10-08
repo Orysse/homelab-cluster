@@ -64,8 +64,8 @@ sops --encrypt --in-place apps/<app>/<nom>.sops.yaml   # chiffre data/stringData
 sops apps/<app>/<nom>.sops.yaml                        # éditer (déchiffre/rechiffre)
 ```
 
-Destinataires (`.sops.yaml`) : la clé perso de l'admin (`~/.config/sops/age/keys.txt`,
-sauvegardée dans Bitwarden) et `kube-1`, dont la clé SSH d'hôte convertie en age est posée
+Destinataires (`.sops.yaml`) : l'admin — sa clé age logicielle (`~/.config/sops/age/keys.txt`,
+elle-même chiffrée pour sa YubiKey dans nix-secrets) et sa YubiKey — et `kube-1`, dont la clé SSH d'hôte convertie en age est posée
 par le socle dans `flux-system/sops-age`. Flux déchiffre `infra-configs` et `apps`.
 Si kube-1 change d'identité : mettre à jour sa clé dans `.sops.yaml`, puis
 `sops updatekeys <fichier>` sur chaque secret.

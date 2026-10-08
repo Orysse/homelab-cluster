@@ -1,0 +1,172 @@
+# Alerts, as code. Created in Datadog by the operator's DatadogMonitor controller
+# (datadog-operator.yaml: datadogMonitor.enabled, needs the app-key in datadog-secret).
+# No notification handle here: every monitor is tagged team:homelab and a Datadog
+# Notification Rule routes that tag to email / mobile app. Runbook: docs/cheatsheet.md.
+#
+# Only alert on what needs action. Certificates: Gatus already fails abe.lc when the
+# certificate has less than 14 days left (apps/gatus/config.yaml).
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: nuc1-down
+  namespace: datadog
+spec:
+  name: "[homelab] nuc1 is not reporting"
+  type: query alert
+  query: "avg(last_5m):avg:datadog.agent.running{host:nuc1} < 1"
+  message: |
+    The NUC's agent stopped reporting: host down, network down, or agent stopped.
+    Nothing else can alert in that case. Check power / Livebox, then `ssh root@192.168.1.200`.
+  tags: [team:homelab, env:homelab, layer:host]
+  options:
+    thresholds: { critical: "1" }
+    notifyNoData: true
+    noDataTimeframe: 10
+    renotifyInterval: 120
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: nuc1-unit-inactive
+  namespace: datadog
+spec:
+  name: "[homelab] nuc1 unit {{unit.name}} is not active"
+  type: query alert
+  query: "max(last_5m):min:systemd.unit.active{host:nuc1} by {unit} < 1"
+  message: |
+    {{unit.name}} is not active on nuc1 (a VM, its virtiofs daemon, sshd, networkd or the
+    DDNS timer). `systemctl status {{unit.name}}`, `journalctl -u {{unit.name}} -n 50`.
+  tags: [team:homelab, env:homelab, layer:host]
+  options:
+    thresholds: { critical: "1" }
+    renotifyInterval: 120
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: node-memory
+  namespace: datadog
+spec:
+  name: "[homelab] {{host.name}} is running out of memory"
+  type: query alert
+  query: "avg(last_15m):min:system.mem.pct_usable{env:homelab} by {host} < 0.1"
+  message: |
+    Less than 10% usable memory on {{host.name}} for 15 minutes. VMs have a fixed RAM size
+    (topology.nix); check `kubectl top pods -A --sort-by=memory`.
+  tags: [team:homelab, env:homelab, layer:host]
+  options:
+    thresholds: { critical: "0.1", warning: "0.15" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: nuc1-disk
+  namespace: datadog
+spec:
+  name: "[homelab] nuc1 disk {{device.name}} is filling up"
+  type: query alert
+  query: "avg(last_30m):max:system.disk.in_use{host:nuc1} by {device} > 0.85"
+  message: |
+    {{device.name}} on nuc1 is {{value}} full. Usual suspects: old generations
+    (`nix-collect-garbage -d`), journals, VM data volumes under /var/lib/microvms.
+  tags: [team:homelab, env:homelab, layer:host]
+  options:
+    thresholds: { critical: "0.85", warning: "0.75" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: k8s-node-not-ready
+  namespace: datadog
+spec:
+  name: "[homelab] Kubernetes node {{node.name}} is not ready"
+  type: query alert
+  query: "max(last_10m):min:kubernetes_state.node.by_condition{cluster:homelab,condition:ready,status:true} by {node} < 1"
+  message: |
+    {{node.name}} is NotReady for 10 minutes. Is its VM running (nuc1 unit monitor)?
+    `kubectl describe node {{node.name}}`.
+  tags: [team:homelab, env:homelab, layer:cluster]
+  options:
+    thresholds: { critical: "1" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: k8s-crashloop
+  namespace: datadog
+spec:
+  name: "[homelab] {{kube_namespace.name}}/{{kube_container_name.name}} is crash-looping"
+  type: query alert
+  query: "max(last_10m):max:kubernetes_state.container.status_report.count.waiting{cluster:homelab,reason:crashloopbackoff} by {kube_namespace,kube_container_name} >= 1"
+  message: |
+    Container {{kube_container_name.name}} in {{kube_namespace.name}} keeps restarting.
+    `kubectl -n {{kube_namespace.name}} logs <pod> --previous`.
+  tags: [team:homelab, env:homelab, layer:cluster]
+  options:
+    thresholds: { critical: "1" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: k8s-deployment-unavailable
+  namespace: datadog
+spec:
+  name: "[homelab] {{kube_namespace.name}}/{{kube_deployment.name}} has unavailable replicas"
+  type: query alert
+  query: "max(last_15m):max:kubernetes_state.deployment.replicas_unavailable{cluster:homelab} by {kube_namespace,kube_deployment} > 0"
+  message: |
+    {{kube_deployment.name}} has been missing replicas for 15 minutes (image pull, probe,
+    scheduling). `kubectl -n {{kube_namespace.name}} describe deploy {{kube_deployment.name}}`.
+  tags: [team:homelab, env:homelab, layer:cluster]
+  options:
+    thresholds: { critical: "0" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: k8s-oom-kill
+  namespace: datadog
+spec:
+  name: "[homelab] OOM kill in {{kube_namespace.name}}/{{kube_container_name.name}}"
+  type: query alert
+  query: "sum(last_10m):sum:oom_kill.oom_process.count{cluster:homelab} by {kube_namespace,kube_container_name}.as_count() > 0"
+  message: |
+    A process was OOM-killed in {{kube_container_name.name}}: its memory limit is too low,
+    or it leaks. Compare usage with `resources.limits.memory` in its manifest.
+  tags: [team:homelab, env:homelab, layer:cluster]
+  options:
+    thresholds: { critical: "0" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: flux-not-ready
+  namespace: datadog
+spec:
+  name: "[homelab] Flux {{flux_kind.name}} {{flux_name.name}} is not ready"
+  type: query alert
+  query: "max(last_15m):sum:kubernetes_state_customresource.flux_resource_info{ready:false} by {flux_kind,flux_name} >= 1"
+  message: |
+    Git is not being applied: {{flux_kind.name}} {{flux_name.name}} has been NotReady for
+    15 minutes (reason in the `reason` tag). `flux get all -A`, `flux events -A --types=Warning`.
+    Usual causes: docs/cheatsheet.md, "When something is not deployed".
+  tags: [team:homelab, env:homelab, layer:gitops]
+  options:
+    thresholds: { critical: "1" }
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: status-endpoint-failing
+  namespace: datadog
+spec:
+  name: "[homelab] {{name.name}} is failing its status check"
+  type: query alert
+  query: "max(last_5m):min:gatus.gatus_results_endpoint_success{env:homelab} by {name} < 1"
+  message: |
+    Gatus (status.${DOMAIN}) sees {{name.name}} failing for 5 minutes: wrong status, slow
+    response, DNS, or certificate expiring in under 14 days. Details on the status page.
+  tags: [team:homelab, env:homelab, layer:apps]
+  options:
+    thresholds: { critical: "1" }

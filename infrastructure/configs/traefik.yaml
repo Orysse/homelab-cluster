@@ -1,6 +1,9 @@
 # Traefik is installed by k3s: only its values are overridden here.
-# Routing: Gateway API. GatewayClass and Gateway are declared in gateway.yaml, so the
+# Routing: Gateway API. GatewayClass and Gateways are declared in gateway.yaml, so the
 # chart must not create its own (it would conflict with ours on the class name).
+# Two LoadBalancer IPs: the default Service (${INGRESS_ADDRESS}, port-forwarded by the
+# router) exposes web/websecure; the "internal" Service (${INTERNAL_ADDRESS}, LAN and VPN
+# only) exposes the internal entry point and nothing else.
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -19,6 +22,12 @@ spec:
     service:
       annotations:
         metallb.io/loadBalancerIPs: ${INGRESS_ADDRESS}
+      additionalServices:
+        internal:
+          spec:
+            type: LoadBalancer
+          annotations:
+            metallb.io/loadBalancerIPs: ${INTERNAL_ADDRESS}
     ports:
       web:
         http:
@@ -31,3 +40,21 @@ spec:
         http:
           middlewares:
             - kube-system-security-headers@kubernetescrd
+      internal:
+        port: 9443
+        exposedPort: 443
+        protocol: TCP
+        expose:
+          default: false
+          internal: true
+        http:
+          tls:
+            enabled: true
+          middlewares:
+            - kube-system-security-headers@kubernetescrd
+    # Dashboard (read-only), on the internal entry point only.
+    ingressRoute:
+      dashboard:
+        enabled: true
+        matchRule: Host(`traefik.int.${DOMAIN}`)
+        entryPoints: ["internal"]

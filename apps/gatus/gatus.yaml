@@ -1,0 +1,96 @@
+# Status page at status.${DOMAIN}. Endpoints to check: config.yaml.
+# Single replica: results live in memory, two pods would show two different histories.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gatus
+  labels:
+    gateway-access: public
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatus
+  namespace: gatus
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gatus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gatus
+      annotations:
+        # Datadog scrapes Gatus' Prometheus metrics (gatus.* in Datadog).
+        ad.datadoghq.com/gatus.checks: |
+          {"openmetrics": {"instances": [{
+            "openmetrics_endpoint": "http://%%host%%:8080/metrics",
+            "namespace": "gatus",
+            "metrics": ["gatus_.*"]
+          }]}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gatus
+          image: twinproduction/gatus:v5.37.0
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+      volumes:
+        - name: config
+          configMap:
+            name: gatus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatus
+  namespace: gatus
+spec:
+  selector:
+    app.kubernetes.io/name: gatus
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gatus
+  namespace: gatus
+spec:
+  parentRefs:
+    - name: public
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - status.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: gatus
+          port: 80

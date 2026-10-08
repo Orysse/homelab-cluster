@@ -1,6 +1,9 @@
-# Shared HTTPS entry point (Gateway API). Apps attach HTTPRoutes from namespaces labelled
-# gateway-access=public. TLS: the wildcard certificate; HTTP->HTTPS redirect and security
-# headers are applied by Traefik's entry points (traefik.yaml).
+# Gateway API entry points. An app attaches an HTTPRoute to one of them and labels its
+# namespace accordingly:
+#   public   (gateway-access=public)    any host, Internet-facing (${INGRESS_ADDRESS})
+#   internal (gateway-access=internal)  *.int.${DOMAIN}, LAN and VPN only (${INTERNAL_ADDRESS})
+# TLS: the wildcard certificate. HTTP->HTTPS redirect and security headers are applied by
+# Traefik's entry points (traefik.yaml).
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -30,3 +33,26 @@ spec:
           selector:
             matchLabels:
               gateway-access: public
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: internal
+  namespace: kube-system
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 9443                  # must match Traefik's internal entry point
+      hostname: "*.int.${DOMAIN}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              gateway-access: internal

@@ -1,0 +1,53 @@
+# Gatus configuration: https://github.com/TwiN/gatus#configuration
+# Flux substitutes ${DOMAIN}; [STATUS] etc. are Gatus placeholders.
+# Results are kept in memory: history resets when the pod restarts.
+metrics: true
+storage:
+  type: memory
+ui:
+  title: ${DOMAIN} status
+  header: ${DOMAIN}
+
+endpoints:
+  - name: ${DOMAIN}
+    group: public
+    url: https://${DOMAIN}
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 336h"   # cert-manager renews 30 days before expiry
+
+  - name: vitrine.${DOMAIN}
+    group: public
+    url: https://vitrine.${DOMAIN}
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: HTTP to HTTPS redirect
+    group: public
+    url: http://${DOMAIN}
+    interval: 5m
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[STATUS] == 301"
+
+  - name: DNS
+    group: public
+    url: 1.1.1.1
+    interval: 5m
+    dns:
+      query-name: ${DOMAIN}
+      query-type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+
+  - name: Traefik dashboard
+    group: internal (VPN only)
+    url: https://traefik.int.${DOMAIN}/dashboard/
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"

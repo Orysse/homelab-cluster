@@ -19,7 +19,9 @@ infrastructure/
                            security headers, Let's Encrypt issuers, wildcard certificate, Datadog agent
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
-└─ site/                   plain-text page (index.txt) at the domain apex
+├─ site/                   plain-text page (index.txt) at the domain apex
+├─ vitrine/                showcase site (image built in its own repository)
+└─ gatus/                  status page at status.${DOMAIN}
 ```
 
 Each level waits for the previous one to be ready (`dependsOn`).
@@ -34,6 +36,7 @@ The network is defined **once**, in the base's Nix topology, which publishes the
 |---|---|---|
 | `${DOMAIN}` | `abe.lc` | HTTPRoute hostnames, certificate |
 | `${INGRESS_ADDRESS}` | `192.168.1.240` | Traefik's LoadBalancer IP |
+| `${INTERNAL_ADDRESS}` | `192.168.1.241` | Traefik's internal IP (LAN/VPN only) |
 | `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IPs MetalLB may assign |
 | `${CLUSTER_NAME}` | `homelab` | Datadog cluster name and tag |
 | `${DD_SITE}` | `us5.datadoghq.com` | Datadog site |
@@ -49,6 +52,16 @@ annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 2. `apps/<app>/kustomization.yaml` listing that file.
 3. One line in `apps/kustomization.yaml`.
 4. `git push`.
+
+Two Gateways, in `infrastructure/configs/gateway.yaml`:
+
+| Gateway | Namespace label | Hostnames | Reachable from |
+|---|---|---|---|
+| `public` | `gateway-access: public` | any | Internet (`.240`, port-forwarded) |
+| `internal` | `gateway-access: internal` | `*.int.${DOMAIN}` | LAN and VPN (`.241`) |
+
+Anything with an admin interface goes on `internal`. The Traefik dashboard is at
+`traefik.int.${DOMAIN}`.
 
 HTTPS is automatic: the `public` Gateway (Gateway API, served by Traefik) terminates TLS
 with the `*.abe.lc` wildcard certificate; Traefik redirects

@@ -34,10 +34,15 @@ spec:
     service:
       annotations:
         metallb.io/loadBalancerIPs: ${INGRESS_ADDRESS}
+      # Local: keeps the client's real IP (no SNAT by kube-proxy). MetalLB then announces the
+      # IP from the node running Traefik.
+      spec:
+        externalTrafficPolicy: Local
       additionalServices:
         internal:
           spec:
             type: LoadBalancer
+            externalTrafficPolicy: Local
           annotations:
             metallb.io/loadBalancerIPs: ${INTERNAL_ADDRESS}
     ports:

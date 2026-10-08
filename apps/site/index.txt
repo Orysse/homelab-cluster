@@ -1,65 +1,67 @@
 
-        __              ___
-       /\ \            /\_ \
-   __  \ \ \____     __\//\ \     ___
- /'__`\ \ \ '__`\  /'__`\\ \ \   /'___\
-/\ \L\.\_\ \ \L\ \/\  __/ \_\ \_/\ \__/
-\ \__/.\_\\ \_,__/\ \____\/\____\ \____\
- \/__/\/_/ \/___/  \/____/\/____/\/____/
+       _            _
+  __ _| |__   ___  | | ___
+ / _` | '_ \ / _ \ | |/ __|
+| (_| | |_) |  __/_| | (__
+ \__,_|_.__/ \___(_)_|\___|
 
 
-  hi. you found a plain text website. in this economy.
+ABE.LC
+======
 
-  the story: i wanted to try microvm.nix.
-  so, naturally, i wiped a perfectly good mini PC, bought a domain,
-  and built an entire kubernetes cluster to serve you this .txt file.
-
-  totally proportionate. no regrets. some regrets.
+A personal homelab built around microvm.nix.
 
 
-  wait, what's microvm.nix?
-  -------------------------
+GOAL
+----
 
-  tiny virtual machines, described in a few lines of Nix.
-  no disk image to babysit: the config IS the machine.
-  delete one, rebuild it, it comes back exactly the same.
-  like a phoenix. a very nerdy phoenix.
-
-          .--.
-         |o_o |     <- me, explaining this at a party
-         |:_/ |        (the party ended)
-        //   \ \
-       (|     | )
-      /'\_   _/`\
-      \___)=(___/
+This project explores microvm.nix as a lightweight, fully declarative
+alternative to a conventional hypervisor for running a small Kubernetes
+cluster at home. Every machine, from the physical host to the virtual
+nodes, is defined in a Nix flake and can be rebuilt from source.
 
 
-  the whole thing, very roughly
-  -----------------------------
+WHY MICROVM.NIX
+---------------
 
-     you --> the internet --> a router --> one little PC
-                                                |
-                         +----------------------+---------------------+
-                         |                      |                     |
-                      [ vm ]                 [ vm ]                [ vm ]
-                         |                      |                     |
-                         +-------- kubernetes, doing its thing -------+
-                                                |
-                                       this very .txt file
+Traditional virtualization stacks treat a virtual machine as a disk image
+that must be installed, maintained, backed up and migrated. microvm.nix
+takes a different approach: a virtual machine is a NixOS configuration,
+built and started by the host like any other system service.
+
+This fits the aim of the project: no hand-maintained state, and
+infrastructure that can be reviewed, versioned and reproduced exactly.
 
 
-  fun facts
-  ---------
+WHAT IT DOES
+------------
 
-  * 3 VMs, 1 PC, 0 clicks: it's all code.
-  * the VMs live in RAM. they forget everything when they reboot.
-    honestly, relatable.
-  * this page has better uptime than my sleep schedule.
-  * a random pod just served you this. you can even ask which one:
+microvm.nix builds lightweight NixOS virtual machines from a Nix
+configuration and runs them under a minimal hypervisor (QEMU, Firecracker,
+cloud-hypervisor, among others). The host's Nix store is shared with the
+guests, so no root disk image is required, and the root filesystem can be
+kept in memory. Each virtual machine runs as a systemd service on the host
+and is declared alongside the host configuration.
 
-        curl -sI https://abe.lc | grep -i x-served-by
 
+PROS AND CONS
+-------------
 
-  no cookies. no javascript. no tracking. just vibes.
-
-                                                        -- abel
++--------------------------------------+--------------------------------------+
+| Pros                                 | Cons                                 |
++--------------------------------------+--------------------------------------+
+| Fully declarative: the configuration | Requires familiarity with Nix and    |
+| is the machine                       | NixOS                                |
++--------------------------------------+--------------------------------------+
+| Reproducible: rebuilds are identical | Smaller ecosystem and community than |
+|                                      | established hypervisors              |
++--------------------------------------+--------------------------------------+
+| No disk images to maintain or back   | No management interface; all changes |
+| up                                   | go through code                      |
++--------------------------------------+--------------------------------------+
+| Fast boot and low overhead           | Persistent data must be planned      |
+|                                      | explicitly (volumes, shares)         |
++--------------------------------------+--------------------------------------+
+| Versioned, reviewable infrastructure | Guests are tied to NixOS and to the  |
+| with rollback                        | host's Nix store                     |
++--------------------------------------+--------------------------------------+

@@ -12,6 +12,18 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |
+    # JSON logs; the pod annotation tags them source:traefik so Datadog's Traefik log
+    # pipeline parses them (status, duration, router, client). Request headers are
+    # dropped by default.
+    logs:
+      general:
+        format: json
+      access:
+        enabled: true
+        format: json
+    deployment:
+      podAnnotations:
+        ad.datadoghq.com/traefik.logs: '[{"source":"traefik","service":"traefik"}]'
     providers:
       kubernetesGateway:
         enabled: true

@@ -1,0 +1,97 @@
+# vitrine.abe.lc, for homelab-cluster: copy this directory to apps/vitrine/ and add
+# "- vitrine" to apps/kustomization.yaml. abe.lc itself stays on apps/site.
+# The image is built by this repository's CI and pushed to ghcr.io/orysse/vitrine;
+# Renovate bumps the tag (a plain increasing number, the CI run number).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vitrine
+  labels:
+    gateway-access: public
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vitrine
+  namespace: vitrine
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vitrine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vitrine
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: ghcr.io/orysse/vitrine:1
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: vitrine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vitrine
+  namespace: vitrine
+spec:
+  selector:
+    app.kubernetes.io/name: vitrine
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: vitrine
+  namespace: vitrine
+spec:
+  parentRefs:
+    - name: public
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - vitrine.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: vitrine
+          port: 80

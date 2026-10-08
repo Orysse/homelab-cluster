@@ -45,6 +45,7 @@ spec:
               each:
                 type: Info
                 info:
+                  path: []            # object root: label paths below are absolute
                   labelsFromPath:
                     flux_kind: [kind]
                     flux_name: [metadata, name]
@@ -62,6 +63,7 @@ spec:
               each:
                 type: Info
                 info:
+                  path: []            # object root: label paths below are absolute
                   labelsFromPath:
                     flux_kind: [kind]
                     flux_name: [metadata, name]
@@ -79,6 +81,7 @@ spec:
               each:
                 type: Info
                 info:
+                  path: []            # object root: label paths below are absolute
                   labelsFromPath:
                     flux_kind: [kind]
                     flux_name: [metadata, name]

@@ -38,3 +38,18 @@ spec:
     prometheusScrape:              # annotations prometheus.io/* (Traefik, MetalLB…)
       enabled: true
       enableServiceEndpoints: true
+  override:
+    nodeAgent:
+      extraConfd:
+        configDataMap:
+          # Flux controllers' Prometheus metrics -> Datadog Flux integration (fluxcd.*,
+          # out-of-the-box "Flux" dashboard). Matched by image name, scraped on each node.
+          fluxcd.yaml: |-
+            ad_identifiers:
+              - source-controller
+              - kustomize-controller
+              - helm-controller
+              - notification-controller
+            init_config:
+            instances:
+              - openmetrics_endpoint: http://%%host%%:8080/metrics

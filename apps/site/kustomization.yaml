@@ -12,3 +12,21 @@ configMapGenerator:
       annotations:
         # Free text: Flux must not substitute ${variables} in it.
         kustomize.toolkit.fluxcd.io/substitute: disabled
+# Datadog unified service tagging: env/service set here, version = the image tag.
+labels:
+  - pairs:
+      tags.datadoghq.com/env: homelab
+      tags.datadoghq.com/service: site
+    includeTemplates: true
+replacements:
+  - source:
+      kind: Deployment
+      name: site
+      fieldPath: spec.template.spec.containers.[name=nginx].image
+      options: { delimiter: ":", index: 1 }
+    targets:
+      - select: { kind: Deployment, name: site }
+        fieldPaths:
+          - metadata.labels.[tags.datadoghq.com/version]
+          - spec.template.metadata.labels.[tags.datadoghq.com/version]
+        options: { create: true }

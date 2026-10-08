@@ -49,7 +49,9 @@ annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 1. `apps/<app>/<app>.yaml`: Namespace (label `gateway-access: public`), Deployment, Service,
    HTTPRoute attached to `kube-system/public` (start from `site/`). Pinned image tag,
    `resources` always set, hostname `<subdomain>.${DOMAIN}`.
-2. `apps/<app>/kustomization.yaml` listing that file.
+2. `apps/<app>/kustomization.yaml` listing that file, plus the Datadog unified service
+   tagging block (`labels` + `replacements`, copy it from `vitrine/`: env, service, and
+   version taken from the image tag).
 3. One line in `apps/kustomization.yaml`.
 4. `git push`.
 

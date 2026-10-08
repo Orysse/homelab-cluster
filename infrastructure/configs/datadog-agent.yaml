@@ -15,6 +15,7 @@ spec:
         keyName: api-key
     tags:
       - cluster:${CLUSTER_NAME}
+      - env:homelab
     # k3s: embedded containerd, self-signed kubelet certificate.
     criSocketPath: /run/k3s/containerd/containerd.sock
     kubelet:

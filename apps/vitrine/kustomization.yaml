@@ -2,3 +2,21 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - vitrine.yaml
+# Datadog unified service tagging: env/service set here, version = the image tag.
+labels:
+  - pairs:
+      tags.datadoghq.com/env: homelab
+      tags.datadoghq.com/service: vitrine
+    includeTemplates: true
+replacements:
+  - source:
+      kind: Deployment
+      name: vitrine
+      fieldPath: spec.template.spec.containers.[name=nginx].image
+      options: { delimiter: ":", index: 1 }
+    targets:
+      - select: { kind: Deployment, name: vitrine }
+        fieldPaths:
+          - metadata.labels.[tags.datadoghq.com/version]
+          - spec.template.metadata.labels.[tags.datadoghq.com/version]
+        options: { create: true }

@@ -94,6 +94,8 @@ spec:
       collectKubernetesEvents: true
     clusterChecks:
       enabled: true
+    oomKill:                       # OOM-killed processes, per container (system-probe, eBPF)
+      enabled: true
     # Traces: APM, plus the OTLP receiver for OpenTelemetry senders (Traefik). Reached
     # through the node-local Service datadog-agent.datadog (internalTrafficPolicy: Local).
     apm:

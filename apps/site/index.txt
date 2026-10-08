@@ -8,31 +8,58 @@
  \/__/\/_/ \/___/  \/____/\/____/\/____/
 
 
-  homelab-nix -- one NUC, three microVMs, one k3s cluster, zero clicks.
+  hi. you found a plain text website. in this economy.
 
-  This page is a plain .txt file in a Nix flake, served by nginx in k3s,
-  in a microVM, on a NUC sitting next to a home router.
+  the story: i wanted to try microvm.nix.
+  so, naturally, i wiped a perfectly good mini PC, bought a domain,
+  and built an entire kubernetes cluster to serve you this .txt file.
 
-
-      internet
-         :
-         v
-   [ home router ] ---------> 192.168.1.240   (MetalLB, L2)
-                                    |
-                               [ traefik ]
-                                    |
-          +-------------------------+-------------------------+
-          |                         |                         |
-     [ kube-1 ]                [ kube-2 ]                [ kube-3 ]
-   control-plane                 agent                     agent
-          |                         |                         |
-          +------------ microvm.nix on nuc1 (NixOS) ----------+
+  totally proportionate. no regrets. some regrets.
 
 
-  Everything above is declared in Nix: the host, the VMs, the cluster,
-  and this text. Rebuild, and it all comes back exactly the same.
+  wait, what's microvm.nix?
+  -------------------------
 
-  Which pod answered you?
+  tiny virtual machines, described in a few lines of Nix.
+  no disk image to babysit: the config IS the machine.
+  delete one, rebuild it, it comes back exactly the same.
+  like a phoenix. a very nerdy phoenix.
 
-      curl -sI <this site> | grep -i x-served-by
+          .--.
+         |o_o |     <- me, explaining this at a party
+         |:_/ |        (the party ended)
+        //   \ \
+       (|     | )
+      /'\_   _/`\
+      \___)=(___/
 
+
+  the whole thing, very roughly
+  -----------------------------
+
+     you --> the internet --> a router --> one little PC
+                                                |
+                         +----------------------+---------------------+
+                         |                      |                     |
+                      [ vm ]                 [ vm ]                [ vm ]
+                         |                      |                     |
+                         +-------- kubernetes, doing its thing -------+
+                                                |
+                                       this very .txt file
+
+
+  fun facts
+  ---------
+
+  * 3 VMs, 1 PC, 0 clicks: it's all code.
+  * the VMs live in RAM. they forget everything when they reboot.
+    honestly, relatable.
+  * this page has better uptime than my sleep schedule.
+  * a random pod just served you this. you can even ask which one:
+
+        curl -sI https://abe.lc | grep -i x-served-by
+
+
+  no cookies. no javascript. no tracking. just vibes.
+
+                                                        -- abel

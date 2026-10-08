@@ -1,6 +1,6 @@
 # Certificat wildcard du domaine, servi par défaut par Traefik pour toutes les apps :
 # une app n'a rien à déclarer pour être en HTTPS.
-# issuerRef : letsencrypt-staging pour tester, letsencrypt (prod) une fois validé.
+# issuerRef : letsencrypt (prod). Validé d'abord avec letsencrypt-staging le 2026-10-08.
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -14,7 +14,7 @@ spec:
     - "*.${DOMAIN}"
   issuerRef:
     kind: ClusterIssuer
-    name: letsencrypt-staging
+    name: letsencrypt
 ---
 apiVersion: traefik.io/v1alpha1
 kind: TLSStore

@@ -1,5 +1,7 @@
 # Traefik est fourni par k3s ; on surcharge seulement ses values :
-# son Service LoadBalancer prend l'IP d'entrée fixe du cluster.
+# - son Service LoadBalancer prend l'IP d'entrée fixe du cluster (cible du PAT de la box) ;
+# - tout ce qui arrive en HTTP (80) est redirigé en HTTPS (443), servi avec le certificat
+#   wildcard par défaut (certificate.yaml).
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -11,3 +13,11 @@ spec:
     service:
       annotations:
         metallb.io/loadBalancerIPs: ${INGRESS_ADDRESS}
+    ports:
+      web:
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+              permanent: true

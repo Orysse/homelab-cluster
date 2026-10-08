@@ -94,6 +94,16 @@ spec:
       collectKubernetesEvents: true
     clusterChecks:
       enabled: true
+    # Traces: APM, plus the OTLP receiver for OpenTelemetry senders (Traefik). Reached
+    # through the node-local Service datadog-agent.datadog (internalTrafficPolicy: Local).
+    apm:
+      enabled: true
+    otlp:
+      receiver:
+        protocols:
+          grpc:
+            enabled: true
+            endpoint: 0.0.0.0:4317
     # No generic prometheus.io/* scraping: every series it sends is a billed custom metric,
     # and it duplicated the Flux and cert-manager integrations. Official integrations below.
   override:

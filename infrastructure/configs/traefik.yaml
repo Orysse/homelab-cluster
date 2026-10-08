@@ -21,6 +21,17 @@ spec:
       access:
         enabled: true
         format: json
+    # One trace per request, sent over OTLP to the Datadog agent on the same node.
+    tracing:
+      serviceName: traefik
+      resourceAttributes:
+        deployment.environment: homelab     # -> env:homelab in Datadog
+      otlp:
+        enabled: true
+        grpc:
+          enabled: true
+          endpoint: datadog-agent.datadog.svc.cluster.local:4317
+          insecure: true
     deployment:
       podAnnotations:
         ad.datadoghq.com/traefik.logs: '[{"source":"traefik","service":"traefik"}]'

@@ -36,13 +36,28 @@ spec:
       collectKubernetesEvents: true
     clusterChecks:
       enabled: true
-    prometheusScrape:              # annotations prometheus.io/* (Traefik, MetalLB…)
-      enabled: true
-      enableServiceEndpoints: true
+    # No generic prometheus.io/* scraping: every series it sends is a billed custom metric,
+    # and it duplicated the Flux and cert-manager integrations. Official integrations below.
   override:
     nodeAgent:
       extraConfd:
         configDataMap:
+          # Official integrations whose auto-config does not match k3s's rancher/mirrored-*
+          # images (autodiscovery matches on the short image name).
+          coredns.yaml: |-
+            ad_identifiers:
+              - mirrored-coredns-coredns
+            init_config:
+            instances:
+              - openmetrics_endpoint: http://%%host%%:9153/metrics
+          # Traefik proxy metrics (entry points, services, TLS certs, config reloads) as
+          # traefik_mesh.*: the Traefik Mesh integration reads a plain Traefik proxy.
+          traefik_mesh.yaml: |-
+            ad_identifiers:
+              - mirrored-library-traefik
+            init_config:
+            instances:
+              - openmetrics_endpoint: http://%%host%%:9100/metrics
           # Flux controllers' Prometheus metrics -> Datadog Flux integration (fluxcd.*,
           # out-of-the-box "Flux" dashboard). Matched by image name, scraped on each node.
           fluxcd.yaml: |-

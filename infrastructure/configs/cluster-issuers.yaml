@@ -1,6 +1,6 @@
-# DNS-01 : permet le wildcard et ne dépend pas de l'exposition du cluster.
-# Tester un changement sur letsencrypt-staging (limites de quota larges) avant la prod.
-# Pas d'e-mail ACME : le repo est public.
+# DNS-01: allows the wildcard and does not depend on the cluster being exposed.
+# Try changes on letsencrypt-staging (generous rate limits) before production.
+# No ACME e-mail: the repository is public.
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer

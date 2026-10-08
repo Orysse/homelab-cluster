@@ -17,7 +17,7 @@ spec:
   decryption:
     provider: sops
     secretRef:
-      name: sops-age          # posé par le socle (homelab-nix : k3s/flux-sops.nix)
+      name: sops-age          # created by the base (homelab-nix: k3s/flux-sops.nix)
   postBuild:
     substituteFrom:
       - kind: ConfigMap

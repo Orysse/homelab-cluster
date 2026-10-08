@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - metallb-pool.yaml
   - traefik.yaml
+  - security-headers.yaml
   - cloudflare-api-token.sops.yaml
   - cluster-issuers.yaml
   - certificate.yaml

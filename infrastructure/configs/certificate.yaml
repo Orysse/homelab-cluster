@@ -1,10 +1,10 @@
-# Certificat par défaut de Traefik : les apps n'ont rien à déclarer pour être en HTTPS.
+# Traefik's default certificate: apps need nothing to be served over HTTPS.
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard
-  namespace: kube-system        # même namespace que Traefik et le TLSStore
+  namespace: kube-system        # same namespace as Traefik and the TLSStore
 spec:
   secretName: wildcard-tls
   dnsNames:
@@ -17,7 +17,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: TLSStore
 metadata:
-  name: default                 # nom réservé : store par défaut de Traefik
+  name: default                 # reserved name: Traefik's default store
   namespace: kube-system
 spec:
   defaultCertificate:

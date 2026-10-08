@@ -1,4 +1,4 @@
-# ${VARIABLES} : ConfigMap flux-system/cluster-vars, générée depuis la topologie du socle.
+# ${VARIABLES}: the flux-system/cluster-vars ConfigMap, generated from the base's topology.
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -31,7 +31,7 @@ spec:
   decryption:
     provider: sops
     secretRef:
-      name: sops-age          # posé par le socle (homelab-nix : k3s/flux-sops.nix)
+      name: sops-age          # created by the base (homelab-nix: k3s/flux-sops.nix)
   postBuild:
     substituteFrom:
       - kind: ConfigMap

@@ -1,4 +1,4 @@
-# Remplace servicelb (désactivé côté socle).
+# Replaces servicelb (disabled in the base).
 ---
 apiVersion: v1
 kind: Namespace
@@ -29,6 +29,6 @@ spec:
         kind: HelmRepository
         name: metallb
   values:
-    # L2 seulement : frr-k8s (BGP) est activé par défaut depuis 0.15.
+    # L2 only: frr-k8s (BGP) is enabled by default since 0.15.
     frrk8s:
       enabled: false

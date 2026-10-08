@@ -1,78 +1,83 @@
 # homelab-cluster
 
-Ce qui tourne **dans** le cluster k3s du homelab, appliqué par [Flux](https://fluxcd.io)
-(GitOps) : on pousse sur `main`, le cluster converge. Aucun `kubectl apply` à la main.
+What runs **inside** the homelab's k3s cluster, applied by [Flux](https://fluxcd.io)
+(GitOps): push to `main`, and the cluster converges. No manual `kubectl apply`.
 
-Les machines (NUC, microVMs, k3s, installation de Flux) sont dans le repo du socle,
-`homelab-nix`, en Nix.
+The machines (NUC, microVMs, k3s, Flux installation) live in the base repository,
+`homelab-nix`, written in Nix.
 
-## Arborescence = ordre d'application
+## Layout = application order
 
 ```
-clusters/homelab/          point d'entrée de Flux (le socle pointe ici)
+clusters/homelab/          Flux entry point (the base points here)
 ├─ infrastructure.yaml     infra-controllers -> infra-configs
-└─ apps.yaml               apps (après infra-configs)
+└─ apps.yaml               apps (after infra-configs)
 
 infrastructure/
-├─ controllers/            ce qui installe des CRD : MetalLB, cert-manager, Datadog Operator
-└─ configs/                ce qui les utilise : pool d'IP MetalLB, config de Traefik,
-                           [émetteurs Let's Encrypt, agent Datadog : en attente de leurs secrets]
+├─ controllers/            what installs CRDs: MetalLB, cert-manager, Datadog Operator
+└─ configs/                what uses them: MetalLB IP pool, Traefik settings and security
+                           headers, Let's Encrypt issuers, wildcard certificate, Datadog agent
 
-apps/                      une app = un dossier, listé dans apps/kustomization.yaml
-└─ site/                   page publique en texte brut (index.txt) à la racine du domaine
+apps/                      one app = one directory, listed in apps/kustomization.yaml
+└─ site/                   plain-text page (index.txt) at the domain apex
 ```
 
-Chaque niveau attend que le précédent soit prêt (`dependsOn`).
+Each level waits for the previous one to be ready (`dependsOn`).
 
-## Variables venues du socle
+## Variables from the base
 
-Le réseau est défini **une seule fois**, dans la topologie Nix du socle, qui publie la
-ConfigMap `flux-system/cluster-vars`. Flux substitue ces variables dans `infrastructure/configs`
-et `apps` :
+The network is defined **once**, in the base's Nix topology, which publishes the
+`flux-system/cluster-vars` ConfigMap. Flux substitutes these variables in
+`infrastructure/configs` and `apps`:
 
-| Variable | Exemple | Usage |
+| Variable | Value | Used for |
 |---|---|---|
-| `${DOMAIN}` | `192-168-1-240.sslip.io` (puis `abelc.eu`) | hosts des Ingress |
-| `${INGRESS_ADDRESS}` | `192.168.1.240` | IP du LoadBalancer de Traefik |
-| `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IP que MetalLB peut attribuer |
+| `${DOMAIN}` | `abe.lc` | Ingress hosts, certificate |
+| `${INGRESS_ADDRESS}` | `192.168.1.240` | Traefik's LoadBalancer IP |
+| `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IPs MetalLB may assign |
+| `${CLUSTER_NAME}` | `homelab` | Datadog cluster name and tag |
+| `${DD_SITE}` | `us5.datadoghq.com` | Datadog site |
 
-Seule la forme `${VAR}` est substituée (`$hostname` dans nginx.conf ne l'est pas). Pour
-exclure un objet : annotation `kustomize.toolkit.fluxcd.io/substitute: disabled`.
+Only the `${VAR}` form is substituted (`$hostname` in nginx.conf is not). To exclude an object:
+annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 
-## Ajouter une app
+## Adding an app
 
-1. `apps/<app>/<app>.yaml` : Namespace, Deployment, Service, Ingress (partir de `site/`).
-   Image avec tag figé, `resources` toujours renseignées, host `<sous-domaine>.${DOMAIN}`.
-2. `apps/<app>/kustomization.yaml` qui liste ce fichier.
-3. Une ligne dans `apps/kustomization.yaml`.
+1. `apps/<app>/<app>.yaml`: Namespace, Deployment, Service, Ingress (start from `site/`).
+   Pinned image tag, `resources` always set, host `<subdomain>.${DOMAIN}`.
+2. `apps/<app>/kustomization.yaml` listing that file.
+3. One line in `apps/kustomization.yaml`.
 4. `git push`.
 
-## Règles
+HTTPS is automatic: Traefik serves the `*.abe.lc` wildcard certificate by default, redirects
+HTTP to HTTPS and adds the security headers (HSTS, nosniff, frame deny, referrer policy).
 
-- Images et charts **figés** (tag / version). Jamais `:latest`.
-- **Aucun secret en clair** : le repo est public. Les secrets sont des fichiers
-  `*.sops.yaml`, chiffrés avec sops (voir ci-dessous).
-- Fichiers de config montés depuis une ConfigMap : passer par `configMapGenerator`
-  (nom suffixé d'un hash => les pods redémarrent quand le contenu change).
+## Rules
+
+- Images and charts are **pinned** (tag / version). Never `:latest`. Renovate opens pull
+  requests to update them (`renovate.json`).
+- **No plaintext secrets**: the repository is public. Secrets are `*.sops.yaml` files,
+  encrypted with sops (see below).
+- Config files mounted from a ConfigMap go through `configMapGenerator` (hash-suffixed name,
+  so pods restart when the content changes).
 
 ## Secrets (sops + age)
 
-Un Secret s'écrit en clair dans `<chemin>/<nom>.sops.yaml`, puis se chiffre sur place :
+Write a Secret in plaintext as `<path>/<name>.sops.yaml`, then encrypt it in place:
 
 ```bash
-sops --encrypt --in-place apps/<app>/<nom>.sops.yaml   # chiffre data/stringData seulement
-sops apps/<app>/<nom>.sops.yaml                        # éditer (déchiffre/rechiffre)
+sops --encrypt --in-place apps/<app>/<name>.sops.yaml   # encrypts data/stringData only
+sops apps/<app>/<name>.sops.yaml                        # edit (decrypts/re-encrypts)
 ```
 
-Destinataires (`.sops.yaml`) : l'admin — sa clé age logicielle (`~/.config/sops/age/keys.txt`,
-elle-même chiffrée pour sa YubiKey dans nix-secrets) et sa YubiKey — et `kube-1`, dont la clé SSH d'hôte convertie en age est posée
-par le socle dans `flux-system/sops-age`. Flux déchiffre `infra-configs` et `apps`.
-Si kube-1 change d'identité : mettre à jour sa clé dans `.sops.yaml`, puis
-`sops updatekeys <fichier>` sur chaque secret.
+Recipients (`.sops.yaml`): the admin — software age key (`~/.config/sops/age/keys.txt`,
+itself encrypted for the YubiKey in nix-secrets) and YubiKey — and Flux's dedicated age key,
+generated on kube-1 and published by the base as `flux-system/sops-age`. If that key changes:
+update it in `.sops.yaml`, then run `sops updatekeys <file>` on each secret.
 
-## Vérifier en local
+## Checking locally
 
 ```bash
 nix run nixpkgs#kustomize -- build apps
-nix run nixpkgs#flux -- get kustomizations -A        # avec le kubeconfig du cluster
+nix run nixpkgs#flux -- get kustomizations -A        # with the cluster's kubeconfig
 ```

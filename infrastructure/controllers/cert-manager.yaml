@@ -30,6 +30,6 @@ spec:
   values:
     crds:
       enabled: true
-    # Vérifier la propagation DNS-01 comme Let's Encrypt la verra, pas via le DNS de la box.
+    # Check DNS-01 propagation the way Let's Encrypt sees it, not through the router's DNS.
     dns01RecursiveNameserversOnly: true
     dns01RecursiveNameservers: "1.1.1.1:53,9.9.9.9:53"

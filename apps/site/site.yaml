@@ -1,4 +1,4 @@
-# site-files (configMapGenerator) est suffixée d'un hash : modifier index.txt redéploie.
+# site-files (configMapGenerator) gets a hash suffix: editing index.txt redeploys the pods.
 ---
 apiVersion: v1
 kind: Namespace

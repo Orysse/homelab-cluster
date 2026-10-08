@@ -1,4 +1,4 @@
-# Traefik est installé par k3s : on n'en surcharge que les values.
+# Traefik is installed by k3s: only its values are overridden here.
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -18,3 +18,7 @@ spec:
               to: websecure
               scheme: https
               permanent: true
+      websecure:
+        http:
+          middlewares:
+            - kube-system-security-headers@kubernetescrd

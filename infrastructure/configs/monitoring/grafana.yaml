@@ -46,7 +46,7 @@ spec:
       type: Recreate          # one pod at a time on the ReadWriteOnce volume
     resources:
       requests: { cpu: 20m, memory: 128Mi }
-      limits: { memory: 384Mi }
+      limits: { memory: 768Mi }   # first start (migrations) peaks well above steady state
     plugins:
       - victoriametrics-logs-datasource@0.32.0
     grafana.ini:

@@ -68,6 +68,14 @@ spec:
           name: headlamp-oidc
     clusterRoleBinding:
       create: false           # no rights of its own: users' tokens are used
+    securityContext:          # Pod Security "restricted"
+      runAsNonRoot: true
+      runAsUser: 100
+      runAsGroup: 101
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true   # the chart then mounts an emptyDir on /tmp
+      capabilities: { drop: ["ALL"] }
+      seccompProfile: { type: RuntimeDefault }
     resources:
       requests: { cpu: 10m, memory: 64Mi }
       limits: { memory: 256Mi }

@@ -38,9 +38,9 @@ spec:
     providers:
       kubernetesGateway:
         enabled: true
-      # Tenants are namespace admins: they must not be able to route arbitrary hostnames
-      # with an Ingress or an IngressRoute. Routing is Gateway API; Traefik CRDs
-      # (middlewares, TLS store, dashboard) only come from kube-system.
+      # Routing is Gateway API only: no Ingress objects, and Traefik CRDs (middlewares, TLS
+      # store, dashboard) only from kube-system, so a namespace admin cannot route arbitrary
+      # hostnames.
       kubernetesIngress:
         enabled: false
       kubernetesCRD:
@@ -93,5 +93,3 @@ spec:
         enabled: true
         matchRule: Host(`traefik.int.${DOMAIN}`)
         entryPoints: ["internal"]
-        middlewares:
-          - name: authelia      # admins only (auth/configuration.yml)

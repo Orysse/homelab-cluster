@@ -11,6 +11,5 @@ resources:
   - datadog-secret.sops.yaml
   - datadog-agent.yaml
   - datadog-monitors.yaml
-  - auth
   - flux-datadog.sops.yaml
   - flux-datadog.yaml

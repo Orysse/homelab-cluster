@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Show the last message Authelia "sent" (no mail server: identity verification codes,
+# needed to register a security key or TOTP, are written to a file in its pod).
+set -euo pipefail
+kubectl --context "${KUBE_CONTEXT:-homelab-nix}" -n auth exec deploy/authelia -- \
+  sh -c 'tail -n 40 /data/notifications.txt 2>/dev/null || echo "No notification yet."'

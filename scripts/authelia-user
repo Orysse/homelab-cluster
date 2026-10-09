@@ -1,0 +1,63 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p authelia sops yq-go jq
+# Add or update an Authelia user in infrastructure/configs/auth/authelia-users.sops.yaml,
+# without ever writing the users file in clear text in the repository.
+#
+#   scripts/authelia-user abel --email me@example.org            # asks for a password
+#   scripts/authelia-user lenny --hash '$argon2id$...' --email x  # hash sent by the user
+#   scripts/authelia-user lenny --disable
+#
+# Then: git commit + push; Authelia reloads the file within a minute.
+set -euo pipefail
+
+file="${AUTHELIA_USERS_FILE:-$(git rev-parse --show-toplevel)/infrastructure/configs/auth/authelia-users.sops.yaml}"
+user="${1:?usage: authelia-user <user> [--hash H] [--email E] [--name N] [--group G]... [--disable]}"
+shift
+hash="" email="" name="" disable=false groups=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --hash) hash="$2"; shift 2 ;;
+    --email) email="$2"; shift 2 ;;
+    --name) name="$2"; shift 2 ;;
+    --group) groups+=("$2"); shift 2 ;;
+    --disable) disable=true; shift ;;
+    *) echo "unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+if ! $disable && [ -z "$hash" ]; then
+  read -rsp "Password for $user: " pw; echo
+  read -rsp "Again: " pw2; echo
+  [ "$pw" = "$pw2" ] || { echo "passwords differ" >&2; exit 1; }
+  hash=$(authelia crypto hash generate argon2 --password "$pw" | sed -n 's/^Digest: //p')
+  unset pw pw2
+fi
+
+umask 077
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+sops -d --extract '["stringData"]["users.yml"]' "$file" > "$tmp/users.yml"
+cp "$tmp/users.yml" "$tmp/before.yml"
+
+export U="$user" H="$hash" E="$email" N="$name"
+yq -i '.users[strenv(U)] += {}' "$tmp/users.yml"
+[ -n "$hash" ]  && yq -i '.users[strenv(U)].password = strenv(H) | .users[strenv(U)].disabled = false' "$tmp/users.yml"
+[ -n "$email" ] && yq -i '.users[strenv(U)].email = strenv(E)' "$tmp/users.yml"
+[ -n "$name" ]  && yq -i '.users[strenv(U)].displayname = strenv(N)' "$tmp/users.yml"
+yq -i '.users[strenv(U)].displayname = (.users[strenv(U)].displayname // strenv(U))' "$tmp/users.yml"
+if [ ${#groups[@]} -gt 0 ]; then
+  G=$(printf '%s\n' "${groups[@]}" | jq -R . | jq -sc .) yq -i '.users[strenv(U)].groups = env(G)' "$tmp/users.yml"
+fi
+$disable && yq -i '.users[strenv(U)].disabled = true' "$tmp/users.yml"
+
+for field in email password; do
+  [ "$(yq ".users[strenv(U)].$field // \"\"" "$tmp/users.yml")" != "" ] \
+    || { echo "$user has no $field yet (--email, or run without --hash to set a password)" >&2; exit 1; }
+done
+
+sops set "$file" '["stringData"]["users.yml"]' "$(jq -Rs . < "$tmp/users.yml")"
+
+[ -n "$hash" ] && echo "Password hash set for $user."
+echo "Updated $user. Change (hashes hidden):"
+diff <(sed -E 's/(password: ).*/\1<hash>/' "$tmp/before.yml") \
+     <(sed -E 's/(password: ).*/\1<hash>/' "$tmp/users.yml") || true
+echo "Next: git add $file && git commit -m 'auth: update $user' && git push"

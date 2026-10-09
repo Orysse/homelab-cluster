@@ -74,7 +74,9 @@ spec:
             limits: { memory: 256Mi }     # argon2 hashing needs some headroom
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
+            # Writable: Authelia writes /app/.healthcheck.env at startup and exits on failure
+            # ("Errors occurred performing startup checks", no detail).
+            readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
           volumeMounts:

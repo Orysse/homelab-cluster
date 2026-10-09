@@ -12,29 +12,14 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |
-    # JSON logs; the pod annotation tags them source:traefik so Datadog's Traefik log
-    # pipeline parses them (status, duration, router, client). Request headers are
-    # dropped by default.
+    # JSON logs (status, duration, router, client IP), collected by Alloy into VictoriaLogs.
+    # Request headers are dropped by default.
     logs:
       general:
         format: json
       access:
         enabled: true
         format: json
-    # One trace per request, sent over OTLP to the Datadog agent on the same node.
-    tracing:
-      serviceName: traefik
-      resourceAttributes:
-        deployment.environment: homelab     # -> env:homelab in Datadog
-      otlp:
-        enabled: true
-        grpc:
-          enabled: true
-          endpoint: datadog-agent.datadog.svc.cluster.local:4317
-          insecure: true
-    deployment:
-      podAnnotations:
-        ad.datadoghq.com/traefik.logs: '[{"source":"traefik","service":"traefik"}]'
     providers:
       kubernetesGateway:
         enabled: true

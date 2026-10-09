@@ -24,15 +24,8 @@ spec:
       labels:
         app.kubernetes.io/name: gatus
       annotations:
-        prometheus.io/scrape: "true"   # Alloy (monitoring)
+        prometheus.io/scrape: "true"   # scraped by Alloy (monitoring)
         prometheus.io/port: "8080"
-        # Datadog scrapes Gatus' Prometheus metrics (gatus.* in Datadog).
-        ad.datadoghq.com/gatus.checks: |
-          {"openmetrics": {"instances": [{
-            "openmetrics_endpoint": "http://%%host%%:8080/metrics",
-            "namespace": "gatus",
-            "metrics": ["gatus_.*"]
-          }]}}
     spec:
       automountServiceAccountToken: false
       securityContext:

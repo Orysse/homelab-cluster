@@ -28,7 +28,7 @@ does not re-apply infra.
 flux check                                  # controllers and CRDs healthy
 flux get ks                                 # Kustomizations: revision, ready, message
 flux get sources git                        # last fetched commit
-flux get hr -A                              # Helm releases (MetalLB, cert-manager, Datadog)
+flux get hr -A                              # Helm releases (MetalLB, cert-manager, csi-driver-nfs, monitoring)
 flux get all -A                             # everything
 flux tree ks apps                           # what a Kustomization manages
 ```
@@ -70,7 +70,7 @@ flux diff ks apps --path ./apps                           # what would change in
 ```bash
 flux suspend ks apps        # stop reconciling (e.g. to test a manual change)
 flux resume ks apps         # re-apply git, undoing manual changes
-flux suspend hr datadog-operator -n datadog
+flux suspend hr grafana -n monitoring
 ```
 
 A suspended object shows `SUSPENDED=True` in `flux get`. Do not leave it that way.

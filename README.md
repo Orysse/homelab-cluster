@@ -14,9 +14,10 @@ clusters/homelab/          Flux entry point (the base points here)
 └─ apps.yaml               apps (after infra-configs)
 
 infrastructure/
-├─ controllers/            what installs CRDs: MetalLB, cert-manager, Datadog Operator
+├─ controllers/            what installs CRDs: MetalLB, cert-manager, csi-driver-nfs
 └─ configs/                what uses them: MetalLB IP pool, Traefik settings, Gateway,
-                           security headers, Let's Encrypt issuers, wildcard certificate, Datadog agent
+                           security headers, Let's Encrypt issuers, wildcard certificate, storage class,
+                           monitoring (Alloy, kube-state-metrics, node-exporter, Grafana)
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page (index.txt) at the domain apex
@@ -38,8 +39,9 @@ The network is defined **once**, in the base's Nix topology, which publishes the
 | `${INGRESS_ADDRESS}` | `192.168.1.240` | Traefik's LoadBalancer IP |
 | `${INTERNAL_ADDRESS}` | `192.168.1.241` | Traefik's internal IP (LAN/VPN only) |
 | `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IPs MetalLB may assign |
-| `${CLUSTER_NAME}` | `homelab` | Datadog cluster name and tag |
-| `${DD_SITE}` | `us5.datadoghq.com` | Datadog site |
+| `${CLUSTER_NAME}` | `homelab` | `cluster` label on metrics and logs |
+| `${NFS_SERVER}`, `${NFS_SHARE}` | `192.168.1.200`, `/srv/data` | StorageClass `nfs` (volumes on the storage host) |
+| `${MONITORING_ADDRESS}` | `192.168.1.200` | Where Alloy pushes metrics and logs; Grafana's data sources |
 
 Only the `${VAR}` form is substituted (`$hostname` in nginx.conf is not). To exclude an object:
 annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
@@ -49,9 +51,8 @@ annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 1. `apps/<app>/<app>.yaml`: Namespace (label `gateway-access: public`), Deployment, Service,
    HTTPRoute attached to `kube-system/public` (start from `site/`). Pinned image tag,
    `resources` always set, hostname `<subdomain>.${DOMAIN}`.
-2. `apps/<app>/kustomization.yaml` listing that file, plus the Datadog unified service
-   tagging block (`labels` + `replacements`, copy it from `vitrine/`: env, service, and
-   version taken from the image tag).
+2. `apps/<app>/kustomization.yaml` listing that file, plus the `replacements` block
+   that sets `app.kubernetes.io/version` from the image tag (copy it from `vitrine/`).
 3. One line in `apps/kustomization.yaml`.
 4. `git push`.
 

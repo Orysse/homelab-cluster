@@ -12,12 +12,7 @@ configMapGenerator:
       annotations:
         # Free text: Flux must not substitute ${variables} in it.
         kustomize.toolkit.fluxcd.io/substitute: disabled
-# Datadog unified service tagging: env/service set here, version = the image tag.
-labels:
-  - pairs:
-      tags.datadoghq.com/env: homelab
-      tags.datadoghq.com/service: site
-    includeTemplates: true
+# app.kubernetes.io/version = the image tag (follows Renovate bumps).
 replacements:
   - source:
       kind: Deployment
@@ -27,6 +22,6 @@ replacements:
     targets:
       - select: { kind: Deployment, name: site }
         fieldPaths:
-          - metadata.labels.[tags.datadoghq.com/version]
-          - spec.template.metadata.labels.[tags.datadoghq.com/version]
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
         options: { create: true }

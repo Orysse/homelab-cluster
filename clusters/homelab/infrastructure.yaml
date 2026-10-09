@@ -21,7 +21,7 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: infra-controllers   # CRD de MetalLB, cert-manager, Datadog
+    - name: infra-controllers   # CRDs: MetalLB, cert-manager, CSI driver
   interval: 10m
   sourceRef:
     kind: GitRepository

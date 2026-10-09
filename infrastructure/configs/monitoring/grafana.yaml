@@ -1,6 +1,7 @@
-# Grafana: dashboards only, nothing to keep (everything provisioned from here, no
-# volume). Data on the monitoring host; alerts are NOT evaluated here but by vmalert +
-# Alertmanager on that host, so they still fire when the cluster is down.
+# Grafana: dashboards only, everything provisioned from here. Its SQLite database is on
+# a small NFS volume (on the storage host) so restarts do not replay the migrations.
+# Metrics and logs live on the monitoring host; alerts are NOT evaluated here but by
+# vmalert + Alertmanager on that host, so they still fire when the cluster is down.
 # Admin login: grafana-admin.sops.yaml. Dashboards: grafana.com ids at pinned revisions.
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
@@ -32,7 +33,17 @@ spec:
     admin:
       existingSecret: grafana-admin
     persistence:
-      enabled: false
+      enabled: true
+      storageClassName: nfs
+      size: 1Gi
+    # First start (database migrations, plugin download) is slow on the capped CPU: up to
+    # 10 minutes before the liveness probe takes over.
+    startupProbe:
+      httpGet: { path: /api/health, port: grafana }
+      periodSeconds: 10
+      failureThreshold: 60
+    deploymentStrategy:
+      type: Recreate          # one pod at a time on the ReadWriteOnce volume
     resources:
       requests: { cpu: 20m, memory: 128Mi }
       limits: { memory: 384Mi }

@@ -1,5 +1,5 @@
 # Grafana: dashboards only, everything provisioned from here. Its database is PostgreSQL
-# "monitoring" on the database host (credentials from OpenBao, grafana-db.yaml): the pod
+# "monitoring" on the database host (credentials from OpenBao, grafana-secrets.yaml): the pod
 # keeps nothing.
 # Metrics and logs live on the monitoring host; alerts are NOT evaluated here but by
 # vmalert + Alertmanager on that host, so they still fire when the cluster is down.
@@ -35,7 +35,9 @@ spec:
       existingSecret: grafana-admin
     persistence:
       enabled: false
-    envFromSecret: grafana-db   # GF_DATABASE_* (grafana-db.yaml)
+    envFromSecrets:             # grafana-secrets.yaml (from OpenBao)
+      - name: grafana-db        # GF_DATABASE_*
+      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID / _SECRET
     # First start (database migrations, plugin download) is slow on the capped CPU: up to
     # 10 minutes before the liveness probe takes over.
     startupProbe:
@@ -59,6 +61,23 @@ spec:
         check_for_updates: false
       unified_alerting:
         enabled: false        # alerting lives in Alertmanager (monitoring host)
+      # Login through Pocket-ID; its "admins" group is Grafana Admin, everyone else Viewer.
+      auth.generic_oauth:
+        enabled: true
+        name: Pocket-ID
+        allow_sign_up: true
+        auto_login: false         # true once the local admin is gone
+        use_pkce: true
+        scopes: openid profile email groups
+        auth_url: https://auth.${DOMAIN}/authorize
+        token_url: https://auth.${DOMAIN}/api/oidc/token
+        api_url: https://auth.${DOMAIN}/api/oidc/userinfo
+        login_attribute_path: preferred_username
+        email_attribute_path: email
+        groups_attribute_path: groups
+        role_attribute_path: "contains(groups[*], 'admins') && 'GrafanaAdmin' || 'Viewer'"
+        allow_assign_grafana_admin: true
+        role_attribute_strict: false
     datasources:
       datasources.yaml:
         apiVersion: 1

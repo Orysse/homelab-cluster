@@ -7,3 +7,4 @@ resources:
   - config.yaml
   - postgres-openbao.sops.yaml
   - database.yaml
+  - oidc.yaml

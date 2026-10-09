@@ -1,0 +1,68 @@
+# Human login to OpenBao through Pocket-ID (auth.${DOMAIN}): method "OIDC", mount path
+# sso/oidc. Members of the Pocket-ID group "admins" get the admin policy (config.yaml).
+# The OIDC client (Pocket-ID "openbao") was created in Pocket-ID's UI; its id and secret
+# are in OpenBao at kv/apps/openbao/oidc and reach the operator as a Kubernetes Secret.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: openbao-oidc
+  namespace: openbao
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target: { name: openbao-oidc }
+  data:
+    - secretKey: client_id
+      remoteRef: { key: openbao/oidc, property: client_id }
+    - secretKey: client_secret
+      remoteRef: { key: openbao/oidc, property: client_secret }
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: AuthEngineMount
+metadata:
+  name: oidc
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: oidc
+  path: sso
+  config:
+    listingVisibility: unauth     # offered on the UI login page
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: JWTOIDCAuthEngineConfig
+metadata:
+  name: oidc
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: sso/oidc
+  OIDCDiscoveryURL: https://auth.${DOMAIN}
+  OIDCCredentials:
+    secret:
+      name: openbao-oidc
+    usernameKey: client_id
+    passwordKey: client_secret
+  defaultRole: admin
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: JWTOIDCAuthEngineRole
+metadata:
+  name: admin
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: sso/oidc
+  name: admin
+  roleType: oidc
+  userClaim: preferred_username
+  groupsClaim: groups
+  boundClaims:
+    groups: [admins]              # only Pocket-ID's "admins" group
+  OIDCScopes: [openid, profile, email, groups]
+  allowedRedirectURIs:
+    - https://bao.int.${DOMAIN}/ui/vault/auth/sso/oidc/oidc/callback
+    - http://localhost:8250/oidc/callback       # bao login -method=oidc -path=sso/oidc
+  tokenPolicies: [admin]
+  tokenTTL: 8h

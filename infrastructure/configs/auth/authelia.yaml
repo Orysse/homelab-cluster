@@ -1,0 +1,157 @@
+# Authelia at auth.${DOMAIN}: identity provider for the Kubernetes API (OIDC, see
+# homelab-nix modules/k3s/node.nix) and ForwardAuth for web apps (middleware below).
+# Single replica: state (registered security keys, TOTP) is a SQLite file on a PVC.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth
+  labels:
+    gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authelia-data
+  namespace: auth
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: auth
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate              # SQLite on a ReadWriteOnce volume
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authelia
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: authelia
+      annotations:
+        ad.datadoghq.com/authelia.logs: '[{"source":"authelia","service":"authelia"}]'
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false   # AUTHELIA_* service env vars would be read as config
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: authelia
+          image: ghcr.io/authelia/authelia:4.39.28
+          command: [authelia, --config, /config/configuration.yml]
+          env:
+            - { name: X_AUTHELIA_CONFIG_FILTERS, value: template }
+            - { name: AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE, value: /secrets/jwt-secret }
+            - { name: AUTHELIA_SESSION_SECRET_FILE, value: /secrets/session-secret }
+            - { name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE, value: /secrets/storage-encryption-key }
+            - { name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE, value: /secrets/oidc-hmac-secret }
+          ports:
+            - { name: http, containerPort: 9091 }
+            - { name: metrics, containerPort: 9959 }
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 256Mi }     # argon2 hashing needs some headroom
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+            - { name: users, mountPath: /users, readOnly: true }
+            - { name: secrets, mountPath: /secrets, readOnly: true }
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap:
+            name: authelia-config
+        - name: users
+          secret:
+            secretName: authelia-users
+        - name: secrets
+          secret:
+            secretName: authelia-secrets
+        - name: data
+          persistentVolumeClaim:
+            claimName: authelia-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia
+  namespace: auth
+spec:
+  selector:
+    app.kubernetes.io/name: authelia
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authelia
+  namespace: auth
+spec:
+  parentRefs:
+    - name: public
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - auth.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: authelia
+          port: 80
+---
+# Put it in front of anything with `middlewares: [{name: authelia}]` (Traefik CRD, in
+# kube-system) and add a rule in configuration.yml (access_control).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: authelia
+  namespace: kube-system
+spec:
+  forwardAuth:
+    address: http://authelia.auth.svc.cluster.local/api/authz/forward-auth
+    trustForwardHeader: true
+    authResponseHeaders: [Remote-User, Remote-Groups, Remote-Email, Remote-Name]
+---
+# Admins (Authelia group "admins") are cluster-admin through OIDC. The client-certificate
+# kubeconfig on kube-1 stays the break-glass access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:admins

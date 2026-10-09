@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - metallb-pool.yaml
   - storage.yaml
+  - monitoring
   - traefik.yaml
   - security-headers.yaml
   - gateway.yaml

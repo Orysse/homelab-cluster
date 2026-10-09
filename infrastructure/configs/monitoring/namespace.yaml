@@ -1,0 +1,30 @@
+# Collectors only: the backends (VictoriaMetrics, VictoriaLogs, Grafana) run on the
+# monitoring host, below the cluster (homelab-nix modules/host/monitoring.nix).
+# privileged: node-exporter needs the host's network, PIDs and filesystem; Alloy reads
+# /var/log/pods.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    gateway-access: internal
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://grafana.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://prometheus-community.github.io/helm-charts

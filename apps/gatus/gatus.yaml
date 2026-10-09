@@ -24,6 +24,8 @@ spec:
       labels:
         app.kubernetes.io/name: gatus
       annotations:
+        prometheus.io/scrape: "true"   # Alloy (monitoring)
+        prometheus.io/port: "8080"
         # Datadog scrapes Gatus' Prometheus metrics (gatus.* in Datadog).
         ad.datadoghq.com/gatus.checks: |
           {"openmetrics": {"instances": [{

@@ -1,0 +1,205 @@
+# Grafana Alloy, one per node: everything on its own node only (the load follows the pods).
+#   metrics: pods annotated prometheus.io/scrape (Flux, Traefik, cert-manager, Gatus,
+#            kube-state-metrics, node-exporter), CoreDNS, kubelet and cAdvisor
+#            -> VictoriaMetrics ${MONITORING_ADDRESS}:8428
+#   logs:    every container's log file -> VictoriaLogs ${MONITORING_ADDRESS}:9428
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: alloy
+      version: "1.13.1"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+  values:
+    controller:
+      type: daemonset
+    alloy:
+      mounts:
+        varlog: true
+      resources:
+        requests: { cpu: 50m, memory: 128Mi }
+        limits: { memory: 384Mi }
+      configMap:
+        content: |
+          // ---- Discovery: this node's pods and the node itself ------------------
+          discovery.kubernetes "pods" {
+            role = "pod"
+            selectors {
+              role  = "pod"
+              field = "spec.nodeName=" + sys.env("HOSTNAME")
+            }
+          }
+
+          discovery.kubernetes "node" {
+            role = "node"
+            selectors {
+              role  = "node"
+              field = "metadata.name=" + sys.env("HOSTNAME")
+            }
+          }
+
+          // ---- Metrics -----------------------------------------------------------
+          discovery.relabel "annotated" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+              regex         = "true"
+              action        = "keep"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_phase"]
+              regex         = "Running"
+              action        = "keep"
+            }
+            rule {
+              source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+              regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+              replacement   = "$1:$2"
+              target_label  = "__address__"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+              regex         = "(.+)"
+              target_label  = "__metrics_path__"
+            }
+            // job = app.kubernetes.io/name, else the "app" label
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_label_app"]
+              separator     = ";"
+              regex         = "([^;]+);.*|;(.+)"
+              replacement   = "$1$2"
+              target_label  = "job"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_node_name"]
+              target_label  = "node"
+            }
+          }
+
+          // CoreDNS only annotates its Service: scrape its pods directly.
+          discovery.relabel "coredns" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
+              regex         = "kube-dns"
+              action        = "keep"
+            }
+            rule {
+              source_labels = ["__address__"]
+              regex         = "([^:]+)(?::\\d+)?"
+              replacement   = "$1:9153"
+              target_label  = "__address__"
+            }
+            rule {
+              target_label = "job"
+              replacement  = "coredns"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+          }
+
+          prometheus.scrape "pods" {
+            targets         = array.concat(discovery.relabel.annotated.output, discovery.relabel.coredns.output)
+            scrape_interval = "30s"
+            forward_to      = [prometheus.remote_write.vm.receiver]
+          }
+
+          prometheus.scrape "kubelet" {
+            job_name          = "kubelet"
+            targets           = discovery.kubernetes.node.targets
+            scheme            = "https"
+            bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+            tls_config { insecure_skip_verify = true }   // k3s kubelet certificate is self-signed
+            scrape_interval   = "30s"
+            forward_to        = [prometheus.remote_write.vm.receiver]
+          }
+
+          prometheus.scrape "cadvisor" {
+            job_name          = "cadvisor"
+            targets           = discovery.kubernetes.node.targets
+            metrics_path      = "/metrics/cadvisor"
+            scheme            = "https"
+            bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+            tls_config { insecure_skip_verify = true }
+            scrape_interval   = "30s"
+            forward_to        = [prometheus.remote_write.vm.receiver]
+          }
+
+          prometheus.remote_write "vm" {
+            endpoint {
+              url = "http://${MONITORING_ADDRESS}:8428/api/v1/write"
+            }
+            external_labels = { cluster = "${CLUSTER_NAME}" }
+          }
+
+          // ---- Logs: container log files on this node ----------------------------
+          discovery.relabel "logs" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_name"]
+              target_label  = "container"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_label_app"]
+              separator     = ";"
+              regex         = "([^;]+);.*|;(.+)"
+              replacement   = "$1$2"
+              target_label  = "app"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+              separator     = "/"
+              replacement   = "/var/log/pods/*$1/*.log"
+              target_label  = "__path__"
+            }
+          }
+
+          local.file_match "pods" {
+            path_targets = discovery.relabel.logs.output
+          }
+
+          loki.source.file "pods" {
+            targets    = local.file_match.pods.targets
+            forward_to = [loki.process.cri.receiver]
+          }
+
+          loki.process "cri" {
+            stage.cri {}
+            stage.static_labels {
+              values = { cluster = "${CLUSTER_NAME}", node = sys.env("HOSTNAME") }
+            }
+            forward_to = [loki.write.vl.receiver]
+          }
+
+          // VictoriaLogs speaks the Loki push API.
+          loki.write "vl" {
+            endpoint {
+              url = "http://${MONITORING_ADDRESS}:9428/insert/loki/api/v1/push?_stream_fields=namespace,pod,container"
+            }
+          }

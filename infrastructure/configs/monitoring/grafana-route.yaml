@@ -1,0 +1,41 @@
+# grafana.int.${DOMAIN} (LAN/VPN) -> Grafana on the monitoring host. If the cluster is
+# down, Grafana is still there: http://${MONITORING_ADDRESS}:3000 through an SSH tunnel.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ports:
+    - { name: http, port: 80, targetPort: 3000 }
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: grafana-host
+  namespace: monitoring
+  labels:
+    kubernetes.io/service-name: grafana
+addressType: IPv4
+ports:
+  - { name: http, port: 3000, protocol: TCP }
+endpoints:
+  - addresses: ["${MONITORING_ADDRESS}"]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - grafana.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: grafana
+          port: 80

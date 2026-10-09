@@ -1,0 +1,23 @@
+# Tenants: a namespace per friend, with its guardrails (tenants/README.md). What runs
+# inside is theirs: they deploy with kubectl or Headlamp (Pocket-ID login) or their own Flux
+# objects, never through this repository.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tenants
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: homelab-cluster
+  path: ./tenants
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-vars

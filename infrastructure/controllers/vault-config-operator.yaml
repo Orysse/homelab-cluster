@@ -32,6 +32,7 @@ spec:
         name: vault-config-operator
   values:
     enableCertManager: true
+    enableMonitoring: false     # ServiceMonitor needs the Prometheus Operator; we use Alloy
     env:
       - name: VAULT_ADDR
         value: http://openbao.openbao.svc.cluster.local:8200

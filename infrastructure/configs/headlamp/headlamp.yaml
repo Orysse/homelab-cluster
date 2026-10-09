@@ -1,5 +1,5 @@
 # Headlamp at k8s.${DOMAIN}: Kubernetes web console. People log in through Pocket-ID and
-# Headlamp calls the API with THEIR token, so their RBAC applies (oidc-rbac.yaml, tenants/).
+# Headlamp calls the API with THEIR token, so their RBAC applies (oidc-rbac.yaml).
 # Headlamp itself has no rights. OIDC client "headlamp": id and secret in OpenBao at
 # kv/apps/headlamp/oidc.
 ---

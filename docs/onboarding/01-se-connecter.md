@@ -1,13 +1,11 @@
-# Homelab abe.lc : ton accès
+# Homelab abe.lc : ton accès admin
 
-Tu as un espace à toi sur le cluster Kubernetes du homelab :
+Tu es **admin du cluster Kubernetes** du homelab (groupe Pocket-ID `admins`) : tous les
+namespaces, Grafana, OpenBao (les secrets). La machine elle-même (nuc1, NixOS) reste gérée
+par Abel, dans le repo `homelab-nix`.
 
-- le **namespace `lenny`**, dans lequel tu fais ce que tu veux ;
-- les adresses **`lenny.abe.lc`** et **`*.lenny.abe.lc`** (par exemple `blog.lenny.abe.lc`),
-  avec HTTPS déjà prêt.
-
-Il te faut trois choses : un compte, la console web, et si tu veux travailler en ligne de
-commande, `kubectl` à travers un VPN.
+Pour comprendre ce qui tourne et où : le [README du repo](../../README.md), puis
+[le cheatsheet](../cheatsheet.md).
 
 ## 1. Ton compte (Pocket-ID)
 
@@ -20,15 +18,21 @@ Ajoute une deuxième passkey tout de suite (téléphone et ordinateur, par exemp
 https://auth.abe.lc. Si tu les perds toutes, tu peux demander un code de connexion par mail
 sur la page de login, ou demander à Abel.
 
-Ce compte sert partout : console web, `kubectl`.
+Ce compte sert partout : Headlamp, `kubectl`, Grafana, OpenBao. Ton compte est admin de tout
+le cluster : protège-le comme tel.
 
-## 2. La console web (Headlamp)
+## 2. Les interfaces web
 
-https://k8s.abe.lc → *Sign in* → login Pocket-ID.
+| Quoi | Où | Accès |
+|---|---|---|
+| Console Kubernetes (Headlamp) | https://k8s.abe.lc | Internet |
+| Page de statut (Gatus) | https://status.abe.lc | Internet |
+| Dashboards, logs (Grafana) | https://grafana.int.abe.lc | VPN |
+| Secrets (OpenBao) | https://bao.int.abe.lc, méthode *OIDC*, mount path `sso/oidc` | VPN |
+| Traefik | https://traefik.int.abe.lc/dashboard/ | VPN |
 
-Choisis le namespace `lenny` (sélecteur en haut). Tu y vois tes pods, leurs logs, un
-terminal dans les conteneurs, et tu peux créer ou modifier des objets en YAML. Ça suffit pour
-tout faire, sans rien installer.
+Tout se connecte avec Pocket-ID. Headlamp suffit pour voir et modifier le cluster sans rien
+installer.
 
 ## 3. En ligne de commande
 
@@ -38,17 +42,20 @@ tout faire, sans rien installer.
 |---|---|
 | `kubectl` | parler au cluster |
 | `kubelogin` (plugin `oidc-login`) | ton login Pocket-ID pour `kubectl` |
-| WireGuard | le VPN : l'API Kubernetes n'est pas sur Internet |
-| `flux` (optionnel) | si tu déploies depuis un repo git (voir l'autre guide) |
+| `flux` | voir et forcer les déploiements GitOps |
+| WireGuard | le VPN : l'API Kubernetes et les interfaces `*.int` ne sont pas sur Internet |
+| `sops`, `age` (plus tard) | les quelques secrets chiffrés dans git |
+| `k9s` (optionnel) | une interface terminal pour le cluster |
 
-- **macOS** : `brew install kubectl int128/kubelogin/kubelogin fluxcd/tap/flux`, et
+- **macOS** : `brew install kubectl int128/kubelogin/kubelogin fluxcd/tap/flux k9s`, et
   l'app WireGuard depuis l'App Store.
 - **Linux (Nix)** : `nix profile install nixpkgs#kubectl nixpkgs#kubelogin-oidc
-  nixpkgs#fluxcd nixpkgs#wireguard-tools` (attention : le paquet `kubelogin` tout court est
-  celui d'Azure, ce n'est pas le bon).
+  nixpkgs#fluxcd nixpkgs#k9s nixpkgs#wireguard-tools` (attention : le paquet `kubelogin`
+  tout court est celui d'Azure, ce n'est pas le bon).
 - **Autre Linux / Windows** : `kubectl` depuis https://kubernetes.io/docs/tasks/tools/, le
-  plugin avec [krew](https://krew.sigs.k8s.io) (`kubectl krew install oidc-login`),
-  WireGuard depuis https://www.wireguard.com/install/.
+  plugin avec [krew](https://krew.sigs.k8s.io) (`kubectl krew install oidc-login`), `flux`
+  depuis https://fluxcd.io/flux/installation/, WireGuard depuis
+  https://www.wireguard.com/install/.
 
 Vérifie : `kubectl oidc-login --help` doit répondre.
 
@@ -67,12 +74,12 @@ Address = 10.250.0.10/32
 [Peer]
 PublicKey = TNugHNt2qsBT5T/3ac1HWzXFzrw24rWu1l0uCKZhWEM=
 Endpoint = vpn.abe.lc:51820
-AllowedIPs = 192.168.1.211/32
+AllowedIPs = 192.168.1.211/32, 192.168.1.241/32
 PersistentKeepalive = 25
 ```
 
-Le VPN ne donne accès qu'à l'API Kubernetes (`192.168.1.211:6443`), rien d'autre. Il ne
-change pas le reste de ta connexion. Tu ne l'allumes que pour `kubectl`.
+Il donne accès à l'API Kubernetes (`192.168.1.211:6443`) et aux interfaces internes
+(`*.int.abe.lc`, `192.168.1.241`). Il ne change pas le reste de ta connexion.
 
 ### 3.3 kubectl
 
@@ -87,7 +94,7 @@ clusters:
       server: https://192.168.1.211:6443
       certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkekNDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUzT1RFME1EUTVNREl3SGhjTk1qWXhNREEzTVRreU9ESXlXaGNOTXpZeE1EQTBNVGt5T0RJeQpXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUzT1RFME1EUTVNREl3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFUandEZkpVZnFDN08zTFRXeDZ6bHNVRHJHL2paT25IcDdDankzR1R3S2IKeUdoUEVxTDhvS2lCS0RkQjQ2QUpRSVhsUmZzV3g3akpidGdSR3hqb1pCNlVvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVXI4QW5pcXZ6azdMdE83VWVEVFJiClRNMWpYdzB3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUlnRFdZdkQ3Y2tVRm9HRlJmV01IeGlnMnhpUG5sQnhGOEEKRXdIYW9FaHlER1lDSVFEYWNIM1g5TjZwMFQ2RVpHRWlzL2duOW9pM2JmaVV4TFk1V2QrNmNPVU5xQT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
 users:
-  - name: lenny
+  - name: homelab
     user:
       exec:
         apiVersion: client.authentication.k8s.io/v1
@@ -103,7 +110,7 @@ users:
         interactiveMode: IfAvailable
 contexts:
   - name: homelab
-    context: { cluster: homelab, user: lenny, namespace: lenny }
+    context: { cluster: homelab, user: homelab }
 current-context: homelab
 ```
 
@@ -111,34 +118,38 @@ Puis, VPN allumé :
 
 ```bash
 export KUBECONFIG=~/.kube/homelab.yaml
-kubectl get pods
+kubectl get nodes
+flux get kustomizations
 ```
 
 La première commande ouvre ton navigateur sur Pocket-ID ; après le login, le jeton est gardé
 en cache (`~/.kube/cache/oidc-login`) et les commandes suivantes passent directement.
 
-`kubectl auth whoami` doit afficher `oidc:<ton nom>` et le groupe `oidc:tenant-lenny`.
+`kubectl auth whoami` doit afficher `oidc:<ton nom>` et le groupe `oidc:admins`.
 
-## Ce que tu peux faire, ce que tu ne peux pas
+## 4. Les règles du jeu
 
-| Oui | Non |
-|---|---|
-| Tout dans `lenny` : Deployments, Services, Secrets, volumes, Jobs, CronJobs, HTTPRoutes, rôles… | Toucher aux autres namespaces |
-| Publier sur `lenny.abe.lc` et `*.lenny.abe.lc` | Prendre une autre adresse, ouvrir un port TCP/UDP brut |
-| Sortir vers Internet depuis tes pods | Joindre le réseau de la maison ou les services du homelab |
-| Déployer depuis ton propre repo git (Flux) | Lancer un conteneur root ou privilégié |
+Le cluster est piloté par **git** (Flux) : le repo
+[homelab-cluster](https://github.com/Orysse/homelab-cluster) décrit tout ce qui tourne, et
+le cluster s'aligne sur lui.
 
-Ressources : 1 CPU et 1 Gio réservés, 2 CPU et 2 Gio au maximum, 20 pods, 10 Gio de disque.
-Si tu as besoin de plus, demande.
-
-Suite : **02-exposer-un-service.md**.
+- **Ce qui doit durer passe par git** : une pull request sur homelab-cluster. Un objet modifié
+  à la main (`kubectl edit`) sur quelque chose que Flux gère est remis comme dans git au
+  prochain passage (10 minutes au plus).
+- **Pour tester, `kubectl apply` direct**, de préférence dans un namespace à toi : Flux ne
+  touche pas à ce qu'il ne connaît pas.
+- **Pas touche à la plateforme sans en parler** : `kube-system`, `flux-system`, `openbao`,
+  `pocket-id`, `monitoring`, `cert-manager`, `metallb-system`, `external-secrets`. Si l'un
+  d'eux casse, tout le monde perd l'accès (y compris toi).
+- **Pas de secret en clair dans git** : le repo est public. Les secrets vont dans OpenBao (voir
+  le README, section *Secrets*).
 
 ## En cas de souci
 
 - `Unable to connect to the server` : le VPN n'est pas allumé, ou Abel n'a pas encore ajouté
   ta clé.
-- `Forbidden` : tu n'es pas dans le namespace `lenny` (`-n lenny`), ou tu n'es pas encore dans
-  le groupe `tenant-lenny` (Abel).
+- `Forbidden` : tu n'es pas encore dans le groupe `admins` (Abel), ou ton jeton date d'avant :
+  `rm -rf ~/.kube/cache/oidc-login` puis relance la commande.
 - Le navigateur ne s'ouvre pas : ouvre à la main l'URL `http://localhost:8000` affichée par
   la commande, sur la même machine.
-- Login refusé après un changement de compte : `rm -rf ~/.kube/cache/oidc-login`.
+- Pocket-ID est en panne : plus de login nulle part. Préviens Abel, il a un accès de secours.

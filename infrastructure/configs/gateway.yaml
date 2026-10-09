@@ -33,36 +33,7 @@ spec:
           selector:
             matchLabels:
               gateway-access: public
-    # Tenants (tenants/): one listener per tenant, limited to the tenant's hostnames, so a
-    # tenant's HTTPRoute can never take over another site. Certificate: tenants/<name>/.
-    - name: lenny
-      protocol: HTTPS
-      port: 8443
-      hostname: lenny.${DOMAIN}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: lenny-tls
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              homelab.abe.lc/tenant: lenny
-    - name: lenny-subdomains
-      protocol: HTTPS
-      port: 8443
-      hostname: "*.lenny.${DOMAIN}"
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: lenny-tls
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              homelab.abe.lc/tenant: lenny
+
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway

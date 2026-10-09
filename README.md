@@ -91,7 +91,7 @@ Two layers:
 | Where | For | How |
 |---|---|---|
 | **sops** (in git) | Bootstrap only: OpenBao's unseal key, OpenBao's initial PostgreSQL password (rotated away at once) | Below, *sops + age* |
-| **OpenBao** (`bao.int.${DOMAIN}`) | Application and tenant secrets | `kv/apps/<namespace>/<name>`, read through External Secrets |
+| **OpenBao** (`bao.int.${DOMAIN}`) | Application secrets | `kv/apps/<namespace>/<name>`, read through External Secrets |
 
 ### Application secrets (OpenBao)
 
@@ -152,6 +152,9 @@ OpenBao (`kv/apps/<namespace>/oidc`, keys `client_id`, `client_secret`).
 
 Break-glass when Pocket-ID is down: the base's admin kubeconfig (client certificate,
 `homelab-nix` context), then the per-app procedures in *Secrets* above.
+
+Onboarding a new admin (in French): `docs/onboarding/` (getting access, exposing a service).
+Add them to the Pocket-ID group `admins`; their VPN peer goes in the homelab-nix topology.
 
 ## Updates
 

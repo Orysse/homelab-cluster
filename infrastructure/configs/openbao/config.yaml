@@ -9,7 +9,7 @@
 #   break-glass (Pocket-ID down): the operator's identity, for whoever is cluster-admin:
 #     bao write auth/kubernetes/login role=config-operator jwt=$(kubectl -n openbao create token config-operator)
 #
-# Adding a namespace or a tenant needs nothing here: the policy follows the namespace.
+# Adding a namespace needs nothing here: the policy follows the namespace.
 ---
 apiVersion: v1
 kind: ServiceAccount

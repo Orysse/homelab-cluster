@@ -1,7 +1,7 @@
 # Pocket-ID at auth.${DOMAIN}: the homelab's identity provider (passkeys, OIDC).
 # Everything is configured here (UI_CONFIG_DISABLED): the admin UI manages users, groups
 # and OIDC clients, not settings. Users get an invitation email from homelab@${DOMAIN}.
-# State (users, passkeys, clients) in SQLite on an NFS volume: storage host, snapshots.
+# State (users, passkeys, clients) in PostgreSQL on the database host (homelab-nix).
 ---
 apiVersion: v1
 kind: Namespace
@@ -11,18 +11,6 @@ metadata:
     gateway-access: public
     pod-security.kubernetes.io/enforce: restricted
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: data
-  namespace: pocket-id
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: nfs
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,7 +19,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate                # SQLite on a ReadWriteOnce volume
+    type: Recreate                # one instance at a time (no shared state between replicas)
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -56,10 +44,13 @@ spec:
           envFrom:
             - secretRef:
                 name: pocket-id   # ENCRYPTION_KEY, SMTP_PASSWORD (from OpenBao)
+            - secretRef:
+                name: pocket-id-db   # DB_CONNECTION_STRING (PostgreSQL, from OpenBao)
           env:
             - { name: APP_URL, value: "https://auth.${DOMAIN}" }
             - { name: TRUST_PROXY, value: "10.42.0.0/16" }   # Traefik, from the pod network
             - { name: UI_CONFIG_DISABLED, value: "true" }
+            - { name: FILE_BACKEND, value: database }          # uploads in PostgreSQL too: stateless pod
             - { name: APP_NAME, value: "${DOMAIN}" }
             - { name: SESSION_DURATION, value: "480" }       # minutes
             - { name: ALLOW_USER_SIGNUPS, value: "disabled" } # admins create users and invite them
@@ -91,11 +82,11 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - { name: data, mountPath: /app/data }
+            - { name: data, mountPath: /app/data }   # scratch only, everything lives in PostgreSQL
       volumes:
         - name: data
-          persistentVolumeClaim:
-            claimName: data
+          emptyDir:
+            sizeLimit: 64Mi
 ---
 apiVersion: v1
 kind: Service

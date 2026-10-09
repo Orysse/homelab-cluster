@@ -15,6 +15,27 @@ metadata:
   name: config-operator           # bound to the self-initialized "config-operator" role
   namespace: openbao
 ---
+# The operator's own policy, first written by OpenBao's self-initialization (openbao.yaml)
+# and managed from here since: extend it when the operator needs a new path.
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: config-operator
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: acl
+  policy: |
+    path "sys/auth"            { capabilities = ["read", "list"] }
+    path "sys/auth/*"          { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }
+    path "sys/mounts"          { capabilities = ["read", "list"] }
+    path "sys/mounts/*"        { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }
+    path "sys/policies/*"      { capabilities = ["create", "read", "update", "delete", "list"] }
+    path "auth/*"              { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }
+    path "identity/*"          { capabilities = ["create", "read", "update", "delete", "list"] }
+    path "kv/*"                { capabilities = ["create", "read", "update", "delete", "list"] }
+    path "database/*"          { capabilities = ["create", "read", "update", "delete", "list"] }
+---
 apiVersion: redhatcop.redhat.io/v1alpha1
 kind: SecretEngineMount
 metadata:
@@ -48,6 +69,10 @@ spec:
     }
     path "kv/apps/metadata/{{identity.entity.aliases.${auth/kubernetes/@accessor}.metadata.service_account_namespace}}/*" {
       capabilities = ["read", "list"]
+    }
+    # Its own PostgreSQL user (database.yaml): static role named after the namespace.
+    path "database/postgres/static-creds/{{identity.entity.aliases.${auth/kubernetes/@accessor}.metadata.service_account_namespace}}" {
+      capabilities = ["read"]
     }
 ---
 apiVersion: redhatcop.redhat.io/v1alpha1

@@ -1,0 +1,45 @@
+# PostgreSQL password of the "openbao" role, the same as in homelab-nix secrets/nuc1.yaml
+# (postgres-openbao-password). OpenBao uses it to set the app users' passwords.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: postgres-openbao
+    namespace: openbao
+type: Opaque
+stringData:
+    username: ENC[AES256_GCM,data:+kjNb8sV0g==,iv:/doqFaOvRtTipvAGc8YzaoAKKnrB+mSolN+5t3ZnbyM=,tag:eMUCs/X+Z/PdTqTyziEhKw==,type:str]
+    password: ENC[AES256_GCM,data:g2E30F3aGsrSKDyhy8OFOxnyxZphpKoW1QHCjixH/4D38lAFnTV7,iv:TisNYs1ZXB4fyhghKtaz+yE8BqfuTOMS6Q2hZsTyKxo=,tag:p+98PjJXx55ALQgAgZPQ4w==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBIb1hoYW8vMjRmb0xFNmE1
+            Q0Zhck9yaCsxVWpqY2xXUWFkdmdRejNuTkJZClRuV21jTjkyTmZTWk1LSFJJaXVa
+            UjZ5eEU2VzczOEhlNkRkYlhJbFNaM1UKLS0tIE92bFpEenVoZUFXZTlFNVBaZCtT
+            T0l3ZDYrQjlva09lb1QxS3lWd1RZSGsKl09YBQhVMUbZIeK+r+ImMeEd3ji4eRgN
+            WKxzYnS5a2isLeUJ8VtuCfyFRV9NBOnjAOxcwGzb+UX0kiIK7r52aQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1uzjc82ya0szkyht2txxjsk03csk7cpap524lz9v8gjxsaqxlaejsr3tkcc
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHBpdi1wMjU2IGo4YVdFdyBBOWxYcktQ
+            WW1SME5NZW96SXBpQXErUHhKeWNScG93WEMzaEhON1o5YkErbwpDQmhVOFcwYlp6
+            YitGM1VXK2tHSDZRbGsxb1RhNDdQbStQdXpSSnhhR2R3Ci0tLSB5V0pqTTdpQ1lI
+            VTZuUzhjZDVFRGQ3SDZTeFZ5bDQ2a0o2eitzendlNWM0CsdEy7kSkips7mvQETl0
+            Y4ttvf3IQKZmwq4NuuiozZOPMrUelvEoc4Dq3nYrKLCkAtkSqtAhqFY6jToe858o
+            Ohs=
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1yubikey1q23p5ysmjm8ukvad9xefunvaq7fz06zsf72jr0vj20z2j48sjjh2jm256cs
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBmZjVJN0Y5SkZ1ck16di8z
+            a2NvRkpDVzRQcVRPS2tjc0lBTTNNM1krWm13CnhiQ3NBR2psNUl2UkN6TlJwYWlq
+            ZlgyenQrdFYzcFBQRFJoUThYdG9QaTAKLS0tIGw3Wk5FQWVkNnUyWlFST3RPcVVn
+            RVc3dVJwWE1UQmRlUWZxUWt5ZlpzREkKXee+GyOvvd+mD+zgvW+06bXSlq8xglPl
+            bVjqyC3PRIDdGaRwYLBn99jUhNUt/RW8p0IO6BUbrM5XZDkD1Mm2YQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age15lxalve0wl20hk7ygx5h9khexfgsws8ucue6txvfz7dgtsvsugqskgwuyc
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-09T15:42:45Z"
+    mac: ENC[AES256_GCM,data:+SUWXEWb0N8eWfmr92h9UZRMXvqY3yaz10O6c0vbrsPSalFfmi9mhOFJOrt2dgOZo1XinYYFHA+oAy0vhX2gqJg2SGBBqsg3CzFmT/PK2AL3tcOlK2y6zY1Eo3w0HB88XimYW+iNH9/EXfmXbdNNJE1Ggbr+HKCDKcDE93Mn5Ls=,iv:EpiYTX8MQyLYv6EbYZ9jDtX27VFU6CkVXal7EiGfG5s=,tag:dVFC9U5r2KBOhsoLAtCIlg==,type:str]
+    version: 3.13.3

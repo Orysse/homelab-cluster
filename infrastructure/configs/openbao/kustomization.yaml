@@ -5,3 +5,5 @@ resources:
   - unseal.sops.yaml
   - admin-password.sops.yaml
   - config.yaml
+  - postgres-openbao.sops.yaml
+  - database.yaml

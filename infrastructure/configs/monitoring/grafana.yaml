@@ -1,5 +1,6 @@
-# Grafana: dashboards only, everything provisioned from here. Its SQLite database is on
-# a small NFS volume (on the storage host) so restarts do not replay the migrations.
+# Grafana: dashboards only, everything provisioned from here. Its database is PostgreSQL
+# "monitoring" on the database host (credentials from OpenBao, grafana-db.yaml): the pod
+# keeps nothing.
 # Metrics and logs live on the monitoring host; alerts are NOT evaluated here but by
 # vmalert + Alertmanager on that host, so they still fire when the cluster is down.
 # Admin login: grafana-admin.sops.yaml. Dashboards: grafana.com ids at pinned revisions.
@@ -33,9 +34,8 @@ spec:
     admin:
       existingSecret: grafana-admin
     persistence:
-      enabled: true
-      storageClassName: nfs
-      size: 1Gi
+      enabled: false
+    envFromSecret: grafana-db   # GF_DATABASE_* (grafana-db.yaml)
     # First start (database migrations, plugin download) is slow on the capped CPU: up to
     # 10 minutes before the liveness probe takes over.
     startupProbe:
@@ -43,7 +43,7 @@ spec:
       periodSeconds: 10
       failureThreshold: 60
     deploymentStrategy:
-      type: Recreate          # one pod at a time on the ReadWriteOnce volume
+      type: Recreate          # one pod at a time: no two schema migrations in parallel
     resources:
       requests: { cpu: 20m, memory: 128Mi }
       limits: { memory: 768Mi }   # first start (migrations) peaks well above steady state

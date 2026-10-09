@@ -1,0 +1,44 @@
+# Grafana's PostgreSQL credentials: OpenBao static role "monitoring" (namespace name),
+# read with this namespace's own ServiceAccount (openbao/database.yaml).
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: VaultDynamicSecret
+metadata:
+  name: postgres
+  namespace: monitoring
+spec:
+  method: GET
+  path: database/postgres/static-creds/monitoring
+  provider:
+    server: http://openbao.openbao.svc.cluster.local:8200
+    auth:
+      kubernetes:
+        mountPath: kubernetes
+        role: namespace-secrets
+        serviceAccountRef:
+          name: default
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-db
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  target:
+    name: grafana-db
+    template:
+      engineVersion: v2
+      data:
+        GF_DATABASE_TYPE: postgres
+        GF_DATABASE_HOST: "${DATABASE_ADDRESS}:5432"
+        GF_DATABASE_NAME: monitoring
+        GF_DATABASE_USER: "{{ .username }}"
+        GF_DATABASE_PASSWORD: "{{ .password }}"
+        GF_DATABASE_SSL_MODE: disable
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: VaultDynamicSecret
+          name: postgres

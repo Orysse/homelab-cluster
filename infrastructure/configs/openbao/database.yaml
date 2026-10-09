@@ -1,0 +1,66 @@
+# Apps' PostgreSQL credentials (database host, homelab-nix postgres.nix), owned by OpenBao.
+#   database/postgres                         database secrets engine
+#   database/postgres/static-creds/<ns>       user <ns> of database <ns>: OpenBao sets and
+#                                             rotates its password in PostgreSQL itself
+# A namespace reads only its own credentials (policy namespace-secrets, config.yaml) and
+# gets them through an External Secrets VaultDynamicSecret generator.
+# Adding an app database: the database in the topology (homelab-nix), a static role here.
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: SecretEngineMount
+metadata:
+  name: postgres
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: database
+  path: database
+  config:
+    listingVisibility: hidden
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: DatabaseSecretEngineConfig
+metadata:
+  name: postgres
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: database/postgres
+  pluginName: postgresql-database-plugin
+  connectionURL: "postgresql://{{username}}:{{password}}@${DATABASE_ADDRESS}:5432/postgres?sslmode=disable"
+  username: openbao
+  rootCredentials:
+    secret:
+      name: postgres-openbao
+    passwordKey: password
+  passwordAuthentication: scram-sha-256   # OpenBao sends hashes, never plaintext passwords
+  allowedRoles: ["*"]
+  verifyConnection: true
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: DatabaseSecretEngineStaticRole
+metadata:
+  name: pocket-id
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: database/postgres
+  dBName: postgres
+  username: pocket-id
+  credentialType: password
+  passwordCredentialConfig: {}  # required by the webhook; default password policy
+  rotationPeriod: 31536000      # yearly: apps read the password at start (no auto-restart yet)
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: DatabaseSecretEngineStaticRole
+metadata:
+  name: monitoring
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: database/postgres
+  dBName: postgres
+  username: monitoring
+  credentialType: password
+  passwordCredentialConfig: {}  # required by the webhook; default password policy
+  rotationPeriod: 31536000

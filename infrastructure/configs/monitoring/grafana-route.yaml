@@ -22,6 +22,8 @@ ports:
   - { name: http, port: 3000, protocol: TCP }
 endpoints:
   - addresses: ["${MONITORING_ADDRESS}"]
+    conditions:
+      ready: true             # Traefik ignores endpoints without an explicit ready condition
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

@@ -6,6 +6,8 @@ resources:
   - monitoring
   - openbao
   - pocket-id
+  - headlamp
+  - oidc-rbac.yaml
   - traefik.yaml
   - security-headers.yaml
   - gateway.yaml

@@ -58,3 +58,10 @@ endpoints:
     interval: 1m
     conditions:
       - "[STATUS] == 200"
+
+  - name: k8s.${DOMAIN}
+    group: public
+    url: https://k8s.${DOMAIN}/
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"

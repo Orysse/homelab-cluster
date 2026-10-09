@@ -1,0 +1,16 @@
+# Kubernetes rights of people logging in through Pocket-ID (API server config: homelab-nix
+# modules/k3s/node.nix, users and groups prefixed "oidc:").
+# Pocket-ID group "admins": cluster-admin. Tenants get namespaced roles (tenants/).
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:admins

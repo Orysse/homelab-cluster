@@ -1,0 +1,90 @@
+# Headlamp at k8s.${DOMAIN}: Kubernetes web console. People log in through Pocket-ID and
+# Headlamp calls the API with THEIR token, so their RBAC applies (oidc-rbac.yaml, tenants/).
+# Headlamp itself has no rights. OIDC client "headlamp": id and secret in OpenBao at
+# kv/apps/headlamp/oidc.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headlamp
+  labels:
+    gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: headlamp-oidc
+  namespace: headlamp
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: headlamp-oidc
+    template:
+      engineVersion: v2
+      data:
+        # Read by the chart's args (-oidc-client-id=$(OIDC_CLIENT_ID)...)
+        OIDC_CLIENT_ID: "{{ .client_id }}"
+        OIDC_CLIENT_SECRET: "{{ .client_secret }}"
+        OIDC_ISSUER_URL: https://auth.${DOMAIN}
+        # Not passed by the chart in this mode: Headlamp's own environment settings
+        HEADLAMP_CONFIG_OIDC_SCOPES: profile,email,groups
+        HEADLAMP_CONFIG_OIDC_CALLBACK_URL: https://k8s.${DOMAIN}/oidc-callback
+        HEADLAMP_CONFIG_OIDC_USE_PKCE: "true"
+  dataFrom:
+    - extract: { key: headlamp/oidc }
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 24h
+  url: https://kubernetes-sigs.github.io/headlamp/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: headlamp
+      version: "0.45.0"
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp
+  values:
+    config:
+      oidc:
+        secret:
+          create: false
+        externalSecret:
+          enabled: true
+          name: headlamp-oidc
+    clusterRoleBinding:
+      create: false           # no rights of its own: users' tokens are used
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 256Mi }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  parentRefs:
+    - name: public
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - k8s.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: headlamp
+          port: 80

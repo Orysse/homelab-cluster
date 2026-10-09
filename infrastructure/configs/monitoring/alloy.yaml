@@ -54,6 +54,12 @@ spec:
               regex         = "true"
               action        = "keep"
             }
+            // kube-state-metrics has its own scrape (honor_labels), below.
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              regex         = "kube-state-metrics"
+              action        = "drop"
+            }
             rule {
               source_labels = ["__meta_kubernetes_pod_phase"]
               regex         = "Running"
@@ -114,6 +120,33 @@ spec:
               source_labels = ["__meta_kubernetes_pod_name"]
               target_label  = "pod"
             }
+          }
+
+          // kube-state-metrics describes OTHER pods: its namespace/pod labels must win over the
+          // scrape target's (otherwise they become exported_namespace / exported_pod).
+          discovery.relabel "ksm" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              regex         = "kube-state-metrics"
+              action        = "keep"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_number"]
+              regex         = "8080"
+              action        = "keep"
+            }
+            rule {
+              target_label = "job"
+              replacement  = "kube-state-metrics"
+            }
+          }
+
+          prometheus.scrape "ksm" {
+            targets         = discovery.relabel.ksm.output
+            honor_labels    = true
+            scrape_interval = "30s"
+            forward_to      = [prometheus.remote_write.vm.receiver]
           }
 
           prometheus.scrape "pods" {

@@ -3,7 +3,7 @@
 # keeps nothing.
 # Metrics and logs live on the monitoring host; alerts are NOT evaluated here but by
 # vmalert + Alertmanager on that host, so they still fire when the cluster is down.
-# Admin login: grafana-admin.sops.yaml. Dashboards: grafana.com ids at pinned revisions.
+# Login: Pocket-ID (group "admins" = Grafana Admin). Dashboards: grafana.com ids at pinned revisions.
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
@@ -31,8 +31,6 @@ spec:
   values:
     testFramework:
       enabled: false
-    admin:
-      existingSecret: grafana-admin
     persistence:
       enabled: false
     envFromSecrets:             # grafana-secrets.yaml (from OpenBao)
@@ -61,12 +59,18 @@ spec:
         check_for_updates: false
       unified_alerting:
         enabled: false        # alerting lives in Alertmanager (monitoring host)
+      # No local login: Pocket-ID only. Break-glass: the chart's admin password, generated in
+      # the cluster: kubectl -n monitoring get secret grafana -o jsonpath='{.data.admin-password}'
+      auth:
+        disable_login_form: true
+      auth.basic:
+        enabled: false
       # Login through Pocket-ID; its "admins" group is Grafana Admin, everyone else Viewer.
       auth.generic_oauth:
         enabled: true
         name: Pocket-ID
         allow_sign_up: true
-        auto_login: false         # true once the local admin is gone
+        auto_login: true
         use_pkce: true
         scopes: openid profile email groups
         auth_url: https://auth.${DOMAIN}/authorize

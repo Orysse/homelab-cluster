@@ -5,7 +5,9 @@
 #   kv/apps/<namespace>/<name>       a namespace's secrets; ONLY that namespace reads them
 #                                    (templated policy namespace-secrets), through its
 #                                    "default" ServiceAccount and External Secrets
-#   auth/human/userpass  admin       human access (UI/CLI) until Pocket-ID
+#   auth/sso/oidc                    human access: Pocket-ID group "admins" (oidc.yaml)
+#   break-glass (Pocket-ID down): the operator's identity, for whoever is cluster-admin:
+#     bao write auth/kubernetes/login role=config-operator jwt=$(kubectl -n openbao create token config-operator)
 #
 # Adding a namespace or a tenant needs nothing here: the policy follows the namespace.
 ---
@@ -92,18 +94,6 @@ spec:
   tokenTTL: 3600              # seconds
 ---
 apiVersion: redhatcop.redhat.io/v1alpha1
-kind: AuthEngineMount
-metadata:
-  name: userpass
-  namespace: openbao
-spec:
-  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
-  type: userpass
-  path: human
-  config:
-    listingVisibility: unauth    # shown on the UI login page
----
-apiVersion: redhatcop.redhat.io/v1alpha1
 kind: Policy
 metadata:
   name: admin
@@ -121,21 +111,6 @@ spec:
     path "sys/policies/acl/*"    { capabilities = ["read", "list"] }
     path "auth/kubernetes/role"  { capabilities = ["read", "list"] }
     path "auth/kubernetes/role/*" { capabilities = ["read", "list"] }
----
-apiVersion: redhatcop.redhat.io/v1alpha1
-kind: UserpassAuthEngineUser
-metadata:
-  name: admin
-  namespace: openbao
-spec:
-  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
-  path: human/userpass
-  passwordCredentials:
-    secret:
-      name: openbao-admin-password
-    passwordKey: password
-  tokenPolicies: [admin]
-  tokenTTL: 8h
 ---
 # For every namespace: an ExternalSecret reads kv/apps/<its namespace>/<key> with the
 # ServiceAccount "default" of its own namespace (referent authentication).

@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - openbao.yaml
   - unseal.sops.yaml
-  - admin-password.sops.yaml
   - config.yaml
   - postgres-openbao.sops.yaml
   - database.yaml

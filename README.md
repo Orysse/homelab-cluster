@@ -85,15 +85,14 @@ Two layers:
 
 | Where | For | How |
 |---|---|---|
-| **sops** (in git) | Platform and bootstrap secrets: Cloudflare token, Grafana admin, OpenBao's unseal key and admin password | Below, *sops + age* |
+| **sops** (in git) | Bootstrap only: Cloudflare token, OpenBao's unseal key, OpenBao's PostgreSQL login | Below, *sops + age* |
 | **OpenBao** (`bao.int.${DOMAIN}`) | Application and tenant secrets | `kv/apps/<namespace>/<name>`, read through External Secrets |
 
 ### Application secrets (OpenBao)
 
 A namespace can only read `kv/apps/<its own namespace>/*` (templated policy, nothing to
-configure per namespace). Write the secret in the UI (user `admin`, method *Username*,
-mount path `human/userpass`; password: `sops -d --extract '["stringData"]["password"]'
-infrastructure/configs/openbao/admin-password.sops.yaml`), then in the app:
+configure per namespace). Write the secret in the UI (method *OIDC*, mount path `sso/oidc`:
+Pocket-ID login, group `admins`), then in the app:
 
 ```yaml
 apiVersion: external-secrets.io/v1
@@ -107,6 +106,11 @@ spec:
     - secretKey: password
       remoteRef: { key: myapp/db, property: password }   # kv/apps/myapp/db
 ```
+
+Logins are Pocket-ID everywhere (OpenBao, Grafana: group `admins`). Break-glass when
+Pocket-ID is down, for a cluster-admin: OpenBao with the operator's identity
+(`infrastructure/configs/openbao/config.yaml`), Grafana with the chart's generated admin
+password (`kubectl -n monitoring get secret grafana`).
 
 OpenBao's own configuration (engines, policies, roles, users) is in
 `infrastructure/configs/openbao/config.yaml`, applied by vault-config-operator. Its objects

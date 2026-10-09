@@ -5,6 +5,7 @@ resources:
   - storage.yaml
   - monitoring
   - openbao
+  - pocket-id
   - traefik.yaml
   - security-headers.yaml
   - gateway.yaml

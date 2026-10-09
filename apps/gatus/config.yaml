@@ -51,3 +51,10 @@ endpoints:
     interval: 5m
     conditions:
       - "[STATUS] == 200"
+
+  - name: auth.${DOMAIN}
+    group: public
+    url: https://auth.${DOMAIN}/healthz
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"

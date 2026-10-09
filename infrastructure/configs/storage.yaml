@@ -1,7 +1,9 @@
 # Default StorageClass: a directory per volume on the storage host,
-# ${NFS_SERVER}:${NFS_SHARE}/<namespace>/<pvc>, snapshotted there by btrbk.
+# ${NFS_SERVER}:${NFS_SHARE}/<namespace>_<pvc>, snapshotted there by btrbk.
 # ($${...} is left to the CSI driver: Flux turns it into ${...}.)
-# Deleting a PVC archives its directory (archived-<name>) instead of erasing it.
+# Deleting a PVC archives its directory (archived-<namespace>_<pvc>) instead of erasing it.
+# One level only: the driver archives the FIRST path component, so <ns>/<pvc> would move a
+# whole namespace when one of its volumes is deleted ("_" cannot appear in k8s names).
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -13,7 +15,7 @@ provisioner: nfs.csi.k8s.io
 parameters:
   server: ${NFS_SERVER}
   share: ${NFS_SHARE}
-  subDir: $${pvc.metadata.namespace}/$${pvc.metadata.name}
+  subDir: $${pvc.metadata.namespace}_$${pvc.metadata.name}
   onDelete: archive
 reclaimPolicy: Delete
 volumeBindingMode: Immediate

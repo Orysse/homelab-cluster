@@ -62,7 +62,7 @@ spec:
     targetNamespaceSelector:     # every namespace; the policy keeps each one in its lane
       matchExpressions:
         - { key: kubernetes.io/metadata.name, operator: Exists }
-  tokenTTL: 1h
+  tokenTTL: 3600              # seconds
 ---
 apiVersion: redhatcop.redhat.io/v1alpha1
 kind: AuthEngineMount

@@ -26,6 +26,8 @@ spec:
   path: kv
   options:
     version: "2"
+  config:
+    listingVisibility: hidden    # set explicitly: the operator otherwise writes "" and its CRD rejects it
 ---
 apiVersion: redhatcop.redhat.io/v1alpha1
 kind: Policy
@@ -73,6 +75,8 @@ spec:
   authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
   type: userpass
   path: human
+  config:
+    listingVisibility: unauth    # shown on the UI login page
 ---
 apiVersion: redhatcop.redhat.io/v1alpha1
 kind: Policy

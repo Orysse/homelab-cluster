@@ -57,7 +57,7 @@ endpoints:
     url: https://auth.${DOMAIN}/healthz
     interval: 1m
     conditions:
-      - "[STATUS] == 200"
+      - "[STATUS] == 204"   # Pocket-ID answers 204 No Content
 
   - name: k8s.${DOMAIN}
     group: public

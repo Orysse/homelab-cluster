@@ -4,3 +4,5 @@ resources:
   - metallb.yaml
   - cert-manager.yaml
   - csi-driver-nfs.yaml
+  - external-secrets.yaml
+  - vault-config-operator.yaml

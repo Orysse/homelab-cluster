@@ -1,0 +1,45 @@
+# OpenBao static seal key (32 bytes): OpenBao unseals itself at every start with it.
+# Whoever can decrypt this repository can unseal OpenBao: sops is the root of trust.
+# Rotating it: add the new key as current_key, keep the old one as previous_key (openbao.yaml).
+apiVersion: v1
+kind: Secret
+metadata:
+    name: openbao-unseal
+    namespace: openbao
+type: Opaque
+data:
+    unseal.key: ENC[AES256_GCM,data:rgv/A0z3MG80BBIEoLXMec8xeb8PCpQCOaj8u2xP/UgswBF2VMSfNchkFSw=,iv:ce3wfXkz8WksZI9/bPrg+SkTbJ6LT434Xi1W7mJGjlg=,tag:/Y8s6mrjONmO7ZmsrYqM5Q==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAxaHp6dmdxS05Wd1BiVFJS
+            ZHhxdjVNL3dsTVB1b1dQYzduckV2WUpPQ2xZClN4UDVSQW9hSEZMS3JtbW1yeGwz
+            MWFTVnFNZjRKNGhVd2J5elBJcE5TM2MKLS0tIHJaOXZYWDNHWGFjMlhDNFRsMjhQ
+            RWZmM2VSZmNnVXhZNDkyWEJiNS9ybWMKxt3MSAn8Zt529DfIoe9gJIToiixe2Oph
+            La9xaZWznsMlSeTBWxGvHTRqPJ67cDJjCQ1Rm44zAWCdxwVPmgVu6A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1uzjc82ya0szkyht2txxjsk03csk7cpap524lz9v8gjxsaqxlaejsr3tkcc
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHBpdi1wMjU2IGo4YVdFdyBBb25nVHhL
+            MlV2Sk5pZlQvMGowa2JXT21aT3RLVmptNlhwQWpzRmtEbGwzSAp3U0tqdXE0cUo2
+            YnlyZ0xCcENHSFdvbXJjTHFNV1B4N2tjQUowS1d0dFFNCi0tLSAwdnQxTmppYnVL
+            UkM5dnNOMVdyUXJpemJ2dFlzM05hUGgxRTJTTGtCWUxVCpAEj1Q8bC6gVr1Qq5nC
+            j/bgnyTgZaveoMJO+Bd4Lb7nOfwDzadKYjxzyWUgr4i3KKzO7Yjte6aNm22ufOGs
+            cPk=
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1yubikey1q23p5ysmjm8ukvad9xefunvaq7fz06zsf72jr0vj20z2j48sjjh2jm256cs
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB3K3hmRkpYdnNkVVp5TGZH
+            SitnR29acDJXaDhlOUtKOC9wT2F6Rno3L1hRCnNCdkFQK2RZMk5RK0cwYkMzc0oz
+            cExsc1J1clB6ZjgydWM4SzZITUFmRFUKLS0tIFFLN3pkL213aW5EZWRHUmJLSVZV
+            UGR4OTlSZTdZd1p6L2NscnQrUVpjYVEK8JZgqq3vKWjFN+0lL3daVFU/LEYLge0k
+            pmuRkirIt1C7hgv/5wj0ptCDUnKLbIkiFs5LO1UHka4pSIsMheDnzQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age15lxalve0wl20hk7ygx5h9khexfgsws8ucue6txvfz7dgtsvsugqskgwuyc
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-09T14:46:52Z"
+    mac: ENC[AES256_GCM,data:qyH7MgVUjLt5CjgbvNZ5uYhKL/SVD0j4GMRI4M0aFRDwugJ1cyxOXOi+ZeziisUR1IdCJh6b1cbzWavxTqIKRZar7vBzXQgRsW0mNbIiV+SJaVQTUv54kmlWqexdaEqwSqYXA0+FUS24CALSoMgrwoX0JnbKqECdGhJot8yL59A=,iv:t+IM0xpfde8PrSYjJgCb4N3WGl6+cDKkFpFo6zir8w8=,tag:sDke6FuaoaFQN8di7IOdrQ==,type:str]
+    version: 3.13.3

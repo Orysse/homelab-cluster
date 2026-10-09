@@ -1,0 +1,145 @@
+# OpenBao's configuration, applied by vault-config-operator (it authenticates with the
+# "config-operator" role created by OpenBao's self-initialization, openbao.yaml).
+#
+#   kv/apps                          KV v2 engine for application secrets
+#   kv/apps/<namespace>/<name>       a namespace's secrets; ONLY that namespace reads them
+#                                    (templated policy namespace-secrets), through its
+#                                    "default" ServiceAccount and External Secrets
+#   auth/human/userpass  admin       human access (UI/CLI) until Pocket-ID
+#
+# Adding a namespace or a tenant needs nothing here: the policy follows the namespace.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: config-operator           # bound to the self-initialized "config-operator" role
+  namespace: openbao
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: SecretEngineMount
+metadata:
+  name: apps
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: kv
+  path: kv
+  options:
+    version: "2"
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: namespace-secrets
+  namespace: openbao
+  annotations:
+    # ${auth/kubernetes/@accessor} is for the operator (replaced by the mount accessor),
+    # not for Flux.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: acl
+  policy: |
+    # A Kubernetes namespace reads its own secrets, nothing else.
+    path "kv/apps/data/{{identity.entity.aliases.${auth/kubernetes/@accessor}.metadata.service_account_namespace}}/*" {
+      capabilities = ["read"]
+    }
+    path "kv/apps/metadata/{{identity.entity.aliases.${auth/kubernetes/@accessor}.metadata.service_account_namespace}}/*" {
+      capabilities = ["read", "list"]
+    }
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: namespace-secrets
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: kubernetes
+  policies: [namespace-secrets]
+  targetServiceAccounts: [default]
+  targetNamespaces:
+    targetNamespaceSelector:     # every namespace; the policy keeps each one in its lane
+      matchExpressions:
+        - { key: kubernetes.io/metadata.name, operator: Exists }
+  tokenTTL: 1h
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: AuthEngineMount
+metadata:
+  name: userpass
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: userpass
+  path: human
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: admin
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: acl
+  policy: |
+    # Humans: manage application secrets, read the rest of the configuration (which is
+    # changed in git, not by hand).
+    path "kv/*"                  { capabilities = ["create", "read", "update", "delete", "list"] }
+    path "sys/mounts"            { capabilities = ["read", "list"] }
+    path "sys/auth"              { capabilities = ["read", "list"] }
+    path "sys/policies/acl"      { capabilities = ["read", "list"] }
+    path "sys/policies/acl/*"    { capabilities = ["read", "list"] }
+    path "auth/kubernetes/role"  { capabilities = ["read", "list"] }
+    path "auth/kubernetes/role/*" { capabilities = ["read", "list"] }
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: UserpassAuthEngineUser
+metadata:
+  name: admin
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: human/userpass
+  passwordCredentials:
+    secret:
+      name: openbao-admin-password
+    passwordKey: password
+  tokenPolicies: [admin]
+  tokenTTL: 8h
+---
+# For every namespace: an ExternalSecret reads kv/apps/<its namespace>/<key> with the
+# ServiceAccount "default" of its own namespace (referent authentication).
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: openbao
+spec:
+  provider:
+    vault:
+      server: http://openbao.openbao.svc.cluster.local:8200
+      path: kv/apps
+      version: v2
+      auth:
+        kubernetes:
+          mountPath: kubernetes
+          role: namespace-secrets
+          serviceAccountRef:
+            name: default
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openbao
+  namespace: openbao
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - bao.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: openbao
+          port: 8200

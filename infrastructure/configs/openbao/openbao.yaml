@@ -1,0 +1,132 @@
+# OpenBao: the cluster's secrets. Single node, data on NFS (the storage host), unsealed
+# automatically with a static key from sops (unseal.sops.yaml).
+#
+# Self-initialization (first start only, then never again): enables Kubernetes auth and
+# gives vault-config-operator a role. Everything else (engines, policies, roles, users)
+# is declared as objects in config.yaml. No root token survives the initialization.
+#
+# In-cluster clients use plain HTTP on the service: node-to-node pod traffic is already
+# encrypted by flannel's WireGuard backend. The UI is at bao.int.${DOMAIN} (LAN/VPN).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    gateway-access: internal
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: openbao
+  namespace: openbao
+spec:
+  interval: 24h
+  url: https://openbao.github.io/openbao-helm
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openbao
+  namespace: openbao
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: openbao
+      version: "0.30.3"
+      sourceRef:
+        kind: HelmRepository
+        name: openbao
+  values:
+    injector:
+      enabled: false        # secrets reach pods through External Secrets instead
+    ui:
+      enabled: true
+    server:
+      resources:
+        requests: { cpu: 20m, memory: 64Mi }
+        limits: { memory: 256Mi }
+      dataStorage:
+        enabled: true
+        size: 1Gi
+        storageClass: nfs
+      volumes:
+        - name: unseal
+          secret:
+            secretName: openbao-unseal
+      volumeMounts:
+        - name: unseal
+          mountPath: /openbao/unseal
+          readOnly: true
+      standalone:
+        enabled: true
+        config: |
+          ui = true
+
+          listener "tcp" {
+            tls_disable     = 1
+            address         = "[::]:8200"
+            cluster_address = "[::]:8201"
+            telemetry {
+              unauthenticated_metrics_access = true
+            }
+          }
+
+          storage "pebbledb" {
+            path = "/openbao/data/pebbledb"
+          }
+
+          seal "static" {
+            current_key_id = "homelab-1"
+            current_key    = "file:///openbao/unseal/unseal.key"
+          }
+
+          telemetry {
+            prometheus_retention_time = "30s"
+            disable_hostname          = true
+          }
+
+          initialize "kubernetes-auth" {
+            request "enable" {
+              operation = "update"
+              path      = "sys/auth/kubernetes"
+              data      = { type = "kubernetes" }
+            }
+            request "configure" {
+              operation = "update"
+              path      = "auth/kubernetes/config"
+              data      = { kubernetes_host = "https://kubernetes.default.svc" }
+            }
+          }
+
+          initialize "config-operator" {
+            request "policy" {
+              operation = "update"
+              path      = "sys/policies/acl/config-operator"
+              data = {
+                policy = <<-EOT
+                  # vault-config-operator manages engines, auth methods, policies and
+                  # users. It also needs to read sys/auth to resolve mount accessors.
+                  path "sys/auth"            { capabilities = ["read", "list"] }
+                  path "sys/auth/*"          { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }
+                  path "sys/mounts"          { capabilities = ["read", "list"] }
+                  path "sys/mounts/*"        { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }
+                  path "sys/policies/*"      { capabilities = ["create", "read", "update", "delete", "list"] }
+                  path "auth/*"              { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }
+                  path "identity/*"          { capabilities = ["create", "read", "update", "delete", "list"] }
+                  path "kv/*"                { capabilities = ["create", "read", "update", "delete", "list"] }
+                EOT
+              }
+            }
+            request "role" {
+              operation = "update"
+              path      = "auth/kubernetes/role/config-operator"
+              data = {
+                bound_service_account_names      = ["config-operator"]
+                bound_service_account_namespaces = ["openbao"]
+                token_policies                   = ["config-operator"]
+                token_ttl                        = "1h"
+              }
+            }
+          }

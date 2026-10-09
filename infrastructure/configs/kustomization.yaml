@@ -4,6 +4,7 @@ resources:
   - metallb-pool.yaml
   - storage.yaml
   - monitoring
+  - openbao
   - traefik.yaml
   - security-headers.yaml
   - gateway.yaml

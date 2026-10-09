@@ -1,0 +1,40 @@
+# vault-config-operator (Red Hat CoP): OpenBao's configuration as Kubernetes objects
+# (engines, policies, roles, users) in infrastructure/configs/openbao/, applied by Flux.
+# OpenBao speaks the Vault API. Webhook certificates come from cert-manager.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault-config-operator
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: vault-config-operator
+  namespace: vault-config-operator
+spec:
+  interval: 24h
+  url: https://redhat-cop.github.io/vault-config-operator
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vault-config-operator
+  namespace: vault-config-operator
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: vault-config-operator
+      version: "v1.0.3"
+      sourceRef:
+        kind: HelmRepository
+        name: vault-config-operator
+  values:
+    enableCertManager: true
+    env:
+      - name: VAULT_ADDR
+        value: http://openbao.openbao.svc.cluster.local:8200
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits: { memory: 256Mi }

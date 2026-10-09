@@ -85,7 +85,7 @@ Two layers:
 
 | Where | For | How |
 |---|---|---|
-| **sops** (in git) | Bootstrap only: Cloudflare token, OpenBao's unseal key, OpenBao's PostgreSQL login | Below, *sops + age* |
+| **sops** (in git) | Bootstrap only: OpenBao's unseal key, OpenBao's initial PostgreSQL password (rotated away at once) | Below, *sops + age* |
 | **OpenBao** (`bao.int.${DOMAIN}`) | Application and tenant secrets | `kv/apps/<namespace>/<name>`, read through External Secrets |
 
 ### Application secrets (OpenBao)
@@ -113,9 +113,9 @@ Pocket-ID is down, for a cluster-admin: OpenBao with the operator's identity
 password (`kubectl -n monitoring get secret grafana`).
 
 OpenBao's own configuration (engines, policies, roles, users) is in
-`infrastructure/configs/openbao/config.yaml`, applied by vault-config-operator. Its objects
-may show `READY False` from a failed first attempt even when OpenBao is configured: check
-in OpenBao, not in the status.
+`infrastructure/configs/openbao/config.yaml`, applied by vault-config-operator. Each object
+has two conditions (`ReconcileFailed` from an earlier attempt can linger next to
+`ReconcileSuccessful: True`): read both.
 
 ### sops + age
 

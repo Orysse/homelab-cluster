@@ -36,6 +36,11 @@ spec:
   passwordAuthentication: scram-sha-256   # OpenBao sends hashes, never plaintext passwords
   allowedRoles: ["*"]
   verifyConnection: true
+  # OpenBao changes the "openbao" password right away and every 30 days: only OpenBao knows
+  # it. The sops copy (postgres-openbao.sops.yaml) is a dead bootstrap value afterwards.
+  rootPasswordRotation:
+    enable: true
+    rotationPeriod: 720h
 ---
 apiVersion: redhatcop.redhat.io/v1alpha1
 kind: DatabaseSecretEngineStaticRole

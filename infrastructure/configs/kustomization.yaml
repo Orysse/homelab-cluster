@@ -9,6 +9,6 @@ resources:
   - traefik.yaml
   - security-headers.yaml
   - gateway.yaml
-  - cloudflare-api-token.sops.yaml
+  - cloudflare-api-token.yaml
   - cluster-issuers.yaml
   - certificate.yaml

@@ -1,5 +1,6 @@
-# PostgreSQL password of the "openbao" role, the same as in homelab-nix secrets/nuc1.yaml
-# (postgres-openbao-password). OpenBao uses it to set the app users' passwords.
+# Bootstrap password of the PostgreSQL role "openbao" (same as homelab-nix secrets/nuc1.yaml
+# postgres-openbao-password). OpenBao rotates it at once (database.yaml): afterwards this
+# value is dead; only OpenBao knows the real one. Needed again only to rebuild from scratch.
 apiVersion: v1
 kind: Secret
 metadata:

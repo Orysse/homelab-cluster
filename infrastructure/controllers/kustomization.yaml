@@ -3,5 +3,4 @@ kind: Kustomization
 resources:
   - metallb.yaml
   - cert-manager.yaml
-  - datadog-operator.yaml
   - csi-driver-nfs.yaml

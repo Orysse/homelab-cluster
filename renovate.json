@@ -6,6 +6,6 @@
     "managerFilePatterns": ["/\\.ya?ml$/"]
   },
   "kubernetes": {
-    "managerFilePatterns": ["/^apps/.+\\.ya?ml$/"]
+    "managerFilePatterns": ["/^(apps|infrastructure)/.+\\.ya?ml$/"]
   }
 }

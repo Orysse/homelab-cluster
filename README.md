@@ -14,10 +14,12 @@ clusters/homelab/          Flux entry point (the base points here)
 └─ apps.yaml               apps (after infra-configs)
 
 infrastructure/
-├─ controllers/            what installs CRDs: MetalLB, cert-manager, csi-driver-nfs
-└─ configs/                what uses them: MetalLB IP pool, Traefik settings, Gateway,
-                           security headers, Let's Encrypt issuers, wildcard certificate, storage class,
-                           monitoring (Alloy, kube-state-metrics, node-exporter, Grafana)
+├─ controllers/            what installs CRDs: MetalLB, cert-manager, csi-driver-nfs,
+│                          External Secrets, vault-config-operator
+└─ configs/                what uses them: MetalLB IP pool, Traefik settings, Gateways,
+                           security headers, Let's Encrypt issuers, wildcard certificate,
+                           storage class, monitoring (Alloy, kube-state-metrics, node-exporter,
+                           Grafana), OpenBao, Pocket-ID, Headlamp, OIDC RBAC
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page (index.txt) at the domain apex
@@ -42,6 +44,7 @@ The network is defined **once**, in the base's Nix topology, which publishes the
 | `${CLUSTER_NAME}` | `homelab` | `cluster` label on metrics and logs |
 | `${NFS_SERVER}`, `${NFS_SHARE}` | `192.168.1.200`, `/srv/data` | StorageClass `nfs` (volumes on the storage host) |
 | `${MONITORING_ADDRESS}` | `192.168.1.200` | Where Alloy pushes metrics and logs; Grafana's data sources |
+| `${DATABASE_ADDRESS}` | `192.168.1.200` | PostgreSQL for the apps (credentials from OpenBao) |
 
 Only the `${VAR}` form is substituted (`$hostname` in nginx.conf is not). To exclude an object:
 annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
@@ -64,7 +67,9 @@ Two Gateways, in `infrastructure/configs/gateway.yaml`:
 | `internal` | `gateway-access: internal` | `*.int.${DOMAIN}` | LAN and VPN (`.241`) |
 
 Anything with an admin interface goes on `internal`. The Traefik dashboard is at
-`traefik.int.${DOMAIN}`.
+`traefik.int.${DOMAIN}`. One exception: Headlamp (`k8s.${DOMAIN}`) is public so that
+people without the VPN can use it. It has no rights of its own: it acts with the
+logged-in user's Pocket-ID token, so their RBAC applies.
 
 HTTPS is automatic: the `public` Gateway (Gateway API, served by Traefik) terminates TLS
 with the `*.abe.lc` wildcard certificate; Traefik redirects
@@ -74,8 +79,8 @@ HTTP to HTTPS and adds the security headers (HSTS, nosniff, frame deny, referrer
 
 - Images and charts are **pinned** (tag / version). Never `:latest`. Renovate opens pull
   requests to update them (`renovate.json`).
-- **No plaintext secrets**: the repository is public. Secrets are `*.sops.yaml` files,
-  encrypted with sops (see below).
+- **No plaintext secrets**: the repository is public. App secrets live in OpenBao,
+  bootstrap secrets are `*.sops.yaml` files (see *Secrets*).
 - Config files mounted from a ConfigMap go through `configMapGenerator` (hash-suffixed name,
   so pods restart when the content changes).
 
@@ -130,6 +135,31 @@ Recipients (`.sops.yaml`): the admin — software age key (`~/.config/sops/age/k
 itself encrypted for the YubiKey in nix-secrets) and YubiKey — and Flux's dedicated age key,
 generated on kube-1 and published by the base as `flux-system/sops-age`. If that key changes:
 update it in `.sops.yaml`, then run `sops updatekeys <file>` on each secret.
+
+## Access
+
+Everyone logs in through **Pocket-ID** (`auth.${DOMAIN}`, passkeys). Its groups decide the
+rights: `admins` is cluster-admin (`infrastructure/configs/oidc-rbac.yaml`), admin in
+Grafana and OpenBao. OIDC clients are created in Pocket-ID's admin UI; their secrets go to
+OpenBao (`kv/apps/<namespace>/oidc`, keys `client_id`, `client_secret`).
+
+| What | Where | How |
+|---|---|---|
+| Kubernetes API | `kubectl` | context `homelab-oidc`: [kubelogin](https://github.com/int128/kubelogin) opens the browser, the API server checks the token (users and groups prefixed `oidc:`) |
+| Kubernetes console | `k8s.${DOMAIN}` | Headlamp, with the user's own token |
+| Secrets | `bao.int.${DOMAIN}` | OpenBao UI, method *OIDC*, mount path `sso/oidc` |
+| Dashboards | `grafana.int.${DOMAIN}` | Grafana, automatic Pocket-ID login |
+
+Break-glass when Pocket-ID is down: the base's admin kubeconfig (client certificate,
+`homelab-nix` context), then the per-app procedures in *Secrets* above.
+
+## Updates
+
+[Renovate](https://docs.renovatebot.com) opens a pull request for every new chart version
+(HelmRelease) and image tag (`renovate.json`). Before merging: read the release notes (major
+versions especially) and check that the chart's values did not move. After merging, follow
+it with `flux get hr -A` and `flux get ks`. k3s (and the Traefik it bundles), the nodes and
+the host are updated from `homelab-nix`.
 
 ## Checking locally
 

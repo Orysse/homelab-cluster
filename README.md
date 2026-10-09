@@ -79,7 +79,41 @@ HTTP to HTTPS and adds the security headers (HSTS, nosniff, frame deny, referrer
 - Config files mounted from a ConfigMap go through `configMapGenerator` (hash-suffixed name,
   so pods restart when the content changes).
 
-## Secrets (sops + age)
+## Secrets
+
+Two layers:
+
+| Where | For | How |
+|---|---|---|
+| **sops** (in git) | Platform and bootstrap secrets: Cloudflare token, Grafana admin, OpenBao's unseal key and admin password | Below, *sops + age* |
+| **OpenBao** (`bao.int.${DOMAIN}`) | Application and tenant secrets | `kv/apps/<namespace>/<name>`, read through External Secrets |
+
+### Application secrets (OpenBao)
+
+A namespace can only read `kv/apps/<its own namespace>/*` (templated policy, nothing to
+configure per namespace). Write the secret in the UI (user `admin`, method *Username*,
+mount path `human/userpass`; password: `sops -d --extract '["stringData"]["password"]'
+infrastructure/configs/openbao/admin-password.sops.yaml`), then in the app:
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: db, namespace: myapp }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target: { name: db }                    # the Kubernetes Secret it creates
+  data:
+    - secretKey: password
+      remoteRef: { key: myapp/db, property: password }   # kv/apps/myapp/db
+```
+
+OpenBao's own configuration (engines, policies, roles, users) is in
+`infrastructure/configs/openbao/config.yaml`, applied by vault-config-operator. Its objects
+may show `READY False` from a failed first attempt even when OpenBao is configured: check
+in OpenBao, not in the status.
+
+### sops + age
 
 Write a Secret in plaintext as `<path>/<name>.sops.yaml`, then encrypt it in place:
 

@@ -1,0 +1,23 @@
+# Umami: reached by Traefik only; reaches DNS and its PostgreSQL on the database host.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: umami
+  namespace: umami
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "3000", protocol: TCP }] }]
+  egress:
+    # Cluster DNS (names visible in Hubble).
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toCIDR: ["${DATABASE_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]

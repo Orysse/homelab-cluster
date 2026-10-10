@@ -1,0 +1,15 @@
+# Static site: reached only by Traefik, reaches nothing (not even DNS). Kubelet probes
+# (host) are always allowed by Cilium.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vitrine
+  namespace: vitrine
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]

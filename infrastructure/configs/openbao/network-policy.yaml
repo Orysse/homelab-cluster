@@ -1,0 +1,30 @@
+# OpenBao: only its three clients reach it: External Secrets (apps' secrets), the config
+# operator, and Traefik (UI at bao.int). It reaches the API server (Kubernetes auth checks
+# service account tokens), PostgreSQL (database engine) and Pocket-ID (OIDC login).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: openbao
+  namespace: openbao
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: external-secrets, app.kubernetes.io/name: external-secrets }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: vault-config-operator }
+      toPorts: [{ ports: [{ port: "8200", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toCIDR: ["${DATABASE_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

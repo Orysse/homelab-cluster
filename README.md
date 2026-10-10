@@ -24,7 +24,8 @@ infrastructure/
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page (index.txt) at the domain apex
 ├─ vitrine/                showcase site (image built in its own repository)
-└─ gatus/                  status page at status.${DOMAIN}
+├─ gatus/                  status page at status.${DOMAIN}
+├─ umami/                  web analytics for vitrine (tracker public, dashboard internal)
 ```
 
 Each level waits for the previous one to be ready (`dependsOn`).
@@ -66,6 +67,8 @@ Two Gateways, in `infrastructure/configs/gateway.yaml`:
 | `public` | `gateway-access: public` | any | Internet (`.240`, port-forwarded) |
 | `internal` | `gateway-access: internal` | `*.int.${DOMAIN}` | LAN and VPN (`.241`) |
 
+An app with both a public part and an admin UI labels its namespace `gateway-access: both`
+(e.g. Umami: tracker on `public`, dashboard on `internal`).
 Anything with an admin interface goes on `internal`. The Traefik dashboard is at
 `traefik.int.${DOMAIN}`. One exception: Headlamp (`k8s.${DOMAIN}`) is public so that
 people without the VPN can use it. It has no rights of its own: it acts with the

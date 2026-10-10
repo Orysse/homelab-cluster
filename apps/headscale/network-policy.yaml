@@ -1,0 +1,30 @@
+# Headscale: reached by Traefik (clients, hs.${DOMAIN}) and Alloy (metrics); reaches DNS, its
+# PostgreSQL, Pocket-ID (auth.${DOMAIN}, through the public address) and Tailscale's DERP map.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: headscale
+  namespace: headscale
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+      toPorts: [{ ports: [{ port: "9090", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toCIDR: ["${DATABASE_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+        - matchName: controlplane.tailscale.com
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

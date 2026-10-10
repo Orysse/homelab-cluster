@@ -1,0 +1,178 @@
+# Headscale at hs.${DOMAIN}: self-hosted Tailscale control server, the everyday VPN.
+#   login    Pocket-ID, group "admins" only
+#   relays   Tailscale's public DERP servers (traffic stays end-to-end WireGuard-encrypted);
+#            clients connect directly when they can (router UDP 41641 -> the subnet router)
+#   routes   the subnet router is Tailscale on the database host (homelab-nix: tailscale.nix),
+#            not a pod: the route to the homelab does not depend on the cluster
+# State (nodes, keys, users) in PostgreSQL on the database host; the Noise key from OpenBao.
+# When the cluster is down, connected devices keep their tunnels but nothing new can log in:
+# the admin's laptop keeps WireGuard (wg0, homelab-nix) for that.
+# CLI: kubectl -n headscale exec deploy/headscale -- headscale nodes list
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headscale
+  labels:
+    gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale
+  namespace: headscale
+data:
+  config.yaml: |
+    server_url: https://hs.${DOMAIN}
+    listen_addr: 0.0.0.0:8080
+    metrics_listen_addr: 0.0.0.0:9090
+    grpc_listen_addr: 127.0.0.1:50443
+    unix_socket: /var/run/headscale/headscale.sock
+    unix_socket_permission: "0770"
+    disable_check_updates: true         # Renovate handles updates
+    noise:
+      private_key_path: /etc/headscale/secrets/noise_private.key
+    prefixes:
+      v4: 100.64.0.0/10
+      v6: fd7a:115c:a1e0::/48
+      allocation: sequential
+    derp:
+      server:
+        enabled: false
+      urls: [https://controlplane.tailscale.com/derpmap/default]
+      auto_update_enabled: true
+      update_frequency: 24h
+    database:
+      type: postgres
+      postgres:                         # user and password: environment (headscale-env)
+        host: ${DATABASE_ADDRESS}
+        port: 5432
+        name: headscale
+        ssl: false
+    dns:
+      magic_dns: true
+      base_domain: ts.${DOMAIN}
+      override_local_dns: false         # clients keep their own DNS
+    oidc:
+      issuer: https://auth.${DOMAIN}
+      client_secret_path: /etc/headscale/secrets/oidc_client_secret   # client_id: environment
+      scope: [openid, profile, email, groups]
+      allowed_groups: [admins]
+      pkce:
+        enabled: true
+    policy:
+      mode: file
+      path: /etc/headscale/policy.json
+    log:
+      level: info
+    logtail:
+      enabled: false
+  # Only the homelab networks, like wg0 (homelab-nix topology: vpn.routes). Every user who can
+  # log in is an admin for now; friends with restricted access get their own group later.
+  policy.json: |
+    {
+      "acls": [
+        { "action": "accept", "src": ["*"], "dst": ["192.168.1.192/26:*"] }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headscale
+  namespace: headscale
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                # one control server at a time
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headscale
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headscale
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: headscale
+          image: docker.io/headscale/headscale:0.29.4
+          args: [serve]
+          envFrom:
+            - secretRef:
+                name: headscale-env   # PostgreSQL credentials, OIDC client ID (from OpenBao)
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: metrics, containerPort: 9090 }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 48Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /etc/headscale/config.yaml, subPath: config.yaml, readOnly: true }
+            - { name: config, mountPath: /etc/headscale/policy.json, subPath: policy.json, readOnly: true }
+            - { name: secrets, mountPath: /etc/headscale/secrets, readOnly: true }
+            - { name: run, mountPath: /var/run/headscale }   # CLI socket
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap:
+            name: headscale
+        - name: secrets
+          secret:
+            secretName: headscale-files
+        - name: run
+          emptyDir:
+            sizeLimit: 1Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headscale
+  namespace: headscale
+spec:
+  selector:
+    app.kubernetes.io/name: headscale
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: headscale
+  namespace: headscale
+spec:
+  parentRefs:
+    - name: public
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - hs.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: headscale
+          port: 80

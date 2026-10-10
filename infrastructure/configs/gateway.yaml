@@ -2,6 +2,7 @@
 # namespace accordingly:
 #   public   (gateway-access=public)    any host, Internet-facing (${INGRESS_ADDRESS})
 #   internal (gateway-access=internal)  *.int.${DOMAIN}, LAN and VPN only (${INTERNAL_ADDRESS})
+#   both     (gateway-access=both)      an app with a public part and an internal admin UI
 # TLS: the wildcard certificate. HTTP->HTTPS redirect and security headers are applied by
 # Traefik's entry points (traefik.yaml).
 ---
@@ -31,8 +32,8 @@ spec:
         namespaces:
           from: Selector
           selector:
-            matchLabels:
-              gateway-access: public
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
 
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -55,5 +56,5 @@ spec:
         namespaces:
           from: Selector
           selector:
-            matchLabels:
-              gateway-access: internal
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [internal, both] }

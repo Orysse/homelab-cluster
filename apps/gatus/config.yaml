@@ -65,3 +65,10 @@ endpoints:
     interval: 5m
     conditions:
       - "[STATUS] == 200"
+
+  - name: pulse.${DOMAIN}
+    group: public
+    url: https://pulse.${DOMAIN}/script.js
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"

@@ -69,3 +69,17 @@ spec:
   credentialType: password
   passwordCredentialConfig: {}  # required by the webhook; default password policy
   rotationPeriod: 31536000
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: DatabaseSecretEngineStaticRole
+metadata:
+  name: umami
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: database/postgres
+  dBName: postgres
+  username: umami
+  credentialType: password
+  passwordCredentialConfig: {}
+  rotationPeriod: 31536000

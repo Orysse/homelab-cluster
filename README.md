@@ -55,10 +55,11 @@ annotate it with `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 1. `apps/<app>/<app>.yaml`: Namespace (label `gateway-access: public`), Deployment, Service,
    HTTPRoute attached to `kube-system/public` (start from `site/`). Pinned image tag,
    `resources` always set, hostname `<subdomain>.${DOMAIN}`.
-2. `apps/<app>/kustomization.yaml` listing that file, plus the `replacements` block
+2. `apps/<app>/network-policy.yaml` (see *Network policies*; start from `umami/`).
+3. `apps/<app>/kustomization.yaml` listing those files, plus the `replacements` block
    that sets `app.kubernetes.io/version` from the image tag (copy it from `vitrine/`).
-3. One line in `apps/kustomization.yaml`.
-4. `git push`.
+4. One line in `apps/kustomization.yaml`.
+5. `git push`.
 
 Two Gateways, in `infrastructure/configs/gateway.yaml`:
 
@@ -77,6 +78,28 @@ logged-in user's Pocket-ID token, so their RBAC applies.
 HTTPS is automatic: the `public` Gateway (Gateway API, served by Traefik) terminates TLS
 with the `*.abe.lc` wildcard certificate; Traefik redirects
 HTTP to HTTPS and adds the security headers (HSTS, nosniff, frame deny, referrer policy).
+
+## Network policies
+
+Cilium (installed by the base) enforces a `CiliumNetworkPolicy` per namespace
+(`network-policy.yaml` next to each app): **deny by default in both directions**, then what
+the app needs. Done for the public apps (vitrine, site, gatus, umami), Pocket-ID, Headlamp,
+OpenBao and Grafana; the platform namespaces (Flux, cert-manager, External Secrets,
+kube-system, webhooks) are not policed yet.
+
+| Building block | Rule |
+|---|---|
+| Reached through Traefik | `fromEndpoints` kube-system / `app.kubernetes.io/name: traefik`, on the container port |
+| Cluster DNS | `toEndpoints` kube-system / `k8s-app: kube-dns`, port 53, with the `dns` rule (names in Hubble) |
+| PostgreSQL, VictoriaMetrics… on nuc1 | `toCIDR: ["${DATABASE_ADDRESS}/32"]` + port (the host is outside the cluster: "world") |
+| Kubernetes API | `toEntities: [kube-apiserver]`, port 6443 |
+| Pocket-ID, any HTTPS | `toEntities: [world]`, port 443 (`auth.${DOMAIN}` goes out through the public address) |
+| Nothing at all | `egress: [{}]`: without any egress rule, Cilium would not deny egress |
+
+Kubelet probes (`reserved:host`) are always allowed. To write or debug one, watch the real
+traffic in Hubble (`hubble.int.${DOMAIN}`, or `hubble observe --namespace <ns> --verdict
+DROPPED` in a `cilium` pod). For a new policy, `cilium-dbg config PolicyAuditMode=true` on the
+agents makes drops visible as `AUDIT` without enforcing them (reset when the agent restarts).
 
 ## Rules
 

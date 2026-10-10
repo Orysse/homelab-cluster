@@ -70,7 +70,7 @@ Two Gateways, in `infrastructure/configs/gateway.yaml`:
 An app with both a public part and an admin UI labels its namespace `gateway-access: both`
 (e.g. Umami: tracker on `public`, dashboard on `internal`).
 Anything with an admin interface goes on `internal`. The Traefik dashboard is at
-`traefik.int.${DOMAIN}`. One exception: Headlamp (`k8s.${DOMAIN}`) is public so that
+`traefik.int.${DOMAIN}`. Hubble UI (Cilium's network flows, installed by the base): `hubble.int.${DOMAIN}`. One exception: Headlamp (`k8s.${DOMAIN}`) is public so that
 people without the VPN can use it. It has no rights of its own: it acts with the
 logged-in user's Pocket-ID token, so their RBAC applies.
 

@@ -65,6 +65,7 @@ spec:
         - namespace: kube-system
           podName: traefik-*
           program: traefik
+          poll_without_inotify: true   # the log is a symlink: inotify would miss rotations
       env:
         - name: COLLECTIONS
           value: "crowdsecurity/traefik crowdsecurity/base-http-scenarios crowdsecurity/http-cve"

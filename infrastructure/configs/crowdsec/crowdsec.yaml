@@ -3,7 +3,7 @@
 #   agents  one per node (DaemonSet), reading the Traefik pod's log files from /var/log
 #   LAPI    holds the decisions (bans); no volume: decisions last 4 h and the hub data is
 #           downloaded again at start (SQLite on NFS would corrupt, see the topology)
-# Phase 1: detection only. Phase 2: Traefik's bouncer plugin enforces the decisions.
+# Traefik's bouncer plugin enforces the decisions (traefik.yaml, middleware.yaml).
 # `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list` / `cscli alerts list`
 ---
 apiVersion: v1
@@ -54,6 +54,10 @@ spec:
       persistentVolume:
         data: { enabled: false }
         config: { enabled: false }
+      # Registers Traefik's bouncer with this key at start (bouncer-key.yaml).
+      env:
+        - name: BOUNCER_KEY_traefik
+          valueFrom: { secretKeyRef: { name: bouncer, key: key } }
       podAnnotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "6060"

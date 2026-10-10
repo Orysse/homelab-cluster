@@ -1,4 +1,4 @@
-# CrowdSec: the agents and the registration job talk to the LAPI; the LAPI and the agents
+# CrowdSec: the agents, the registration job and Traefik's bouncer talk to the LAPI; the LAPI and the agents
 # download the hub (parsers, scenarios) and the LAPI talks to CrowdSec's central API
 # (community blocklist), all over HTTPS. Alloy scrapes both on 6060.
 ---
@@ -13,6 +13,10 @@ spec:
   ingress:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: crowdsec }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    # Traefik's bouncer fetches the decisions.
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }

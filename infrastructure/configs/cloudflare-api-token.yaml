@@ -1,4 +1,4 @@
-# Cloudflare API token for cert-manager (DNS-01; zone abe.lc, DNS Edit), kept in OpenBao at
+# Cloudflare API token for cert-manager (DNS-01; zones abe.lc and holive.fr, DNS Edit), kept in OpenBao at
 # kv/apps/cert-manager/cloudflare. If OpenBao is down, issued certificates keep working;
 # only renewals (30 days before expiry) wait for it.
 ---

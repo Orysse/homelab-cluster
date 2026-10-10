@@ -23,3 +23,19 @@ metadata:
 spec:
   defaultCertificate:
     secretName: wildcard-tls
+---
+# holive.fr (apps/holive): a second zone in the same Cloudflare account, so the same DNS-01
+# token (it must list the holive.fr zone too). Served by its own listeners (gateway.yaml).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: holive
+  namespace: kube-system
+spec:
+  secretName: holive-tls
+  dnsNames:
+    - holive.fr
+    - www.holive.fr
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt

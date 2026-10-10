@@ -6,3 +6,4 @@ resources:
   - csi-driver-nfs.yaml
   - external-secrets.yaml
   - vault-config-operator.yaml
+  - tetragon.yaml

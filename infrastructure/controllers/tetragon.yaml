@@ -1,0 +1,59 @@
+# Tetragon: Cilium's eBPF runtime security. An agent per node sees, per pod, every process
+# started (PROCESS_EXEC/EXIT) and whatever the TracingPolicies hook (sensitive files,
+# privilege changes: infrastructure/configs/tetragon.yaml).
+#   events   JSON on the export-stdout container's output -> Alloy -> VictoriaLogs
+#   metrics  tetragon_events_total{namespace,workload,binary,type} -> alerts on nuc1
+# Host processes and kube-system are not exported (chart defaults): the API audit log
+# already covers people, and the system pods are noisy.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cilium
+  namespace: kube-system
+spec:
+  interval: 24h
+  url: https://helm.cilium.io
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tetragon
+  namespace: kube-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: tetragon
+      version: "1.7.1"
+      sourceRef:
+        kind: HelmRepository
+        name: cilium
+  values:
+    # CRDs (TracingPolicy...) from the chart, so they exist before infra-configs applies
+    # the policies (the operator would create them only once running).
+    crds:
+      installMethod: helm
+    # The agent runs on the host network: Alloy scrapes <node IP>:2112 on its own node.
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "2112"
+    tetragon:
+      processCacheSize: 16384           # default 65536: a few hundred processes per node
+      prometheus:
+        # Without "pod": one series per workload and binary, not per pod restart.
+        metricsLabelFilter: "namespace,workload,binary"
+      resources:
+        requests: { cpu: 20m, memory: 128Mi }
+        limits: { memory: 512Mi }
+    export:
+      resources:
+        requests: { cpu: 5m, memory: 16Mi }
+        limits: { memory: 64Mi }
+    tetragonOperator:
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2113"
+      resources:
+        requests: { cpu: 10m, memory: 48Mi }
+        limits: { memory: 128Mi }

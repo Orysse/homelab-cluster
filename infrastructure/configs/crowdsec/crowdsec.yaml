@@ -1,0 +1,79 @@
+# CrowdSec: reads Traefik's access logs, detects scans and attacks (HTTP scenarios, known
+# CVE probes) and shares/receives the community blocklist.
+#   agents  one per node (DaemonSet), reading the Traefik pod's log files from /var/log
+#   LAPI    holds the decisions (bans); no volume: decisions last 4 h and the hub data is
+#           downloaded again at start (SQLite on NFS would corrupt, see the topology)
+# Phase 1: detection only. Phase 2: Traefik's bouncer plugin enforces the decisions.
+# `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list` / `cscli alerts list`
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crowdsec
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+spec:
+  interval: 24h
+  url: https://crowdsecurity.github.io/helm-charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+  annotations:
+    # ${REGISTRATION_TOKEN} below is for CrowdSec itself, not for Flux.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: crowdsec
+      version: "0.24.2"
+      sourceRef:
+        kind: HelmRepository
+        name: crowdsec
+  values:
+    container_runtime: containerd      # CRI log format
+    image:
+      kubectl:
+        tag: "1.36.4"                  # CAPI registration job; the chart defaults to latest
+    config:
+      config.yaml.local: |
+        api:
+          server:
+            auto_registration:   # agents register with the chart's token, from pod IPs only
+              enabled: true
+              token: "${REGISTRATION_TOKEN}"
+              allowed_ranges: ["10.42.0.0/16"]
+    lapi:
+      persistentVolume:
+        data: { enabled: false }
+        config: { enabled: false }
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6060"
+      resources:
+        requests: { cpu: 20m, memory: 128Mi }
+        limits: { memory: 384Mi }
+    agent:
+      acquisition:
+        - namespace: kube-system
+          podName: traefik-*
+          program: traefik
+      env:
+        - name: COLLECTIONS
+          value: "crowdsecurity/traefik crowdsecurity/base-http-scenarios crowdsecurity/http-cve"
+        # Private ranges (LAN, VPN, pods) are never banned.
+        - name: PARSERS
+          value: "crowdsecurity/whitelists"
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6060"
+      resources:
+        requests: { cpu: 20m, memory: 96Mi }
+        limits: { memory: 256Mi }

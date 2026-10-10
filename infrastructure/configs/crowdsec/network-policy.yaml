@@ -1,0 +1,33 @@
+# CrowdSec: the agents and the registration job talk to the LAPI; the LAPI and the agents
+# download the hub (parsers, scenarios) and the LAPI talks to CrowdSec's central API
+# (community blocklist), all over HTTPS. Alloy scrapes both on 6060.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: crowdsec }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+      toPorts: [{ ports: [{ port: "6060", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: crowdsec, type: lapi }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    # The registration job stores the central API credentials in a Secret.
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]

@@ -12,7 +12,7 @@ metadata:
     gateway-access: public
 ---
 # Service account that sends the contact form through the Gmail API (domain-wide delegation,
-# gmail.send only): its JSON key pasted as is in OpenBao at kv/apps/holive/smtp.
+# gmail.send only): its JSON key pasted as is in OpenBao at kv/apps/holive/gmail.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -24,9 +24,9 @@ spec:
   target: { name: gmail }
   data:
     - secretKey: client_email
-      remoteRef: { key: holive/smtp, property: client_email }
+      remoteRef: { key: holive/gmail, property: client_email }
     - secretKey: private_key
-      remoteRef: { key: holive/smtp, property: private_key }
+      remoteRef: { key: holive/gmail, property: private_key }
 ---
 apiVersion: apps/v1
 kind: Deployment

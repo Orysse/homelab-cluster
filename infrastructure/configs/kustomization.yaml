@@ -15,3 +15,4 @@ resources:
   - cloudflare-api-token.yaml
   - cluster-issuers.yaml
   - certificate.yaml
+  - tetragon.yaml

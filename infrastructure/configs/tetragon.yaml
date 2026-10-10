@@ -1,0 +1,29 @@
+# Tetragon policies (the agents: infrastructure/controllers/tetragon.yaml). Process exec and
+# exit events need no policy. Events land in VictoriaLogs (kube-system, container
+# export-stdout); alerts are on nuc1 (homelab-nix: _alert-rules.nix, group "runtime").
+---
+# Reads of credentials and writes under /etc, from any pod (host processes are not exported).
+# security_file_permission: arg 1 is the access mask (MAY_WRITE = 2, MAY_READ = 4).
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: sensitive-files
+spec:
+  kprobes:
+    - call: security_file_permission
+      syscall: false
+      return: true
+      args:
+        - { index: 0, type: file }
+        - { index: 1, type: int }
+      returnArg: { index: 0, type: int }
+      returnArgAction: Post
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values: [/etc/shadow, /etc/gshadow, /etc/sudoers, /root/.ssh]
+            - { index: 1, operator: Equal, values: ["4"] }
+        - matchArgs:
+            - { index: 0, operator: Prefix, values: [/etc/] }
+            - { index: 1, operator: Equal, values: ["2"] }

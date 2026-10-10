@@ -1,0 +1,22 @@
+# MetalLB controller (assigns addresses; the speakers run on the host network, unaffected).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: metallb-controller
+  namespace: metallb-system
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    # Admission webhook, called by the API server (from the server node: host or remote-node).
+    - fromEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "9443", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]

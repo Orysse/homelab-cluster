@@ -1,0 +1,30 @@
+# cert-manager: the webhook is called by the API server; the controller talks to Let's
+# Encrypt and Cloudflare (HTTPS) and checks DNS-01 propagation against public name servers.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    # Admission webhook, called by the API server (from the server node: host or remote-node).
+    - fromEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "10250", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+      toPorts: [{ ports: [{ port: "9402", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts:
+        - ports: [{ port: "443", protocol: TCP }]
+        - ports: [{ port: "53", protocol: ANY }]

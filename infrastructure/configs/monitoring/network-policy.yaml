@@ -1,4 +1,4 @@
-# Grafana only (the collectors reach every node and pod by design): reached by Traefik;
+# Grafana: reached by Traefik;
 # reaches DNS, the monitoring host (VictoriaMetrics, VictoriaLogs, Alertmanager), its
 # PostgreSQL, and HTTPS (Pocket-ID login, plugin and dashboard downloads at start).
 ---
@@ -30,3 +30,44 @@ spec:
             - { port: "5432", protocol: TCP }
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+---
+# Alloy scrapes every pod and kubelet in the cluster and ships to the monitoring host; nothing
+# reaches it (kubelet probes aside).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alloy
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: alloy }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress: [{}]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [cluster]
+    - toCIDR: ["${MONITORING_ADDRESS}/32"]
+      toPorts:
+        - ports: [{ port: "8428", protocol: TCP }, { port: "9428", protocol: TCP }]
+---
+# kube-state-metrics: scraped by Alloy, reads the API server.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: kube-state-metrics }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: alloy }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "8081", protocol: TCP }] }]
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]

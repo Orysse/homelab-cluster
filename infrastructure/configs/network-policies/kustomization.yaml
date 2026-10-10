@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Network policies of the platform namespaces (the apps keep theirs next to them).
+# Pods on the host network (Cilium, MetalLB speakers, node-exporter, NFS CSI) are not Cilium
+# endpoints: policies do not apply to them.
+resources:
+  - flux-system.yaml
+  - cert-manager.yaml
+  - external-secrets.yaml
+  - vault-config-operator.yaml
+  - metallb-system.yaml
+  - kube-system.yaml

@@ -1,0 +1,130 @@
+# kube-system, one policy per component (selecting only it): k3s's own pods (Helm install
+# jobs) and the host-network ones are left alone.
+---
+# Traefik: reached by everyone on its entry points (Internet and LAN through MetalLB, pods
+# through the public address), scraped by Alloy; reaches every app pod (its backends) and
+# watches the API server.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: traefik }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [world, cluster]
+      toPorts:
+        - ports:
+            - { port: "8000", protocol: TCP }
+            - { port: "8443", protocol: TCP }
+            - { port: "9443", protocol: TCP }
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+      toPorts: [{ ports: [{ port: "9100", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchExpressions: [{ key: k8s:io.kubernetes.pod.namespace, operator: Exists }]
+---
+# CoreDNS: answers every pod, forwards to the router, watches the API server.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: coredns
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels: { k8s-app: kube-dns }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [cluster]
+      toPorts: [{ ports: [{ port: "53", protocol: ANY }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+      toPorts: [{ ports: [{ port: "9153", protocol: TCP }] }]
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "53", protocol: ANY }] }]
+---
+# metrics-server: called by the API server (aggregated API), reads every kubelet.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: metrics-server
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels: { k8s-app: metrics-server }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "10250", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEntities: [host, remote-node]
+      toPorts: [{ ports: [{ port: "10250", protocol: TCP }] }]
+---
+# Hubble relay: gathers flows from every Cilium agent (host network, port 4244) for the UI.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-relay
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels: { k8s-app: hubble-relay }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s-app: hubble-ui }
+      toPorts: [{ ports: [{ port: "4245", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [host, remote-node]
+      toPorts: [{ ports: [{ port: "4244", protocol: TCP }] }]
+---
+# Hubble UI: reached through Traefik (hubble.int), reads the relay and the API server.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-ui
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels: { k8s-app: hubble-ui }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "8081", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s-app: hubble-relay }
+      toPorts: [{ ports: [{ port: "4245", protocol: TCP }] }]

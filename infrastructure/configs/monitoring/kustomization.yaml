@@ -8,3 +8,4 @@ resources:
   - grafana-secrets.yaml
   - grafana.yaml
   - grafana-route.yaml
+  - hubble.yaml

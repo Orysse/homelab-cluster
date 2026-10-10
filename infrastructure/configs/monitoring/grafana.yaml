@@ -137,6 +137,18 @@ spec:
           gnetId: 17346
           revision: 9
           datasource: VictoriaMetrics
+        cilium-agent:
+          gnetId: 16611
+          revision: 1
+          datasource: VictoriaMetrics
+        cilium-operator:
+          gnetId: 16612
+          revision: 1
+          datasource: VictoriaMetrics
+        hubble:
+          gnetId: 16613
+          revision: 1
+          datasource: VictoriaMetrics
         flux-cluster:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/cluster.json
           datasource: VictoriaMetrics

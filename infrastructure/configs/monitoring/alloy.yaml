@@ -1,6 +1,6 @@
 # Grafana Alloy, one per node: everything on its own node only (the load follows the pods).
 #   metrics: pods annotated prometheus.io/scrape (Flux, Traefik, cert-manager, Gatus,
-#            kube-state-metrics, node-exporter), CoreDNS, kubelet and cAdvisor
+#            kube-state-metrics, node-exporter, Cilium), CoreDNS, Hubble, kubelet and cAdvisor
 #            -> VictoriaMetrics ${MONITORING_ADDRESS}:8428
 #   logs:    every container's log file -> VictoriaLogs ${MONITORING_ADDRESS}:9428
 ---
@@ -122,6 +122,29 @@ spec:
             }
           }
 
+          // Hubble (Cilium agents, host network): flow metrics on 9965, annotated on a Service only.
+          discovery.relabel "hubble" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
+              regex         = "cilium"
+              action        = "keep"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_number"]
+              regex         = "9965"
+              action        = "keep"
+            }
+            rule {
+              target_label = "job"
+              replacement  = "hubble"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_node_name"]
+              target_label  = "node"
+            }
+          }
+
           // kube-state-metrics describes OTHER pods: its namespace/pod labels must win over the
           // scrape target's (otherwise they become exported_namespace / exported_pod).
           discovery.relabel "ksm" {
@@ -150,7 +173,7 @@ spec:
           }
 
           prometheus.scrape "pods" {
-            targets         = array.concat(discovery.relabel.annotated.output, discovery.relabel.coredns.output)
+            targets         = array.concat(discovery.relabel.annotated.output, discovery.relabel.coredns.output, discovery.relabel.hubble.output)
             scrape_interval = "30s"
             forward_to      = [prometheus.remote_write.vm.receiver]
           }

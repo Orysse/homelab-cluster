@@ -25,7 +25,8 @@ apps/                      one app = one directory, listed in apps/kustomization
 ├─ site/                   plain-text page (index.txt) at the domain apex
 ├─ vitrine/                showcase site (image built in its own repository)
 ├─ gatus/                  status page at status.${DOMAIN}
-└─ umami/                  web analytics for vitrine (tracker public, dashboard internal)
+├─ umami/                  web analytics for vitrine (tracker public, dashboard internal)
+└─ holive/                 www.holive.fr, a portfolio (own certificate and listeners; holive.fr redirects)
 ```
 
 Each level waits for the previous one to be ready (`dependsOn`).

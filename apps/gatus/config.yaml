@@ -26,6 +26,24 @@ endpoints:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 1000"
 
+  - name: www.holive.fr
+    group: public
+    url: https://www.holive.fr
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 336h"   # its own certificate (holive-tls)
+
+  - name: holive.fr to www redirect
+    group: public
+    url: https://holive.fr
+    interval: 5m
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[STATUS] == 301"
+
   - name: HTTP to HTTPS redirect
     group: public
     url: http://${DOMAIN}

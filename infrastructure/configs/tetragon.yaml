@@ -17,7 +17,6 @@ spec:
         - { index: 0, type: file }
         - { index: 1, type: int }
       returnArg: { index: 0, type: int }
-      returnArgAction: Post
       selectors:
         - matchArgs:
             - index: 0

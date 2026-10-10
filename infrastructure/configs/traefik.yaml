@@ -74,6 +74,7 @@ spec:
       websecure:
         http:
           middlewares:
+            - kube-system-crowdsec@kubernetescrd           # public only: bans from CrowdSec
             - kube-system-security-headers@kubernetescrd
       internal:
         port: 9443

@@ -46,6 +46,7 @@ spec:
           env:
             - { name: DISABLE_TELEMETRY, value: "1" }
             - { name: DISABLE_UPDATES, value: "1" }   # Renovate handles updates
+            - { name: CHECKPOINT_DISABLE, value: "1" } # Prisma telemetry (seen in Hubble, blocked anyway)
           ports:
             - { name: http, containerPort: 3000 }
           startupProbe:               # first start runs the database migrations

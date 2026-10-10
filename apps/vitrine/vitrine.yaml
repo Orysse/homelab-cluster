@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nginx
-          image: ghcr.io/orysse/vitrine:0.6.0
+          image: ghcr.io/orysse/vitrine:0.6.1
           ports:
             - name: http
               containerPort: 8080

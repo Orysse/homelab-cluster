@@ -82,10 +82,10 @@ HTTP to HTTPS and adds the security headers (HSTS, nosniff, frame deny, referrer
 ## Network policies
 
 Cilium (installed by the base) enforces a `CiliumNetworkPolicy` per namespace
-(`network-policy.yaml` next to each app): **deny by default in both directions**, then what
-the app needs. Done for the public apps (vitrine, site, gatus, umami), Pocket-ID, Headlamp,
-OpenBao and Grafana; the platform namespaces (Flux, cert-manager, External Secrets,
-kube-system, webhooks) are not policed yet.
+(`network-policy.yaml` next to each app, `infrastructure/configs/network-policies/` for the
+platform): **deny by default in both directions**, then what each component needs. Every pod
+is covered; pods on the host network (Cilium, MetalLB speakers, node-exporter, NFS CSI) are
+not Cilium endpoints and are not policed.
 
 | Building block | Rule |
 |---|---|
@@ -93,6 +93,7 @@ kube-system, webhooks) are not policed yet.
 | Cluster DNS | `toEndpoints` kube-system / `k8s-app: kube-dns`, port 53, with the `dns` rule (names in Hubble) |
 | PostgreSQL, VictoriaMetrics… on nuc1 | `toCIDR: ["${DATABASE_ADDRESS}/32"]` + port (the host is outside the cluster: "world") |
 | Kubernetes API | `toEntities: [kube-apiserver]`, port 6443 |
+| Admission webhook | `fromEntities: [kube-apiserver]` on the webhook port |
 | Pocket-ID, any HTTPS | `toEntities: [world]`, port 443 (`auth.${DOMAIN}` goes out through the public address) |
 | Nothing at all | `egress: [{}]`: without any egress rule, Cilium would not deny egress |
 

@@ -1,5 +1,5 @@
-# Static site: reached only by Traefik, reaches nothing (not even DNS). Kubelet probes
-# (host) are always allowed by Cilium.
+# Static site reached only by Traefik. The contact form's mailer reaches DNS and the two
+# Google APIs it uses (token, Gmail) over HTTPS, nothing else. Kubelet probes (host) are always allowed by Cilium.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -9,8 +9,16 @@ metadata:
 spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
-  egress: [{}]                 # no egress rule = Cilium would not deny; an empty rule allows nothing
   ingress:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+  egress:
+    # Cluster DNS, only for those names (toFQDNs learns their IPs from these answers).
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchName: oauth2.googleapis.com }, { matchName: gmail.googleapis.com }] }
+    - toFQDNs: [{ matchName: oauth2.googleapis.com }, { matchName: gmail.googleapis.com }]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

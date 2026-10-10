@@ -9,6 +9,7 @@ metadata:
 spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
+  egress: [{}]                 # no egress rule = Cilium would not deny; an empty rule allows nothing
   ingress:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }

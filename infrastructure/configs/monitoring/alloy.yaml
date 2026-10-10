@@ -24,9 +24,12 @@ spec:
     alloy:
       mounts:
         varlog: true
+      # The limit also counts the page cache of what Alloy reads (pod logs, its WAL). At
+      # 384Mi, kube-1's Alloy sat at the limit: the kernel kept evicting its cache, it spun
+      # at 1.4 CPU re-reading it, its sends timed out and the backlog grew (2026-10-10).
       resources:
-        requests: { cpu: 50m, memory: 128Mi }
-        limits: { memory: 384Mi }
+        requests: { cpu: 50m, memory: 256Mi }
+        limits: { memory: 640Mi }
       configMap:
         content: |
           // ---- Discovery: this node's pods and the node itself ------------------

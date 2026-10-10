@@ -1,0 +1,22 @@
+# Traefik's CrowdSec bouncer: answers 403 to IPs with a ban decision. Stream mode: the
+# decisions are fetched every minute and checked in memory (no LAPI call per request).
+# If the LAPI is unreachable, traffic keeps flowing on the last known list.
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: crowdsec
+  namespace: kube-system          # Traefik only reads its CRDs from kube-system
+spec:
+  plugin:
+    crowdsec-bouncer:
+      enabled: true
+      logLevel: INFO
+      crowdsecMode: stream
+      crowdsecLapiScheme: http
+      crowdsecLapiHost: crowdsec-service.crowdsec.svc.cluster.local:8080
+      crowdsecLapiKeyFile: /etc/traefik/crowdsec/key
+      updateIntervalSeconds: 60
+      updateMaxFailure: -1         # never block everyone because the LAPI is down
+      # LAN, VPN and pods are never checked (the client IP is real: externalTrafficPolicy Local).
+      clientTrustedIPs: [192.168.1.0/24, 10.250.0.0/24, 10.42.0.0/16]

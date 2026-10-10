@@ -20,6 +20,21 @@ spec:
       access:
         enabled: true
         format: json
+    # CrowdSec bouncer (crowdsec/middleware.yaml), downloaded from plugins.traefik.io at start.
+    # abortOnPluginFailure: a pod that cannot load it exits instead of serving without the
+    # middleware (every public route would fail); the rollout then keeps the old pod.
+    experimental:
+      abortOnPluginFailure: true
+      plugins:
+        crowdsec-bouncer:
+          moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+          version: v1.7.1
+    deployment:
+      additionalVolumes:
+        - name: crowdsec-bouncer
+          secret: { secretName: crowdsec-bouncer }   # copied from crowdsec (bouncer-key.yaml)
+    additionalVolumeMounts:
+      - { name: crowdsec-bouncer, mountPath: /etc/traefik/crowdsec, readOnly: true }
     providers:
       kubernetesGateway:
         enabled: true

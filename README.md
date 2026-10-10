@@ -15,11 +15,12 @@ clusters/homelab/          Flux entry point (the base points here)
 
 infrastructure/
 ├─ controllers/            what installs CRDs: MetalLB, cert-manager, csi-driver-nfs,
-│                          External Secrets, vault-config-operator
+│                          External Secrets, vault-config-operator, Tetragon
 └─ configs/                what uses them: MetalLB IP pool, Traefik settings, Gateways,
                            security headers, Let's Encrypt issuers, wildcard certificate,
                            storage class, monitoring (Alloy, kube-state-metrics, node-exporter,
-                           Grafana), OpenBao, Pocket-ID, Headlamp, OIDC RBAC
+                           Grafana), OpenBao, Pocket-ID, Headlamp, OIDC RBAC, CrowdSec,
+                           Tetragon policies
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page (index.txt) at the domain apex
@@ -102,6 +103,18 @@ Kubelet probes (`reserved:host`) are always allowed. To write or debug one, watc
 traffic in Hubble (`hubble.int.${DOMAIN}`, or `hubble observe --namespace <ns> --verdict
 DROPPED` in a `cilium` pod). For a new policy, `cilium-dbg config PolicyAuditMode=true` on the
 agents makes drops visible as `AUDIT` without enforcing them (reset when the agent restarts).
+
+## Runtime security
+
+| What | Sees | Where to look |
+|---|---|---|
+| **CrowdSec** (`configs/crowdsec/`) | Traefik's access logs: scans, brute force, CVE probes; plus the community blocklist | `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli alerts list` / `cscli decisions list` |
+| Traefik bouncer (`crowdsec/middleware.yaml`) | Answers 403 to banned IPs on the public entry point only; LAN, VPN and pods are never checked; fail-open if the LAPI is down | `cscli bouncers list` (last pull) |
+| **Tetragon** (`controllers/tetragon.yaml`, `configs/tetragon.yaml`) | Every process started in a pod, credential reads and writes under `/etc` | VictoriaLogs: namespace `kube-system`, container `export-stdout`; alerts `SuspiciousExecInPod`, `SensitiveFileAccessInPod` (homelab-nix) |
+
+Unban an IP: `cscli decisions delete --ip <ip>`. Traefik downloads the bouncer plugin from
+plugins.traefik.io at start; if it cannot, the new pod exits (`abortOnPluginFailure`) and the
+old one keeps serving.
 
 ## Rules
 

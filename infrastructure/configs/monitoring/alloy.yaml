@@ -188,7 +188,19 @@ spec:
             bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
             tls_config { insecure_skip_verify = true }   // k3s kubelet certificate is self-signed
             scrape_interval   = "30s"
-            forward_to        = [prometheus.remote_write.vm.receiver]
+            forward_to        = [prometheus.relabel.kubelet.receiver]
+          }
+
+          // On the k3s server the kubelet endpoint also serves the API server's and etcd's
+          // metrics (one process): ~68k series instead of ~2.5k, mostly histogram buckets.
+          // Drop those buckets; _sum, _count and _total stay (rates, mean latencies).
+          prometheus.relabel "kubelet" {
+            rule {
+              source_labels = ["__name__"]
+              regex         = "(apiserver|etcd|workqueue)_.*_bucket"
+              action        = "drop"
+            }
+            forward_to = [prometheus.remote_write.vm.receiver]
           }
 
           prometheus.scrape "cadvisor" {

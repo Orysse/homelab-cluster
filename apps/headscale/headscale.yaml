@@ -1,5 +1,5 @@
 # Headscale at hs.${DOMAIN}: self-hosted Tailscale control server, the everyday VPN.
-#   login    Pocket-ID, group "admins" only
+#   login    Pocket-ID, groups "admins" (the homelab) and "visitors" (read-only views, policy.json)
 #   relays   Tailscale's public DERP servers (traffic stays end-to-end WireGuard-encrypted);
 #            clients connect directly when they can (router UDP 41641 -> the subnet router)
 #   routes   the subnet router is Tailscale on the database host (homelab-nix: tailscale.nix),
@@ -16,66 +16,6 @@ metadata:
   labels:
     gateway-access: public
     pod-security.kubernetes.io/enforce: restricted
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: headscale
-  namespace: headscale
-data:
-  config.yaml: |
-    server_url: https://hs.${DOMAIN}
-    listen_addr: 0.0.0.0:8080
-    metrics_listen_addr: 0.0.0.0:9090
-    grpc_listen_addr: 127.0.0.1:50443
-    unix_socket: /var/run/headscale/headscale.sock
-    unix_socket_permission: "0770"
-    disable_check_updates: true         # Renovate handles updates
-    noise:
-      private_key_path: /etc/headscale/secrets/noise_private.key
-    prefixes:
-      v4: 100.64.0.0/10
-      v6: fd7a:115c:a1e0::/48
-      allocation: sequential
-    derp:
-      server:
-        enabled: false
-      urls: [https://controlplane.tailscale.com/derpmap/default]
-      auto_update_enabled: true
-      update_frequency: 24h
-    database:
-      type: postgres
-      postgres:                         # user and password: environment (headscale-env)
-        host: ${DATABASE_ADDRESS}
-        port: 5432
-        name: headscale
-        ssl: false
-    dns:
-      magic_dns: true
-      base_domain: ts.${DOMAIN}
-      override_local_dns: false         # clients keep their own DNS
-    oidc:
-      issuer: https://auth.${DOMAIN}
-      client_secret_path: /etc/headscale/secrets/oidc_client_secret   # client_id: environment
-      scope: [openid, profile, email, groups]
-      allowed_groups: [admins]
-      pkce:
-        enabled: true
-    policy:
-      mode: file
-      path: /etc/headscale/policy.json
-    log:
-      level: info
-    logtail:
-      enabled: false
-  # Only the homelab networks, like wg0 (homelab-nix topology: vpn.routes). Every user who can
-  # log in is an admin for now; friends with restricted access get their own group later.
-  policy.json: |
-    {
-      "acls": [
-        { "action": "accept", "src": ["*"], "dst": ["192.168.1.192/26:*"] }
-      ]
-    }
 ---
 apiVersion: apps/v1
 kind: Deployment

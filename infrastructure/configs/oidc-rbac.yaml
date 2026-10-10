@@ -1,6 +1,6 @@
 # Kubernetes rights of people logging in through Pocket-ID (API server config: homelab-nix
 # modules/k3s/node.nix, users and groups prefixed "oidc:").
-# Pocket-ID group "admins": cluster-admin.
+# Pocket-ID group "admins": cluster-admin; "visitors": view (below).
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -14,3 +14,18 @@ subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
     name: oidc:admins
+---
+# Pocket-ID group "visitors": read-only ("view": no Secrets, no exec, no port-forward), for
+# showing the homelab off through Headlamp or kubectl. They reach the API over Tailscale.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-visitors
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:visitors

@@ -4,6 +4,13 @@ resources:
   - network-policy.yaml
   - headscale.yaml
   - secrets.yaml
+# A new name (hash suffix) on every change: the pod restarts with it.
+configMapGenerator:
+  - name: headscale
+    namespace: headscale
+    files:
+      - config.yaml
+      - policy.json
 # app.kubernetes.io/version = the image tag (follows Renovate bumps).
 replacements:
   - source:

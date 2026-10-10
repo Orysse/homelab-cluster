@@ -1,0 +1,11 @@
+// Headscale ACLs (HuJSON). admins: the homelab networks, like wg0. Headscale groups list
+// users (their Pocket-ID username + "@"), not OIDC groups: a new admin goes here too.
+// Everyone else (Pocket-ID group "visitors"): the internal gateway (*.int, read-only views)
+// and the Kubernetes API (RBAC "view", oidc-rbac.yaml); no SSH, no hosts, no LAN.
+{
+  "groups": { "group:admins": ["abelc@"] },
+  "acls": [
+    { "action": "accept", "src": ["group:admins"], "dst": ["192.168.1.192/26:*"] },
+    { "action": "accept", "src": ["*"], "dst": ["192.168.1.241:443", "192.168.1.211:6443"] }
+  ]
+}

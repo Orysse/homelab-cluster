@@ -1,0 +1,44 @@
+server_url: https://hs.${DOMAIN}
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 0.0.0.0:9090
+grpc_listen_addr: 127.0.0.1:50443
+unix_socket: /var/run/headscale/headscale.sock
+unix_socket_permission: "0770"
+disable_check_updates: true         # Renovate handles updates
+noise:
+  private_key_path: /etc/headscale/secrets/noise_private.key
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+  allocation: sequential
+derp:
+  server:
+    enabled: false
+  urls: [https://controlplane.tailscale.com/derpmap/default]
+  auto_update_enabled: true
+  update_frequency: 24h
+database:
+  type: postgres
+  postgres:                         # user and password: environment (headscale-env)
+    host: ${DATABASE_ADDRESS}
+    port: 5432
+    name: headscale
+    ssl: false
+dns:
+  magic_dns: true
+  base_domain: ts.${DOMAIN}
+  override_local_dns: false         # clients keep their own DNS
+oidc:
+  issuer: https://auth.${DOMAIN}
+  client_secret_path: /etc/headscale/secrets/oidc_client_secret   # client_id: environment
+  scope: [openid, profile, email, groups]
+  allowed_groups: [admins, visitors]
+  pkce:
+    enabled: true
+policy:
+  mode: file
+  path: /etc/headscale/policy.json
+log:
+  level: info
+logtail:
+  enabled: false

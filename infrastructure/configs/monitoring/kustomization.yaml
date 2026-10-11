@@ -10,3 +10,14 @@ resources:
   - grafana.yaml
   - grafana-route.yaml
   - hubble.yaml
+# Our dashboards (Grafana: dashboardsConfigMaps). Their queries are full of $__timeFilter and
+# $website: Flux must not substitute them. Fixed name: the chart refers to it.
+configMapGenerator:
+  - name: grafana-dashboards-sites
+    namespace: monitoring
+    files:
+      - dashboards/umami.json
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

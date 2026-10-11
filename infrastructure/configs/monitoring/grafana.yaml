@@ -101,6 +101,20 @@ spec:
             url: http://${MONITORING_ADDRESS}:9093
             jsonData:
               implementation: prometheus
+          # Umami's analytics, read straight from its database: Grafana's own PostgreSQL user
+          # may SELECT website, website_event and session (homelab-nix topology:
+          # database.readers), nothing else. $${...}: left for Grafana (its environment).
+          - name: Umami
+            uid: umami
+            type: grafana-postgresql-datasource
+            url: ${DATABASE_ADDRESS}:5432
+            user: $${GF_DATABASE_USER}
+            jsonData:
+              database: umami
+              sslmode: disable
+              postgresVersion: 1800
+            secureJsonData:
+              password: $${GF_DATABASE_PASSWORD}
     dashboardProviders:
       dashboardproviders.yaml:
         apiVersion: 1
@@ -111,6 +125,15 @@ spec:
             disableDeletion: true
             options:
               path: /var/lib/grafana/dashboards/homelab
+          # Our own dashboards (dashboards/, one ConfigMap, Flux substitution off).
+          - name: sites
+            folder: Sites
+            type: file
+            disableDeletion: true
+            options:
+              path: /var/lib/grafana/dashboards/sites
+    dashboardsConfigMaps:
+      sites: grafana-dashboards-sites
     dashboards:
       homelab:
         node-exporter:

@@ -12,6 +12,7 @@ resources:
   - hubble.yaml
 # Our dashboards (Grafana: dashboardsConfigMaps). Their queries are full of $__timeFilter and
 # $website: Flux must not substitute them. Fixed name: the chart refers to it.
+# umami.json is generated from umami.jq (jq -n -f umami.jq > umami.json).
 configMapGenerator:
   - name: grafana-dashboards-sites
     namespace: monitoring

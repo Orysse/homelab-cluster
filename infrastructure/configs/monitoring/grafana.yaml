@@ -132,9 +132,22 @@ spec:
             disableDeletion: true
             options:
               path: /var/lib/grafana/dashboards/sites
+          - name: sites-community
+            folder: Sites
+            type: file
+            disableDeletion: true
+            options:
+              path: /var/lib/grafana/dashboards/sites-community
     dashboardsConfigMaps:
       sites: grafana-dashboards-sites
     dashboards:
+      sites-community:
+        # Community Umami dashboard: hourly heatmap, 7-day moving averages, qualified sessions.
+        umami-bi:
+          gnetId: 24431
+          revision: 1
+          datasource:
+            - { name: DS_UMAMI-POSTGRES, value: umami }
       homelab:
         node-exporter:
           gnetId: 1860

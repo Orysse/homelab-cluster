@@ -43,6 +43,22 @@ endpoints:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 1000"
 
+  - name: matrix.${DOMAIN}
+    group: public
+    url: https://matrix.${DOMAIN}/_matrix/federation/v1/version
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: Matrix delegation
+    group: public
+    url: https://${DOMAIN}/.well-known/matrix/server
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*matrix.${DOMAIN}:443*)"
+
   - name: holive.fr to www redirect
     group: public
     url: https://holive.fr

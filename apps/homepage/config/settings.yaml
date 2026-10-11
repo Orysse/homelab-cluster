@@ -8,7 +8,7 @@ hideVersion: true
 disableUpdateCheck: true
 cardBlur: sm
 layout:
-  Plateforme: { style: row, columns: 5 }
+  Plateforme: { style: row, columns: 4 }
   Observabilité: { style: row, columns: 4 }
   Sites: { style: row, columns: 3 }
   Code & docs: { style: row, columns: 3 }

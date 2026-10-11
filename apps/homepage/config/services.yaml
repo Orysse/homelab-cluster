@@ -21,11 +21,6 @@
         href: https://hs.${DOMAIN}/apple
         description: VPN (Tailscale), login Pocket-ID
         siteMonitor: https://hs.${DOMAIN}/health
-    - Matrix:
-        icon: matrix.png
-        href: https://app.element.io
-        description: Messagerie fédérée, @abel:${DOMAIN}
-        siteMonitor: https://matrix.${DOMAIN}/_matrix/federation/v1/version
 - Observabilité:
     - Grafana:
         icon: grafana.png

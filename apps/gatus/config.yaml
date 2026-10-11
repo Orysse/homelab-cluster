@@ -78,6 +78,13 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
+  - name: Homepage
+    group: internal (VPN only)
+    url: https://home.int.${DOMAIN}/api/healthcheck
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"
+
   - name: auth.${DOMAIN}
     group: public
     url: https://auth.${DOMAIN}/healthz

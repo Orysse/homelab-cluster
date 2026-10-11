@@ -1,0 +1,60 @@
+# siteMonitor: Homepage requests the URL itself (green dot = it answered). The public sites
+# through the box like any visitor, the *.int ones through the internal gateway.
+- Plateforme:
+    - Pocket-ID:
+        icon: pocket-id.png
+        href: https://auth.${DOMAIN}
+        description: Identité, passkeys, OIDC
+        siteMonitor: https://auth.${DOMAIN}/healthz
+    - Headlamp:
+        icon: headlamp.png
+        href: https://k8s.${DOMAIN}
+        description: Console Kubernetes
+        siteMonitor: https://k8s.${DOMAIN}
+    - OpenBao:
+        icon: openbao.png
+        href: https://bao.int.${DOMAIN}
+        description: Secrets des apps
+        siteMonitor: https://bao.int.${DOMAIN}/v1/sys/health
+    - Headscale:
+        icon: headscale.png
+        href: https://hs.${DOMAIN}/apple
+        description: VPN (Tailscale), login Pocket-ID
+        siteMonitor: https://hs.${DOMAIN}/health
+- Observabilité:
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.int.${DOMAIN}
+        description: Métriques et logs (VictoriaMetrics, VictoriaLogs)
+        siteMonitor: https://grafana.int.${DOMAIN}/api/health
+    - Hubble:
+        icon: cilium.png
+        href: https://hubble.int.${DOMAIN}
+        description: Flux réseau entre les pods (Cilium)
+        siteMonitor: https://hubble.int.${DOMAIN}
+    - Traefik:
+        icon: traefik.png
+        href: https://traefik.int.${DOMAIN}/dashboard/
+        description: Routes HTTP, CrowdSec en entrée
+        siteMonitor: https://traefik.int.${DOMAIN}/dashboard/
+    - Gatus:
+        icon: gatus.png
+        href: https://status.${DOMAIN}
+        description: Checks vus de l'extérieur
+        widget:
+          type: gatus
+          url: http://gatus.gatus.svc.cluster.local
+- Sites:
+    - abe.lc:
+        icon: mdi-web
+        href: https://${DOMAIN}
+        siteMonitor: https://${DOMAIN}
+    - Vitrine:
+        icon: mdi-storefront-outline
+        href: https://vitrine.${DOMAIN}
+        siteMonitor: https://vitrine.${DOMAIN}
+    - holive.fr:
+        icon: mdi-camera-outline
+        href: https://www.holive.fr
+        description: Portfolio, Umami
+        siteMonitor: https://www.holive.fr

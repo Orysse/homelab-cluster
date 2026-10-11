@@ -1,11 +1,12 @@
 title: ${DOMAIN} homelab
 description: k3s on NixOS microVMs, GitOps with Flux
 theme: dark
-color: slate
+color: zinc
 headerStyle: clean
 statusStyle: dot
 hideVersion: true
 disableUpdateCheck: true
+cardBlur: sm
 layout:
   Plateforme: { style: row, columns: 4 }
   Observabilité: { style: row, columns: 4 }

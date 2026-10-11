@@ -13,6 +13,7 @@ configMapGenerator:
       - config/widgets.yaml
       - config/kubernetes.yaml
       - config/bookmarks.yaml
+      - config/custom.css
 # app.kubernetes.io/version = the image tag (follows Renovate bumps).
 replacements:
   - source:

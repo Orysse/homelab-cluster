@@ -1,0 +1,89 @@
+/* abe.lc: near-black, soft colour glows and a faint grid, glass cards, mono accents. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #07090d;
+  --card: rgba(255, 255, 255, 0.035);
+  --card-hover: rgba(255, 255, 255, 0.065);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #e7e9ef;
+  --muted: #8b91a1;
+  --accent: #7cc4ff;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html, body, #page_wrapper { background: var(--bg) !important; }
+body { font-family: 'Space Grotesk', system-ui, sans-serif !important; color: var(--text); }
+
+#page_wrapper::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 8% -12%, rgba(124, 196, 255, 0.16), transparent 60%),
+    radial-gradient(800px 520px at 100% 0%, rgba(167, 139, 250, 0.11), transparent 60%),
+    radial-gradient(900px 600px at 50% 125%, rgba(45, 212, 191, 0.09), transparent 60%);
+}
+#page_wrapper::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 80%);
+}
+
+/* Header: title, cluster usage, clock */
+#information-widgets { border-bottom: 1px solid var(--line) !important; padding-bottom: 1.25rem; }
+.information-widget-greeting span {
+  font-size: 2.6rem !important; font-weight: 700; letter-spacing: -0.04em; line-height: 1;
+  background: linear-gradient(120deg, #fff 30%, var(--accent));
+  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+.information-widget-kubernetes, .information-widget-datetime { font-family: var(--mono); color: var(--muted) !important; }
+.information-widget-datetime span { font-size: 0.95rem !important; }
+
+/* Groups */
+.service-group-name {
+  font-family: var(--mono); font-size: 0.72rem !important; font-weight: 500 !important;
+  text-transform: uppercase; letter-spacing: 0.2em; color: var(--muted) !important;
+}
+.service-group-name::before { content: "// "; color: var(--accent); }
+
+/* Cards */
+.service-card {
+  background: var(--card) !important; border: 1px solid var(--line);
+  border-radius: 14px !important; box-shadow: none !important;
+  backdrop-filter: blur(6px);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.service-card:hover {
+  background: var(--card-hover) !important; border-color: rgba(124, 196, 255, 0.4);
+  transform: translateY(-1px);
+}
+.service-name { font-weight: 600 !important; letter-spacing: -0.01em; color: var(--text) !important; }
+.service-description { font-family: var(--mono); font-size: 0.7rem !important; color: var(--muted) !important; }
+.service-icon img { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5)); }
+
+/* Status: a glowing dot instead of the latency pill (latency stays in the tooltip) */
+.site-monitor-status { background: transparent !important; padding: 0 !important; }
+.site-monitor-status > div {
+  font-size: 0 !important; width: 8px; height: 8px; border-radius: 999px; margin: 12px 12px 0 0;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 20%, transparent), 0 0 12px currentColor;
+}
+
+/* Widget blocks (Gatus) */
+.service-block { background: rgba(255, 255, 255, 0.03) !important; border: 1px solid var(--line); border-radius: 10px !important; }
+.service-block-value { font-family: var(--mono); font-size: 1rem !important; color: var(--text) !important; }
+.service-block-label { font-family: var(--mono); font-size: 0.6rem !important; letter-spacing: 0.15em; color: var(--muted) !important; }
+
+/* Bookmarks */
+.bookmark-group-name { font-family: var(--mono); font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 0.2em; color: var(--muted) !important; }
+.bookmark-group-name::before { content: "// "; color: var(--accent); }
+.bookmark a, .bookmark > div { background: var(--card) !important; border: 1px solid var(--line); border-radius: 12px !important; box-shadow: none !important; }
+.bookmark a:hover { border-color: rgba(124, 196, 255, 0.4); }
+.bookmark-name { font-weight: 500; }
+.bookmark-description { font-family: var(--mono); font-size: 0.68rem !important; color: var(--muted) !important; }
+
+/* Chrome nobody needs: theme and colour pickers, version */
+#color, #theme, #footer .version, #footer > div:last-child { display: none !important; }

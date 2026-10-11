@@ -1,3 +1,6 @@
+- greeting:
+    text_size: 4xl
+    text: abe.lc
 - kubernetes:
     cluster:
       show: true
@@ -12,7 +15,8 @@
       showLabel: true
 - datetime:
     text_size: md
+    locale: fr
     format:
-      dateStyle: long
+      dateStyle: full
       timeStyle: short
       hour12: false

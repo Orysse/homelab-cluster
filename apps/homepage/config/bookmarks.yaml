@@ -1,1 +1,13 @@
-[]
+- Code & docs:
+    - homelab-nix:
+        - icon: github.png
+          href: https://github.com/Orysse/homelab-nix
+          description: NixOS, microVMs, k3s
+    - homelab-cluster:
+        - icon: github.png
+          href: https://github.com/Orysse/homelab-cluster
+          description: Flux, apps, policies
+    - Visite guidée:
+        - icon: mdi-map-marker-path
+          href: https://github.com/Orysse/homelab-cluster/blob/main/docs/onboarding/03-visiteur.md
+          description: Compte visiteur, VPN, kubectl

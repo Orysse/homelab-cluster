@@ -95,6 +95,7 @@ spec:
             - { name: config, mountPath: /app/config/widgets.yaml, subPath: widgets.yaml }
             - { name: config, mountPath: /app/config/kubernetes.yaml, subPath: kubernetes.yaml }
             - { name: config, mountPath: /app/config/bookmarks.yaml, subPath: bookmarks.yaml }
+            - { name: config, mountPath: /app/config/custom.css, subPath: custom.css }
             - { name: cache, mountPath: /app/.next/cache }
       volumes:
         - name: config

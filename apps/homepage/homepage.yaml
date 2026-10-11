@@ -74,10 +74,11 @@ spec:
             - { name: HOMEPAGE_ALLOWED_HOSTS, value: "home.int.${DOMAIN}" }
           ports:
             - { name: http, containerPort: 3000 }
+          # It answers 400 to any Host not in HOMEPAGE_ALLOWED_HOSTS, the probes included.
           readinessProbe:
-            httpGet: { path: /api/healthcheck, port: http }
+            httpGet: { path: /api/healthcheck, port: http, httpHeaders: [{ name: Host, value: "home.int.${DOMAIN}" }] }
           livenessProbe:
-            httpGet: { path: /api/healthcheck, port: http }
+            httpGet: { path: /api/healthcheck, port: http, httpHeaders: [{ name: Host, value: "home.int.${DOMAIN}" }] }
             periodSeconds: 30
           resources:
             requests: { cpu: 10m, memory: 128Mi }

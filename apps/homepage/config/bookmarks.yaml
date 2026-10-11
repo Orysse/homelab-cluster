@@ -1,10 +1,10 @@
 - Code & docs:
     - homelab-nix:
-        - icon: github-light.png
+        - icon: github.png
           href: https://github.com/Orysse/homelab-nix
           description: NixOS, microVMs, k3s
     - homelab-cluster:
-        - icon: github-light.png
+        - icon: github.png
           href: https://github.com/Orysse/homelab-cluster
           description: Flux, apps, policies
     - Visite guidée:

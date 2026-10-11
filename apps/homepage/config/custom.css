@@ -1,89 +1,91 @@
-/* abe.lc: near-black, soft colour glows and a faint grid, glass cards, mono accents. */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* abe.lc: the art direction of vitrine.abe.lc (same palette, fonts, grain, hard shadows). */
+@import url('https://fonts.googleapis.com/css2?family=Shrikhand&family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg: #07090d;
-  --card: rgba(255, 255, 255, 0.035);
-  --card-hover: rgba(255, 255, 255, 0.065);
-  --line: rgba(255, 255, 255, 0.08);
-  --text: #e7e9ef;
-  --muted: #8b91a1;
-  --accent: #7cc4ff;
-  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --ink: #1d1813; --paper: #f6eedb; --night: #1a0b2e;
+  --magenta: #e2135f; --pink: #ff4fb0; --orange: #ff7a1a; --gold: #ffcf5a;
+  --yellow: #ffe23a; --teal: #18b39b; --blue: #18b3e0; --violet: #7b2ff7; --green: #3dff8a;
+  --display: 'Shrikhand', 'Cooper Black', Georgia, serif;
+  --sans: 'Familjen Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
 }
 
-html, body, #page_wrapper { background: var(--bg) !important; }
-body { font-family: 'Space Grotesk', system-ui, sans-serif !important; color: var(--text); }
+html, body, #page_wrapper { background: var(--night) !important; }
+body { font-family: var(--sans) !important; color: var(--ink); }
 
+/* The vitrine hero: colour blobs on night, then grain */
 #page_wrapper::before {
   content: ""; position: fixed; inset: 0; pointer-events: none;
   background:
-    radial-gradient(900px 520px at 8% -12%, rgba(124, 196, 255, 0.16), transparent 60%),
-    radial-gradient(800px 520px at 100% 0%, rgba(167, 139, 250, 0.11), transparent 60%),
-    radial-gradient(900px 600px at 50% 125%, rgba(45, 212, 191, 0.09), transparent 60%);
+    radial-gradient(circle at 20% 30%, var(--magenta), transparent 40%),
+    radial-gradient(circle at 75% 25%, var(--orange), transparent 38%),
+    radial-gradient(circle at 60% 80%, var(--teal), transparent 40%),
+    radial-gradient(circle at 25% 80%, var(--violet), transparent 42%),
+    var(--night);
 }
 #page_wrapper::after {
-  content: ""; position: fixed; inset: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
-  background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 80%);
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 80%);
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 30;
+  opacity: 0.22; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/><feColorMatrix values='0 0 0 0 .3 0 0 0 0 .2 0 0 0 0 .1 0 0 0 .9 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
 }
 
-/* Header: title, cluster usage, clock */
-#information-widgets { border-bottom: 1px solid var(--line) !important; padding-bottom: 1.25rem; }
+/* Header: an ink band like the vitrine's nav, magenta edge */
+#information-widgets {
+  background: var(--ink); border-bottom: 4px solid var(--magenta) !important;
+  box-shadow: 6px 6px 0 var(--magenta); padding: 1rem 1.5rem !important; margin-top: 1.5rem;
+}
 .information-widget-greeting span {
-  font-size: 2.6rem !important; font-weight: 700; letter-spacing: -0.04em; line-height: 1;
-  background: linear-gradient(120deg, #fff 30%, var(--accent));
-  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+  font-family: var(--display); font-size: 2.6rem !important; line-height: 1.1;
+  color: var(--yellow) !important; text-shadow: 3px 3px 0 var(--magenta), 6px 6px 0 #000;
 }
-.information-widget-kubernetes, .information-widget-datetime { font-family: var(--mono); color: var(--muted) !important; }
-.information-widget-datetime span { font-size: 0.95rem !important; }
+.information-widget-kubernetes, .information-widget-datetime { font-family: var(--mono); color: var(--paper) !important; }
+.information-widget-datetime span { font-size: 0.85rem !important; text-transform: uppercase; letter-spacing: 0.1em; color: var(--gold) !important; }
 
-/* Groups */
-.service-group-name {
-  font-family: var(--mono); font-size: 0.72rem !important; font-weight: 500 !important;
-  text-transform: uppercase; letter-spacing: 0.2em; color: var(--muted) !important;
+/* Group names: the little ink tag ("VITRINE.ABE.LC") */
+.service-group-name, .bookmark-group-name {
+  display: inline-block; background: var(--ink); color: var(--gold) !important;
+  font-family: var(--mono); font-size: 0.72rem !important; font-weight: 600 !important;
+  text-transform: uppercase; letter-spacing: 0.18em; padding: 0.3rem 0.7rem; margin-bottom: 0.4rem;
 }
-.service-group-name::before { content: "//\00a0\00a0"; color: var(--accent); letter-spacing: 0; }
 
-/* Cards */
+/* Cards: paper blocks with a hard ink shadow; each group its own colour */
 .service-card {
-  background: var(--card) !important; border: 1px solid var(--line);
-  border-radius: 14px !important; box-shadow: none !important;
-  backdrop-filter: blur(6px);
-  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  background: var(--paper) !important; color: var(--ink) !important;
+  border: 0; border-radius: 0 !important; box-shadow: 5px 5px 0 var(--ink) !important;
+  margin-bottom: 0.9rem !important; transition: transform 0.12s, box-shadow 0.12s;
 }
-.service-card:hover {
-  background: var(--card-hover) !important; border-color: rgba(124, 196, 255, 0.4);
-  transform: translateY(-1px);
-}
-.service-name { font-weight: 600 !important; letter-spacing: -0.01em; color: var(--text) !important; }
-.service-description { font-family: var(--mono); font-size: 0.7rem !important; color: var(--muted) !important; }
-.service-icon img { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5)); }
+.service-card:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--ink) !important; background: var(--paper) !important; }
+.services-group:nth-of-type(2) .service-card { background: var(--teal) !important; }
+.services-group:nth-of-type(3) .service-card { background: var(--pink) !important; }
+.service-name { font-weight: 700 !important; font-size: 1rem; color: var(--ink) !important; }
+.service-description { font-family: var(--mono); font-size: 0.7rem !important; color: rgba(29, 24, 19, 0.75) !important; }
+.service-card .service-icon svg, .service-card .service-icon [class*="mdi"] { color: var(--ink) !important; }
 
-/* Status: a glowing dot instead of the latency pill (latency stays in the tooltip) */
+/* Status: a round sticker, green when up */
 .site-monitor-status { background: transparent !important; padding: 0 !important; }
 .site-monitor-status > div {
-  font-size: 0 !important; width: 8px; height: 8px; border-radius: 999px; margin: 12px 12px 0 0;
-  background: currentColor;
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 20%, transparent), 0 0 12px currentColor;
+  font-size: 0 !important; width: 11px; height: 11px; border-radius: 999px; margin: 10px 10px 0 0;
+  border: 2px solid var(--ink);
 }
+.site-monitor-status > div[class*="emerald"] { background: var(--green); }
+.site-monitor-status > div:not([class*="emerald"]) { background: var(--magenta); }
 
-/* Widget blocks (Gatus) */
-.service-block { background: rgba(255, 255, 255, 0.03) !important; border: 1px solid var(--line); border-radius: 10px !important; }
-.service-block-value { font-family: var(--mono); font-size: 1rem !important; color: var(--text) !important; }
-.service-block-label { font-family: var(--mono); font-size: 0.6rem !important; letter-spacing: 0.15em; color: var(--muted) !important; }
+/* Widget blocks (Gatus): yellow stickers */
+.service-block { background: var(--yellow) !important; border: 2px solid var(--ink); border-radius: 0 !important; }
+.service-block-value { font-family: var(--display); font-size: 1.1rem !important; color: var(--ink) !important; }
+.service-block-label { font-family: var(--mono); font-size: 0.6rem !important; letter-spacing: 0.12em; color: var(--ink) !important; }
 
-/* Bookmarks */
-.bookmark-group-name { font-family: var(--mono); font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 0.2em; color: var(--muted) !important; }
-.bookmark-group-name::before { content: "//\00a0\00a0"; color: var(--accent); letter-spacing: 0; }
-.bookmark a, .bookmark > div { background: var(--card) !important; border: 1px solid var(--line); border-radius: 12px !important; box-shadow: none !important; }
-.bookmark a:hover { border-color: rgba(124, 196, 255, 0.4); }
-.bookmark-name { font-weight: 500; }
-.bookmark-description { font-family: var(--mono); font-size: 0.68rem !important; color: var(--muted) !important; }
+/* Bookmarks: the vitrine's link bar (mono caps, magenta underline) */
+.bookmark a, .bookmark > div {
+  background: var(--paper) !important; border-radius: 0 !important; box-shadow: 5px 5px 0 var(--ink) !important;
+}
+.bookmark-name {
+  font-family: var(--mono); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em;
+  color: var(--ink) !important; text-decoration: underline; text-decoration-color: var(--magenta);
+  text-decoration-thickness: 2px; text-underline-offset: 4px;
+}
+.bookmark-description { font-family: var(--mono); font-size: 0.68rem !important; color: rgba(29, 24, 19, 0.7) !important; }
+.bookmark-icon { background: transparent !important; }
 
-/* Chrome nobody needs: theme and colour pickers, version */
 #color, #theme, #footer .version, #footer > div:last-child { display: none !important; }
+#revalidate { color: var(--paper) !important; }

@@ -45,7 +45,9 @@ spec:
     deploymentStrategy:
       type: Recreate          # one pod at a time: no two schema migrations in parallel
     resources:
-      requests: { cpu: 20m, memory: 128Mi }
+      # The request is what it really uses after start (~500 Mi), so the scheduler only puts
+      # it where that fits: at 128Mi it landed on full nodes and pushed them over (2026-10-11).
+      requests: { cpu: 20m, memory: 512Mi }
       limits: { memory: 768Mi }   # first start (migrations) peaks well above steady state
     plugins:
       - victoriametrics-logs-datasource@0.32.0

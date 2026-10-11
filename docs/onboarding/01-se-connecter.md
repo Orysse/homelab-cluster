@@ -43,75 +43,48 @@ installer.
 | `kubectl` | parler au cluster |
 | `kubelogin` (plugin `oidc-login`) | ton login Pocket-ID pour `kubectl` |
 | `flux` | voir et forcer les déploiements GitOps |
-| WireGuard | le VPN : l'API Kubernetes et les interfaces `*.int` ne sont pas sur Internet |
+| Tailscale | le VPN : l'API Kubernetes et les interfaces `*.int` ne sont pas sur Internet |
 | `sops`, `age` (plus tard) | les quelques secrets chiffrés dans git |
 | `k9s` (optionnel) | une interface terminal pour le cluster |
 
 - **macOS** : `brew install kubectl int128/kubelogin/kubelogin fluxcd/tap/flux k9s`, et
-  l'app WireGuard depuis l'App Store.
+  l'app Tailscale depuis l'App Store.
 - **Linux (Nix)** : `nix profile install nixpkgs#kubectl nixpkgs#kubelogin-oidc
-  nixpkgs#fluxcd nixpkgs#k9s nixpkgs#wireguard-tools` (attention : le paquet `kubelogin`
+  nixpkgs#fluxcd nixpkgs#k9s nixpkgs#tailscale` (attention : le paquet `kubelogin`
   tout court est celui d'Azure, ce n'est pas le bon).
 - **Autre Linux / Windows** : `kubectl` depuis https://kubernetes.io/docs/tasks/tools/, le
   plugin avec [krew](https://krew.sigs.k8s.io) (`kubectl krew install oidc-login`), `flux`
-  depuis https://fluxcd.io/flux/installation/, WireGuard depuis
-  https://www.wireguard.com/install/.
+  depuis https://fluxcd.io/flux/installation/, Tailscale depuis
+  https://tailscale.com/download.
 
 Vérifie : `kubectl oidc-login --help` doit répondre.
 
-### 3.2 Le VPN
+### 3.2 Le VPN (Tailscale)
 
-1. Dans l'app WireGuard : *Ajouter un tunnel vide* (elle génère tes clés). Sous Linux :
-   `wg genkey | tee privatekey | wg pubkey > publickey`.
-2. Envoie **ta clé publique** à Abel. Jamais la clé privée.
-3. Quand il te dit que c'est fait, complète le tunnel :
+Le serveur n'est pas celui de Tailscale mais le nôtre, `https://hs.abe.lc` (Headscale), et
+le login est ton compte Pocket-ID.
 
-```ini
-[Interface]
-PrivateKey = <ta clé privée, déjà remplie par l'app>
-Address = 10.250.0.10/32
+- **Téléphone** : sur l'écran de connexion de l'app, menu `…` (iOS) ou `⋮` (Android) →
+  *Use custom coordination server* / *Use an alternate server* → `https://hs.abe.lc`.
+- **macOS** : clic sur l'icône de la barre de menus avec ⌥ Option → *Debug* → *Custom Login
+  Server*. Pas à pas : https://hs.abe.lc/apple
+- **Windows** : `tailscale login --login-server https://hs.abe.lc` (pas à pas :
+  https://hs.abe.lc/windows).
+- **Linux** : `sudo tailscale login --login-server https://hs.abe.lc --accept-routes`.
 
-[Peer]
-PublicKey = TNugHNt2qsBT5T/3ac1HWzXFzrw24rWu1l0uCKZhWEM=
-Endpoint = vpn.abe.lc:51820
-AllowedIPs = 192.168.1.211/32, 192.168.1.241/32
-PersistentKeepalive = 25
-```
+Tu as déjà un Tailscale à toi ? *Add account* (ou la commande `tailscale login` ci-dessus) :
+notre tailnet devient un second profil, `tailscale switch` passe de l'un à l'autre. Sur
+téléphone, un seul VPN peut être actif : coupe l'autre.
 
 Il donne accès à l'API Kubernetes (`192.168.1.211:6443`) et aux interfaces internes
-(`*.int.abe.lc`, `192.168.1.241`). Il ne change pas le reste de ta connexion.
+(`*.int.abe.lc`, `192.168.1.241`), rien d'autre. Il ne change pas le reste de ta connexion.
 
 ### 3.3 kubectl
 
-Enregistre ce fichier sous `~/.kube/homelab.yaml` (il ne contient aucun secret) :
+Télécharge le kubeconfig ([kubeconfig.yaml](kubeconfig.yaml), il ne contient aucun secret) :
 
-```yaml
-apiVersion: v1
-kind: Config
-clusters:
-  - name: homelab
-    cluster:
-      server: https://192.168.1.211:6443
-      certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkekNDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUzT1RFME1EUTVNREl3SGhjTk1qWXhNREEzTVRreU9ESXlXaGNOTXpZeE1EQTBNVGt5T0RJeQpXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUzT1RFME1EUTVNREl3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFUandEZkpVZnFDN08zTFRXeDZ6bHNVRHJHL2paT25IcDdDankzR1R3S2IKeUdoUEVxTDhvS2lCS0RkQjQ2QUpRSVhsUmZzV3g3akpidGdSR3hqb1pCNlVvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVXI4QW5pcXZ6azdMdE83VWVEVFJiClRNMWpYdzB3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUlnRFdZdkQ3Y2tVRm9HRlJmV01IeGlnMnhpUG5sQnhGOEEKRXdIYW9FaHlER1lDSVFEYWNIM1g5TjZwMFQ2RVpHRWlzL2duOW9pM2JmaVV4TFk1V2QrNmNPVU5xQT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
-users:
-  - name: homelab
-    user:
-      exec:
-        apiVersion: client.authentication.k8s.io/v1
-        command: kubectl
-        args:
-          - oidc-login
-          - get-token
-          - --oidc-issuer-url=https://auth.abe.lc
-          - --oidc-client-id=46031658-1b1a-4d3b-8bfa-82dfaf67d4c4
-          - --oidc-extra-scope=profile
-          - --oidc-extra-scope=email
-          - --oidc-extra-scope=groups
-        interactiveMode: IfAvailable
-contexts:
-  - name: homelab
-    context: { cluster: homelab, user: homelab }
-current-context: homelab
+```bash
+curl -fsSLo ~/.kube/homelab.yaml https://raw.githubusercontent.com/Orysse/homelab-cluster/main/docs/onboarding/kubeconfig.yaml
 ```
 
 Puis, VPN allumé :
@@ -146,8 +119,8 @@ le cluster s'aligne sur lui.
 
 ## En cas de souci
 
-- `Unable to connect to the server` : le VPN n'est pas allumé, ou Abel n'a pas encore ajouté
-  ta clé.
+- `Unable to connect to the server` : le VPN n'est pas allumé (`tailscale status`), ou sous Linux
+  `--accept-routes` manque.
 - `Forbidden` : tu n'es pas encore dans le groupe `admins` (Abel), ou ton jeton date d'avant :
   `rm -rf ~/.kube/cache/oidc-login` puis relance la commande.
 - Le navigateur ne s'ouvre pas : ouvre à la main l'URL `http://localhost:8000` affichée par

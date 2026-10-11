@@ -29,3 +29,16 @@ subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
     name: oidc:visitors
+---
+# "view" covers only the CRDs whose charts add themselves to it (Flux, cert-manager...): the
+# network side too, the interesting part of a tour. Nothing secret in these.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: view-network
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: [cilium.io, gateway.networking.k8s.io, traefik.io, metallb.io]
+    resources: ["*"]
+    verbs: [get, list, watch]

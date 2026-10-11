@@ -1,8 +1,8 @@
 # Cheatsheet
 
-Day-to-day commands for this cluster. Kubeconfig: `~/.kube/configs/homelab-nix.yaml`
-(context `homelab-nix`); `flux`, `kubectl`, `k9s`, `helm`, `sops` come from the `infra`
-flavor of the laptop config.
+Day-to-day commands for this cluster (admins). Kubeconfig: the Pocket-ID one
+(`docs/onboarding/kubeconfig.yaml`, context `homelab`), or the owner's break-glass
+`homelab-nix` context (client certificate). Deploying an app: `docs/onboarding/`.
 
 > Flux is installed by the **base** (homelab-nix, Helm chart `flux2`), not by
 > `flux bootstrap`. Never run `flux bootstrap`, `flux install` or `flux uninstall` here:
@@ -28,7 +28,7 @@ does not re-apply infra.
 flux check                                  # controllers and CRDs healthy
 flux get ks                                 # Kustomizations: revision, ready, message
 flux get sources git                        # last fetched commit
-flux get hr -A                              # Helm releases (MetalLB, cert-manager, csi-driver-nfs, monitoring)
+flux get hr -A                              # Helm releases
 flux get all -A                             # everything
 flux tree ks apps                           # what a Kustomization manages
 ```

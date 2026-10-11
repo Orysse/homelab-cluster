@@ -1,0 +1,90 @@
+# Modèle d'app : copie ce dossier dans apps/<nom>/ et remplace "monapp" partout
+# (docs/onboarding/02-deployer-une-app.md). Les lignes marquées À CHANGER sont les seules
+# à adapter pour une app web simple.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monapp
+  labels:
+    gateway-access: public                           # ou internal : *.int, LAN/VPN seulement
+    pod-security.kubernetes.io/enforce: restricted   # pas de conteneur root
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monapp
+  namespace: monapp
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: monapp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: monapp
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534          # n'importe quel utilisateur non root
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: nginxinc/nginx-unprivileged:1.31.6-alpine   # À CHANGER : ton image, version précise
+          ports:
+            - name: http
+              containerPort: 8080                          # À CHANGER : le port où ton app écoute
+          readinessProbe:
+            httpGet: { path: /, port: http }               # À CHANGER si / ne répond pas 200
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }           # ce que l'app utilise au repos
+            limits: { memory: 128Mi }                      # au-delà, le pod est tué (OOMKilled)
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }               # la plupart des images écrivent ici
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monapp
+  namespace: monapp
+spec:
+  selector:
+    app.kubernetes.io/name: monapp
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: monapp
+  namespace: monapp
+spec:
+  parentRefs:
+    - name: public              # ou internal (avec le label du namespace)
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - monapp.${DOMAIN}          # ou monapp.int.${DOMAIN} sur internal
+  rules:
+    - backendRefs:
+        - name: monapp
+          port: 80

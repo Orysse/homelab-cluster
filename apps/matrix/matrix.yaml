@@ -50,6 +50,14 @@ spec:
         prometheus.io/port: "9000"
         prometheus.io/path: /_synapse/metrics
     spec:
+      # Not on the control-plane node: a big federated join eats CPU and RAM, and kube-1
+      # (k3s server + etcd) lost its leases under that load on 2026-10-11.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - { key: node-role.kubernetes.io/control-plane, operator: DoesNotExist }
       automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:

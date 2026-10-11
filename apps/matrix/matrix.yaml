@@ -87,11 +87,17 @@ spec:
             httpGet: { path: /health, port: http }
             periodSeconds: 5
             failureThreshold: 60
+          # Joining a big room over federation keeps the (single-threaded) main loop busy for
+          # minutes: /health answers late. A restart would only start the join over again.
           readinessProbe:
             httpGet: { path: /health, port: http }
+            timeoutSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet: { path: /health, port: http }
             periodSeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 20     # 10 minutes unresponsive before a restart
           resources:
             requests: { cpu: 50m, memory: 192Mi }
             limits: { memory: 1Gi }

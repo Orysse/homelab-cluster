@@ -89,3 +89,10 @@ body { font-family: var(--sans) !important; color: var(--ink); }
 
 #color, #theme, #footer .version, #footer > div:last-child { display: none !important; }
 #revalidate { color: var(--paper) !important; }
+
+/* Icons on a paper sticker, readable on every card colour */
+.service-card .service-icon {
+  background: var(--paper); border: 2px solid var(--ink); border-radius: 999px;
+  width: 38px !important; height: 38px !important; min-width: 38px; padding: 5px; margin: 0 0.6rem 0 0.3rem;
+  display: flex; align-items: center; justify-content: center;
+}

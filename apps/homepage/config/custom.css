@@ -98,7 +98,7 @@ body { font-family: var(--sans) !important; color: var(--ink); }
 }
 
 /* ---- The trip (custom.js): moving grounds, melted title, marquee, stickers ---- */
-html.abe-trip #page_wrapper { background: transparent !important; }
+html.abe-trip #__next, html.abe-trip #page_wrapper { background: transparent !important; }
 html.abe-trip #page_wrapper::before { display: none; }
 #__next { position: relative; z-index: 1; }
 #abe-liquid { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; }

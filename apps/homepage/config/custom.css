@@ -96,3 +96,64 @@ body { font-family: var(--sans) !important; color: var(--ink); }
   width: 38px !important; height: 38px !important; min-width: 38px; padding: 5px; margin: 0 0.6rem 0 0.3rem;
   display: flex; align-items: center; justify-content: center;
 }
+
+/* ---- The trip (custom.js): moving grounds, melted title, marquee, stickers ---- */
+html.abe-trip #page_wrapper { background: transparent !important; }
+html.abe-trip #page_wrapper::before { display: none; }
+#__next { position: relative; z-index: 1; }
+#abe-liquid { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; }
+
+.abe-rings {
+  position: fixed; top: -220px; right: -220px; width: 560px; height: 560px; z-index: 0; border-radius: 999px;
+  background: repeating-radial-gradient(circle, var(--gold) 0 14px, var(--magenta) 14px 28px, var(--teal) 28px 42px, var(--violet) 42px 56px, var(--orange) 56px 70px);
+  box-shadow: 0 0 0 8px var(--ink); opacity: 0.85; animation: abe-spin 40s linear infinite;
+}
+
+/* Title: melted, double printed shadow */
+.information-widget-greeting span {
+  filter: url(#abe-warp); font-size: 3.6rem !important;
+  text-shadow: 4px 4px 0 var(--magenta), 8px 8px 0 #000 !important;
+}
+#information-widgets { rotate: -0.4deg; }
+
+/* Stickers slightly askew, straighten on hover */
+.service-group-name, .bookmark-group-name { rotate: -2deg; }
+.service:nth-child(3n + 1) .service-card { rotate: -0.7deg; }
+.service:nth-child(3n + 2) .service-card { rotate: 0.5deg; }
+.service:nth-child(3n) .service-card { rotate: -0.3deg; }
+.service .service-card:hover { rotate: 0deg; }
+.service-block:nth-child(2) { rotate: 2deg; }
+.service-block:nth-child(3) { rotate: -1.5deg; }
+
+/* Bottom band: op-art waves, marquee, trip controls */
+#inner_wrapper { padding-bottom: 120px; }
+#abe-band {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 86px; z-index: 20; overflow: hidden;
+  border-top: 5px solid var(--ink); box-shadow: 0 -6px 0 var(--magenta);
+}
+#abe-band canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.abe-marquee {
+  position: absolute; top: 50%; left: 0; display: flex; white-space: nowrap; transform: translateY(-50%);
+  animation: abe-marquee calc(60s - var(--trip, 0.6) * 40s) linear infinite;
+}
+.abe-marquee span {
+  font-family: var(--display); font-size: 34px; line-height: 1; padding-right: 0.5em;
+  color: var(--yellow); text-shadow: 3px 3px 0 var(--magenta), 6px 6px 0 var(--ink);
+}
+.abe-ctl {
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: flex; gap: 10px; align-items: center;
+  background: var(--ink); padding: 8px 12px; box-shadow: 4px 4px 0 var(--magenta);
+  font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--gold);
+}
+.abe-ctl input { accent-color: var(--magenta); width: 110px; }
+.abe-ctl button {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--paper);
+  border: 1px solid var(--paper); padding: 3px 10px; background: transparent; cursor: pointer;
+}
+.abe-ctl button:hover { background: var(--paper); color: var(--ink); }
+#revalidate { bottom: 110px !important; }
+
+@keyframes abe-spin { to { rotate: 360deg; } }
+@keyframes abe-marquee { to { transform: translate(-50%, -50%); } }
+.abe-calm .abe-rings, .abe-calm .abe-marquee { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .abe-rings, .abe-marquee { animation: none; } }

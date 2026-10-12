@@ -1,12 +1,14 @@
 # OpenCost (CNCF) at cost.int.${DOMAIN}: what each namespace costs, from its CPU, RAM and
 # storage use. No cloud bill here: the prices below are derived from nuc1's real costs.
 #   PROVISIONAL (2026-10-12), per hour:
-#     electricity  21 W platform average (RAPL psys, homelab-nix monitoring.nix) x ~0.25 EUR/kWh
-#                  (price to confirm)                                       0.00525 EUR
+#     electricity  ~25 W at the wall (21 W RAPL psys, homelab-nix monitoring.nix, plus ~85 %
+#                  PSU efficiency) x 0.2001 EUR/kWh (EDF Tarif Bleu, Base, 6 kVA, Aug 2026;
+#                  no subscription: the home pays it anyway)                0.00500 EUR
 #     OVH          27.58 EUR/year: abe.lc and the homelab@ mailbox (2027 renewal)
 #                                                                             0.00315 EUR
-#     total        0.00840 EUR/h ~ 6.1 EUR/month, split half CPU (6 vCPU), half RAM (11 GB
-#                  of VMs). Still missing: hardware amortisation, real kWh price.
+#     total        0.00815 EUR/h ~ 5.95 EUR/month, split half CPU (6 vCPU), half RAM (11 GB
+#                  of VMs). Still missing: hardware amortisation; a smart plug would replace
+#                  the 25 W estimate.
 #   Units: EUR per vCPU-hour, per GB-hour (shown with a "$" in the UI).
 # Reads metrics from VictoriaMetrics on the monitoring host; its own cost metrics are
 # scraped back by Alloy (pod annotations).
@@ -83,11 +85,11 @@ spec:
         enabled: true
         provider: custom
         costModel:
-          description: "nuc1, PROVISIONAL: electricity (21 W, ~0.25 EUR/kWh) + OVH domain and mail (27.58 EUR/year)"
-          CPU: 0.000700
-          spotCPU: 0.000700
-          RAM: 0.000382
-          spotRAM: 0.000382
+          description: "nuc1: electricity (~25 W, EDF Tarif Bleu 0.2001 EUR/kWh) + OVH domain and mail (27.58 EUR/year); no amortisation yet"
+          CPU: 0.000679
+          spotCPU: 0.000679
+          RAM: 0.000370
+          spotRAM: 0.000370
           GPU: 0
           storage: 0.00001
           zoneNetworkEgress: 0

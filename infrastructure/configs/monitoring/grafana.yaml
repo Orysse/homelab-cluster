@@ -34,9 +34,14 @@ spec:
     automountServiceAccountToken: false   # no sidecar talks to the API: dashboards come from ConfigMaps
     persistence:
       enabled: false
-    envFromSecrets:             # grafana-secrets.yaml (from OpenBao)
+    envFromSecrets:             # grafana-secrets.yaml (from OpenBao): settings and file paths
       - name: grafana-db        # GF_DATABASE_*
-      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID / _SECRET
+      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID, _SECRET__FILE
+    extraSecretMounts:          # the secret values themselves, as files
+      - name: grafana-files
+        secretName: grafana-files
+        mountPath: /etc/secrets/grafana
+        readOnly: true
     # First start (database migrations, plugin download) is slow on the capped CPU: up to
     # 10 minutes before the liveness probe takes over.
     startupProbe:
@@ -106,7 +111,7 @@ spec:
               implementation: prometheus
           # Umami's analytics, read straight from its database: Grafana's own PostgreSQL user
           # may SELECT website, website_event and session (homelab-nix topology:
-          # database.readers), nothing else. $${...}: left for Grafana (its environment).
+          # database.readers), nothing else. $${...} and $$__file{...}: left for Grafana.
           - name: Umami
             uid: umami
             type: grafana-postgresql-datasource
@@ -117,7 +122,7 @@ spec:
               sslmode: disable
               postgresVersion: 1800
             secureJsonData:
-              password: $${GF_DATABASE_PASSWORD}
+              password: $$__file{/etc/secrets/grafana/db-password}
     dashboardProviders:
       dashboardproviders.yaml:
         apiVersion: 1

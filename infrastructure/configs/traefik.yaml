@@ -39,12 +39,13 @@ spec:
       kubernetesGateway:
         enabled: true
       # Routing is Gateway API only: no Ingress objects, and Traefik CRDs (middlewares, TLS
-      # store, dashboard) only from kube-system, so a namespace admin cannot route arbitrary
-      # hostnames.
+      # store, dashboard) only from platform namespaces, so a namespace admin cannot route
+      # arbitrary hostnames. oauth2-proxy holds the Pocket-ID-protected routes and their
+      # middlewares (oauth2-proxy/).
       kubernetesIngress:
         enabled: false
       kubernetesCRD:
-        namespaces: [kube-system]
+        namespaces: [kube-system, oauth2-proxy]
     gateway:
       enabled: false
     gatewayClass:

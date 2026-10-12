@@ -1,12 +1,13 @@
 # Hubble UI (Cilium's network flow viewer, installed by the base with Cilium) at
-# hubble.int.${DOMAIN}, LAN/VPN only, Pocket-ID login through oauth2-proxy (it has none). The route lives here (namespace on
-# the internal Gateway); a ReferenceGrant lets it point at the Service in kube-system.
+# hubble.int.${DOMAIN}, LAN/VPN only, Pocket-ID login (admins) through oauth2-proxy: it has
+# none. The route lives in the oauth2-proxy namespace, next to its middlewares; a
+# ReferenceGrant lets it point at the Service in kube-system.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: hubble
-  namespace: monitoring
+  namespace: oauth2-proxy
 spec:
   parentRefs:
     - name: internal
@@ -28,13 +29,13 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
-  name: hubble-ui-from-monitoring
+  name: hubble-ui-from-oauth2-proxy
   namespace: kube-system
 spec:
   from:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      namespace: monitoring
+      namespace: oauth2-proxy
   to:
     - group: ""
       kind: Service

@@ -90,11 +90,13 @@ spec:
           regionNetworkEgress: 0
           internetNetworkEgress: 0
 ---
+# In the oauth2-proxy namespace, next to the Pocket-ID middleware (Traefik reads
+# middlewares there only); the ReferenceGrant below lets it reach the Service here.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: opencost
-  namespace: opencost
+  namespace: oauth2-proxy
 spec:
   parentRefs:
     - name: internal
@@ -108,16 +110,20 @@ spec:
           extensionRef: { group: traefik.io, kind: Middleware, name: pocket-id }
       backendRefs:
         - name: opencost
+          namespace: opencost
           port: 9090
 ---
-# Pocket-ID login (infrastructure/configs/oauth2-proxy): OpenCost has none of its own.
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
 metadata:
-  name: pocket-id
+  name: opencost-from-oauth2-proxy
   namespace: opencost
 spec:
-  forwardAuth:
-    address: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/
-    trustForwardHeader: true
-    authResponseHeaders: [X-Auth-Request-User, X-Auth-Request-Email]
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: oauth2-proxy
+  to:
+    - group: ""
+      kind: Service
+      name: opencost

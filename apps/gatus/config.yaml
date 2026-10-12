@@ -76,7 +76,7 @@ endpoints:
     url: https://traefik.int.${DOMAIN}/dashboard/
     interval: 5m
     conditions:
-      - "[STATUS] == 200"
+      - "[STATUS] == any(200, 302)"   # 302: Pocket-ID login (oauth2-proxy)
 
   - name: Homepage
     group: internal (VPN only)

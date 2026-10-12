@@ -1,9 +1,12 @@
 # OpenCost (CNCF) at cost.int.${DOMAIN}: what each namespace costs, from its CPU, RAM and
 # storage use. No cloud bill here: the prices below are derived from nuc1's real costs.
-#   PROVISIONAL (2026-10-12): electricity only, 21 W platform average (RAPL psys, homelab-nix
-#   monitoring.nix) x 730 h x ~0.25 EUR/kWh ~ 3.8 EUR/month, split half CPU (6 vCPU), half
-#   RAM (11 GB of VMs). To redo with the real kWh price, hardware amortisation and
-#   subscriptions. Units: EUR per vCPU-hour, per GB-hour (shown with a "$" in the UI).
+#   PROVISIONAL (2026-10-12), per hour:
+#     electricity  21 W platform average (RAPL psys, homelab-nix monitoring.nix) x ~0.25 EUR/kWh
+#                  (price to confirm)                                       0.00525 EUR
+#     abe.lc       27 EUR/year renewal at OVH (2026-10 invoice: 25.19)     0.00308 EUR
+#     total        0.00833 EUR/h ~ 6.1 EUR/month, split half CPU (6 vCPU), half RAM (11 GB
+#                  of VMs). Still missing: hardware amortisation, real kWh price.
+#   Units: EUR per vCPU-hour, per GB-hour (shown with a "$" in the UI).
 # Reads metrics from VictoriaMetrics on the monitoring host; its own cost metrics are
 # scraped back by Alloy (pod annotations).
 ---
@@ -79,11 +82,11 @@ spec:
         enabled: true
         provider: custom
         costModel:
-          description: "nuc1, PROVISIONAL: electricity only (21 W, ~0.25 EUR/kWh)"
-          CPU: 0.000437
-          spotCPU: 0.000437
-          RAM: 0.000238
-          spotRAM: 0.000238
+          description: "nuc1, PROVISIONAL: electricity (21 W, ~0.25 EUR/kWh) + abe.lc (27 EUR/year)"
+          CPU: 0.000694
+          spotCPU: 0.000694
+          RAM: 0.000379
+          spotRAM: 0.000379
           GPU: 0
           storage: 0.00001
           zoneNetworkEgress: 0

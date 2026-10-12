@@ -1,0 +1,103 @@
+# OpenCost (CNCF) at cost.int.${DOMAIN}: what each namespace costs, from its CPU, RAM and
+# storage use. No cloud bill here: the prices below are derived from nuc1's real costs.
+#   PROVISIONAL (2026-10-12): electricity only, 21 W platform average (RAPL psys, homelab-nix
+#   monitoring.nix) x 730 h x ~0.25 EUR/kWh ~ 3.8 EUR/month, split half CPU (6 vCPU), half
+#   RAM (11 GB of VMs). To redo with the real kWh price, hardware amortisation and
+#   subscriptions. Units: EUR per vCPU-hour, per GB-hour (shown with a "$" in the UI).
+# Reads metrics from VictoriaMetrics on the monitoring host; its own cost metrics are
+# scraped back by Alloy (pod annotations).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opencost
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: opencost
+  namespace: opencost
+spec:
+  interval: 24h
+  url: https://opencost.github.io/opencost-helm-chart
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: opencost
+  namespace: opencost
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: opencost
+      version: "2.5.32"
+      sourceRef:
+        kind: HelmRepository
+        name: opencost
+  values:
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9003"
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      seccompProfile:
+        type: RuntimeDefault
+    opencost:
+      exporter:
+        defaultClusterId: ${CLUSTER_NAME}
+        resources:
+          requests: { cpu: 10m, memory: 128Mi }
+          limits: { memory: 384Mi }
+        securityContext: &container-security
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+      ui:
+        resources:
+          requests: { cpu: 5m, memory: 32Mi }
+          limits: { memory: 96Mi }
+        securityContext: *container-security
+      prometheus:
+        internal:
+          enabled: false
+        external:
+          enabled: true
+          url: http://${MONITORING_ADDRESS}:8428
+      customPricing:
+        enabled: true
+        provider: custom
+        costModel:
+          description: "nuc1, PROVISIONAL: electricity only (21 W, ~0.25 EUR/kWh)"
+          CPU: 0.000437
+          spotCPU: 0.000437
+          RAM: 0.000238
+          spotRAM: 0.000238
+          GPU: 0
+          storage: 0.00001
+          zoneNetworkEgress: 0
+          regionNetworkEgress: 0
+          internetNetworkEgress: 0
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: opencost
+  namespace: opencost
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - cost.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: opencost
+          port: 9090

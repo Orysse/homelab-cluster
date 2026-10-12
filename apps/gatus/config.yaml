@@ -71,13 +71,6 @@ endpoints:
     conditions:
       - "[DNS_RCODE] == NOERROR"
 
-  - name: Paperless
-    group: internal (VPN only)
-    url: https://paperless.int.${DOMAIN}/
-    interval: 5m
-    conditions:
-      - "[STATUS] == any(200, 302)"   # 302: to the login page (Pocket-ID)
-
   - name: Traefik dashboard
     group: internal (VPN only)
     url: https://traefik.int.${DOMAIN}/dashboard/

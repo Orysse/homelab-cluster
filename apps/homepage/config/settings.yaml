@@ -9,7 +9,6 @@ disableUpdateCheck: true
 cardBlur: sm
 layout:
   Plateforme: { style: row, columns: 4 }
-  Documents: { style: row, columns: 3 }
   Observabilité: { style: row, columns: 4 }
   Sites: { style: row, columns: 3 }
   Code & docs: { style: row, columns: 3 }

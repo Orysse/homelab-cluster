@@ -2,10 +2,12 @@
 // users (their Pocket-ID username + "@"), not OIDC groups: a new admin goes here too.
 // Everyone else (Pocket-ID group "visitors"): the internal gateway (*.int, read-only views)
 // and the Kubernetes API (RBAC "view", oidc-rbac.yaml); no SSH, no hosts, no LAN.
+// autogroup:internet: admins may use nuc1 as an exit node (all their traffic through home).
 {
   "groups": { "group:admins": ["abelc@"] },
   "acls": [
     { "action": "accept", "src": ["group:admins"], "dst": ["192.168.1.192/26:*"] },
+    { "action": "accept", "src": ["group:admins"], "dst": ["autogroup:internet:*"] },
     { "action": "accept", "src": ["*"], "dst": ["192.168.1.241:443", "192.168.1.211:6443"] }
   ]
 }

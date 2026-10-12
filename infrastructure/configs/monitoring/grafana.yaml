@@ -36,7 +36,7 @@ spec:
       enabled: false
     envFromSecrets:             # grafana-secrets.yaml (from OpenBao): settings and file paths
       - name: grafana-db        # GF_DATABASE_*
-      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID, _SECRET__FILE
+      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID
     extraSecretMounts:          # the secret values themselves, as files
       - name: grafana-files
         secretName: grafana-files
@@ -58,6 +58,10 @@ spec:
     plugins:
       - victoriametrics-logs-datasource@0.32.0
     grafana.ini:
+      # Secret values from the mounted files (grafana-files); the rest of [database] comes
+      # from the environment (grafana-db). This image ignores GF_*__FILE.
+      database:
+        password: $$__file{/etc/secrets/grafana/db-password}
       server:
         root_url: https://grafana.int.${DOMAIN}/
       users:
@@ -76,6 +80,7 @@ spec:
       # Login through Pocket-ID; its "admins" group is Grafana Admin, everyone else Viewer.
       auth.generic_oauth:
         enabled: true
+        client_secret: $$__file{/etc/secrets/grafana/oauth-client-secret}
         name: Pocket-ID
         allow_sign_up: true
         auto_login: true

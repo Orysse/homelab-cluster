@@ -9,6 +9,7 @@ resources:
   - pocket-id
   - headlamp
   - crowdsec
+  - oauth2-proxy
   - oidc-rbac.yaml
   - traefik.yaml
   - security-headers.yaml

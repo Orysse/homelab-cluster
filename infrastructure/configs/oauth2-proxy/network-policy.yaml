@@ -1,0 +1,24 @@
+# oauth2-proxy: reached by Traefik only; reaches DNS and Pocket-ID (auth.${DOMAIN}, through
+# the public address).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

@@ -1,0 +1,116 @@
+# oauth2-proxy: Pocket-ID login in front of the internal UIs that have none of their own
+# (OpenCost, Hubble, the Traefik dashboard). Traefik asks it about every request (forward
+# auth, middlewares.yaml and next to each protected route); without a session it sends the
+# browser to Pocket-ID, then back through oauth.int.${DOMAIN}. One login for all of them:
+# the cookie is set for *.int.${DOMAIN}. Groups admins and visitors; Hubble admins only.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oauth2-proxy
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --allowed-group=visitors
+            - --email-domain=*
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # trusts Traefik's X-Forwarded-* (where to come back)
+            - --upstream=static://202          # forward auth only: never proxies content
+            - --redirect-url=https://oauth.int.${DOMAIN}/oauth2/callback
+            - --cookie-domain=.int.${DOMAIN}
+            - --whitelist-domain=.int.${DOMAIN}
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --set-xauthrequest=true
+            - --cookie-secret-file=/secrets/cookie_secret
+            - --client-secret-file=/secrets/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: secrets, mountPath: /secrets, readOnly: true }
+      volumes:
+        - name: secrets
+          secret:
+            secretName: oauth2-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+# Pocket-ID sends the browser back here after login.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - oauth.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: oauth2-proxy
+          port: 80

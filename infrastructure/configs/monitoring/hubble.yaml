@@ -1,5 +1,5 @@
 # Hubble UI (Cilium's network flow viewer, installed by the base with Cilium) at
-# hubble.int.${DOMAIN}, LAN/VPN only: it has no login. The route lives here (namespace on
+# hubble.int.${DOMAIN}, LAN/VPN only, Pocket-ID login through oauth2-proxy (it has none). The route lives here (namespace on
 # the internal Gateway); a ReferenceGrant lets it point at the Service in kube-system.
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -15,7 +15,12 @@ spec:
   hostnames:
     - hubble.int.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ExtensionRef
+          extensionRef: { group: traefik.io, kind: Middleware, name: pocket-id }
+        - type: ExtensionRef     # admins only: flows include visitors' public IPs
+          extensionRef: { group: traefik.io, kind: Middleware, name: pocket-id-admins }
+      backendRefs:
         - name: hubble-ui
           namespace: kube-system
           port: 80

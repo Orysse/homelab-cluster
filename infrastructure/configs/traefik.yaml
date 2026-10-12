@@ -94,3 +94,5 @@ spec:
         enabled: true
         matchRule: Host(`traefik.int.${DOMAIN}`)
         entryPoints: ["internal"]
+        middlewares:
+          - name: pocket-id      # Pocket-ID login (oauth2-proxy/middlewares.yaml)

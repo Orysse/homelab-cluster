@@ -21,6 +21,12 @@
         href: https://hs.${DOMAIN}/apple
         description: VPN (Tailscale), login Pocket-ID
         siteMonitor: https://hs.${DOMAIN}/health
+- Documents:
+    - Paperless:
+        icon: paperless-ngx.png
+        href: https://paperless.int.${DOMAIN}
+        description: Documents scannés, OCR et recherche
+        siteMonitor: https://paperless.int.${DOMAIN}
 - Observabilité:
     - Grafana:
         icon: grafana.png

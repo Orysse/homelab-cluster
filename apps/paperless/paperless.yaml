@@ -1,0 +1,182 @@
+# Paperless-ngx: scanned and PDF documents, OCR'd (French + English) and searchable.
+#   paperless.int.${DOMAIN}   LAN/VPN only. Login with Pocket-ID only (client "paperless",
+#                             restricted to the admins group in Pocket-ID); Pocket-ID's
+#                             admins are Paperless superusers.
+# Data in PostgreSQL on the database host (database "paperless", credentials from OpenBao);
+# documents and the search index on NFS volumes. Valkey (Celery's task queue) runs beside it
+# in the pod, without persistence: queued tasks are retried from the documents.
+# Locked out (Pocket-ID down or groups claim missing):
+#   kubectl -n paperless exec -it deploy/paperless -c paperless -- /usr/src/paperless/src/manage.py createsuperuser
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paperless
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: paperless
+automountServiceAccountToken: false
+---
+# Database-like files (search index, Celery schedule, classifier model, logs).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: paperless
+spec:
+  accessModes: [ReadWriteMany]
+  resources: { requests: { storage: 2Gi } }
+---
+# The documents: originals, archived (OCR'd) PDFs, thumbnails.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media
+  namespace: paperless
+spec:
+  accessModes: [ReadWriteMany]
+  resources: { requests: { storage: 20Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate              # one writer of the search index at a time
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000             # the image's "paperless" user (rootless mode)
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: paperless
+          image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0
+          env:
+            - { name: PAPERLESS_URL, value: "https://paperless.int.${DOMAIN}" }
+            - { name: PAPERLESS_REDIS, value: "redis://localhost:6379" }
+            - { name: PAPERLESS_DBENGINE, value: postgresql }
+            - { name: PAPERLESS_DBHOST, value: "${DATABASE_ADDRESS}" }
+            - { name: PAPERLESS_DBNAME, value: paperless }
+            # Secrets as files (the image reads PAPERLESS_<VAR>_FILE).
+            - { name: PAPERLESS_DBUSER_FILE, value: /etc/paperless/secrets/dbuser }
+            - { name: PAPERLESS_DBPASS_FILE, value: /etc/paperless/secrets/dbpass }
+            - { name: PAPERLESS_SECRET_KEY_FILE, value: /etc/paperless/secrets/secret_key }
+            - { name: PAPERLESS_SOCIALACCOUNT_PROVIDERS_FILE, value: /etc/paperless/secrets/socialaccount_providers }
+            # Login: Pocket-ID only.
+            - { name: PAPERLESS_APPS, value: allauth.socialaccount.providers.openid_connect }
+            - { name: PAPERLESS_SOCIAL_AUTO_SIGNUP, value: "true" }
+            - { name: PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS, value: "true" }
+            - { name: PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP, value: admins }
+            - { name: PAPERLESS_ACCOUNT_ALLOW_SIGNUPS, value: "false" }
+            - { name: PAPERLESS_DISABLE_REGULAR_LOGIN, value: "true" }
+            - { name: PAPERLESS_REDIRECT_LOGIN_TO_SSO, value: "true" }
+            - { name: PAPERLESS_TIME_ZONE, value: Europe/Paris }
+            - { name: PAPERLESS_OCR_LANGUAGE, value: fra+eng }     # both in the image
+            # One of each: the memory is short (one document processed at a time).
+            - { name: PAPERLESS_WEBSERVER_WORKERS, value: "1" }
+            - { name: PAPERLESS_TASK_WORKERS, value: "1" }
+            - { name: PAPERLESS_THREADS_PER_WORKER, value: "1" }
+          ports:
+            - { name: http, containerPort: 8000 }
+          # Host: localhost, always allowed (the pod's IP is not in ALLOWED_HOSTS).
+          startupProbe:               # first start runs the database migrations
+            httpGet: { path: /, port: http, httpHeaders: [{ name: Host, value: localhost }] }
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /, port: http, httpHeaders: [{ name: Host, value: localhost }] }
+          livenessProbe:
+            httpGet: { path: /, port: http, httpHeaders: [{ name: Host, value: localhost }] }
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 768Mi }
+            limits: { memory: 1536Mi }   # OCR of a large scan
+          securityContext:
+            allowPrivilegeEscalation: false
+            # Writable root: s6-overlay (the image's init) and its start scripts write under
+            # /run, /etc and the code directory.
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: data, mountPath: /usr/src/paperless/data }
+            - { name: media, mountPath: /usr/src/paperless/media }
+            - { name: consume, mountPath: /usr/src/paperless/consume }
+            - { name: secrets, mountPath: /etc/paperless/secrets, readOnly: true }
+        - name: valkey
+          image: docker.io/valkey/valkey:9.1.2-alpine
+          args: ["--save", "", "--appendonly", "no", "--bind", "127.0.0.1"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            runAsUser: 999          # the image's "valkey" user
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: valkey, mountPath: /data }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: data } }
+        - { name: media, persistentVolumeClaim: { claimName: media } }
+        - { name: consume, emptyDir: { sizeLimit: 256Mi } }   # uploads go through the web UI
+        - { name: valkey, emptyDir: { sizeLimit: 16Mi } }
+        - name: secrets
+          secret:
+            secretName: paperless     # from OpenBao (secrets.yaml)
+            defaultMode: 0440
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  selector:
+    app.kubernetes.io/name: paperless
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - paperless.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: paperless
+          port: 80

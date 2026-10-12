@@ -151,8 +151,16 @@ spec:
             disableDeletion: true
             options:
               path: /var/lib/grafana/dashboards/sites-community
+          # Our own homelab dashboards (dashboards/, one ConfigMap): cost, vulnerabilities.
+          - name: homelab-own
+            folder: Homelab
+            type: file
+            disableDeletion: true
+            options:
+              path: /var/lib/grafana/dashboards/homelab-own
     dashboardsConfigMaps:
       sites: grafana-dashboards-sites
+      homelab-own: grafana-dashboards-homelab
     dashboards:
       sites-community:
         # Community Umami dashboard: hourly heatmap, 7-day moving averages, qualified sessions.

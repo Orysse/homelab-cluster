@@ -21,6 +21,14 @@ metadata:
     gateway-access: internal
     pod-security.kubernetes.io/enforce: restricted
 ---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: opencost
+automountServiceAccountToken: false
+---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:

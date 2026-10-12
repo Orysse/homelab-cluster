@@ -8,6 +8,14 @@ metadata:
   labels:
     gateway-access: public
 ---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: gatus
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -6,6 +6,15 @@ metadata:
   name: site
   labels:
     gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: site
+automountServiceAccountToken: false
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -23,6 +32,14 @@ spec:
       labels:
         app.kubernetes.io/name: site
     spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101            # "nginx" in nginx-unprivileged
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: nginx
           image: nginxinc/nginx-unprivileged:1.31.6-alpine
@@ -34,13 +51,22 @@ spec:
           resources:
             requests: { cpu: 10m, memory: 16Mi }
             limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - { name: files, mountPath: /usr/share/nginx/html/index.txt, subPath: index.txt }
             - { name: files, mountPath: /etc/nginx/conf.d/default.conf, subPath: nginx.conf }
+            - { name: tmp, mountPath: /tmp }   # nginx's pid file and temp paths
       volumes:
         - name: files
           configMap:
             name: site-files
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

@@ -31,6 +31,7 @@ spec:
   values:
     testFramework:
       enabled: false
+    automountServiceAccountToken: false   # no sidecar talks to the API: dashboards come from ConfigMaps
     persistence:
       enabled: false
     envFromSecrets:             # grafana-secrets.yaml (from OpenBao)

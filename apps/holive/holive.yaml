@@ -11,6 +11,14 @@ metadata:
   labels:
     gateway-access: public
 ---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: holive
+automountServiceAccountToken: false
+---
 # Service account that sends the contact form through the Gmail API (domain-wide delegation,
 # gmail.send only): its JSON key pasted as is in OpenBao at kv/apps/holive/gmail.
 apiVersion: external-secrets.io/v1

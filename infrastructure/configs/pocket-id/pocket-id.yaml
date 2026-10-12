@@ -49,12 +49,14 @@ spec:
       containers:
         - name: pocket-id
           image: ghcr.io/pocket-id/pocket-id:v2.18.0-distroless
-          envFrom:
-            - secretRef:
-                name: pocket-id   # ENCRYPTION_KEY, SMTP_PASSWORD (from OpenBao)
-            - secretRef:
-                name: pocket-id-db   # DB_CONNECTION_STRING (PostgreSQL, from OpenBao)
+          # Secrets (from OpenBao) read from files where Pocket-ID allows it, so they are not in
+          # its environment; SMTP_PASSWORD has no _FILE variant.
           env:
+            - { name: ENCRYPTION_KEY_FILE, value: /secrets/app/ENCRYPTION_KEY }
+            - { name: DB_CONNECTION_STRING_FILE, value: /secrets/db/DB_CONNECTION_STRING }
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: pocket-id, key: SMTP_PASSWORD }
             - { name: APP_URL, value: "https://auth.${DOMAIN}" }
             - { name: TRUST_PROXY, value: "10.42.0.0/16" }   # Traefik, from the pod network
             - { name: UI_CONFIG_DISABLED, value: "true" }
@@ -93,6 +95,8 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /app/data }   # scratch only, everything lives in PostgreSQL
             - { name: tmp, mountPath: /tmp }
+            - { name: secrets-app, mountPath: /secrets/app, readOnly: true }
+            - { name: secrets-db, mountPath: /secrets/db, readOnly: true }
       volumes:
         - name: data
           emptyDir:
@@ -100,6 +104,13 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+        - name: secrets-app
+          secret:
+            secretName: pocket-id
+            items: [{ key: ENCRYPTION_KEY, path: ENCRYPTION_KEY }]
+        - name: secrets-db
+          secret:
+            secretName: pocket-id-db
 ---
 apiVersion: v1
 kind: Service

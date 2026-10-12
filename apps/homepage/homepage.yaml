@@ -93,6 +93,7 @@ spec:
             limits: { memory: 384Mi }
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
@@ -106,6 +107,8 @@ spec:
             - { name: config, mountPath: /app/config/custom.css, subPath: custom.css }
             - { name: config, mountPath: /app/config/custom.js, subPath: custom.js }
             - { name: cache, mountPath: /app/.next/cache }
+            - { name: route-cache, mountPath: /app/.next/server/route-cache }
+            - { name: tmp, mountPath: /tmp }
       volumes:
         - name: config
           configMap:
@@ -116,6 +119,12 @@ spec:
         - name: cache
           emptyDir:
             sizeLimit: 128Mi
+        - name: route-cache
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
 ---
 apiVersion: v1
 kind: Service

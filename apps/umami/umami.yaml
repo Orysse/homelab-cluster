@@ -71,8 +71,18 @@ spec:
             limits: { memory: 512Mi }
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          # Where it writes at run time (Prisma's config and caches).
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: prisma-config, mountPath: /home/nextjs/.config }
+            - { name: cache, mountPath: /app/node_modules/.cache }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
+        - { name: prisma-config, emptyDir: { sizeLimit: 8Mi } }
+        - { name: cache, emptyDir: { sizeLimit: 64Mi } }
 ---
 apiVersion: v1
 kind: Service

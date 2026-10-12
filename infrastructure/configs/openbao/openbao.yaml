@@ -55,10 +55,23 @@ spec:
         - name: unseal
           secret:
             secretName: openbao-unseal
+        - name: tmp               # the entrypoint renders its storage config there
+          emptyDir:
+            sizeLimit: 16Mi
       volumeMounts:
         - name: unseal
           mountPath: /openbao/unseal
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      # The chart's defaults (non-root, no privilege escalation), plus a read-only root.
+      statefulSet:
+        securityContext:
+          container:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
       standalone:
         enabled: true
         config: |

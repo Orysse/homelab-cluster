@@ -87,12 +87,17 @@ spec:
             limits: { memory: 256Mi }
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
             - { name: data, mountPath: /app/data }   # scratch only, everything lives in PostgreSQL
+            - { name: tmp, mountPath: /tmp }
       volumes:
         - name: data
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: tmp
           emptyDir:
             sizeLimit: 64Mi
 ---

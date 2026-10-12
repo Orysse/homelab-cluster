@@ -1,4 +1,5 @@
 # Homepage: reached by Traefik only; reaches DNS, the API server (cluster and node usage),
+# VictoriaMetrics (live numbers), news feeds (HTTPS),
 # Gatus, and every site it monitors: public ones through the box like a visitor, *.int
 # ones through the internal gateway.
 ---
@@ -25,6 +26,9 @@ spec:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: gatus, app.kubernetes.io/name: gatus }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    # VictoriaMetrics on the monitoring host ("En direct" widgets).
+    - toCIDR: ["${MONITORING_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "8428", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
     - toEndpoints:

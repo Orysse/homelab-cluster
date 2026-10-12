@@ -20,3 +20,10 @@
       dateStyle: full
       timeStyle: short
       hour12: false
+- openmeteo:
+    label: Paris
+    latitude: 48.876
+    longitude: 2.338
+    timezone: Europe/Paris
+    units: metric
+    cache: 15

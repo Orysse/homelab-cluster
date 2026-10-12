@@ -47,6 +47,8 @@ spec:
             - --allowed-group=admins
             - --allowed-group=visitors
             - --email-domain=*
+            # Pocket-ID marks emails unverified; access is decided by the groups above, not the email.
+            - --insecure-oidc-allow-unverified-email=true
             - --code-challenge-method=S256
             - --skip-provider-button=true
             - --http-address=0.0.0.0:4180

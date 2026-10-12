@@ -63,7 +63,12 @@ spec:
         resources:
           requests: { cpu: 5m, memory: 32Mi }
           limits: { memory: 96Mi }
-        securityContext: *container-security
+        # Its entrypoint rewrites the bundled JS (base URL) in place: /var/www must be writable.
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: ["ALL"]
       prometheus:
         internal:
           enabled: false

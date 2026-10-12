@@ -85,6 +85,13 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
+  - name: Actual Budget
+    group: internal (VPN only)
+    url: https://budget.int.${DOMAIN}/health
+    interval: 5m
+    conditions:
+      - "[STATUS] == 200"
+
   - name: auth.${DOMAIN}
     group: public
     url: https://auth.${DOMAIN}/healthz

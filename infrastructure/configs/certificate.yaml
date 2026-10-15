@@ -36,6 +36,7 @@ spec:
   dnsNames:
     - holive.fr
     - www.holive.fr
+    - "*.holive.fr"             # subdomains (apps/oxymore, …)
   issuerRef:
     kind: ClusterIssuer
     name: letsencrypt

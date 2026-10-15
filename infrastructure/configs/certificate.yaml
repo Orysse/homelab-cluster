@@ -4,13 +4,13 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard
-  namespace: kube-system        # same namespace as Traefik and the TLSStore
+  namespace: kube-system # same namespace as Traefik and the TLSStore
 spec:
   secretName: wildcard-tls
   dnsNames:
     - ${DOMAIN}
     - "*.${DOMAIN}"
-    - "*.int.${DOMAIN}"        # internal apps (gateway.yaml)
+    - "*.int.${DOMAIN}" # internal apps (gateway.yaml)
   issuerRef:
     kind: ClusterIssuer
     name: letsencrypt
@@ -18,7 +18,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: TLSStore
 metadata:
-  name: default                 # reserved name: Traefik's default store
+  name: default # reserved name: Traefik's default store
   namespace: kube-system
 spec:
   defaultCertificate:
@@ -35,8 +35,7 @@ spec:
   secretName: holive-tls
   dnsNames:
     - holive.fr
-    - www.holive.fr
-    - "*.holive.fr"             # subdomains (apps/oxymore, …)
+    - "*.holive.fr"
   issuerRef:
     kind: ClusterIssuer
     name: letsencrypt

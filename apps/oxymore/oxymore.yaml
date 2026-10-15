@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nginx
-          image: nginxinc/nginx-unprivileged:1.31.6-alpine
+          image: ghcr.io/orysse/oxymore:1.0.1
           ports:
             - name: http
               containerPort: 8080
@@ -57,12 +57,6 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - { name: files, mountPath: /usr/share/nginx/html }
-            - {
-                name: files,
-                mountPath: /etc/nginx/conf.d/default.conf,
-                subPath: nginx.conf,
-              }
             - { name: tmp, mountPath: /tmp } # nginx's pid file and temp paths
       volumes:
         - name: files

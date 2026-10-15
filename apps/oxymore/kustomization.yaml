@@ -3,23 +3,6 @@ kind: Kustomization
 resources:
   - network-policy.yaml
   - oxymore.yaml
-configMapGenerator:
-  - name: oxymore-files
-    namespace: oxymore
-    files:
-      - nginx.conf
-      - html/test.html
-      - html/images/atelier1.jpg
-      - html/images/atelier2.jpg
-      - html/images/carnet.jpg
-      - html/images/coffret.jpg
-      - html/images/echantillons.jpg
-      - html/images/etuis.jpg
-      - html/images/logo.png
-      - html/images/touches.jpg
-    options:
-      annotations:
-        kustomize.toolkit.fluxcd.io/substitute: disabled
 replacements:
   - source:
       kind: Deployment

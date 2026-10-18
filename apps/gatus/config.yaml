@@ -116,6 +116,13 @@ endpoints:
     conditions:
       - "[STATUS] < 400"
 
+  - name: Headplane
+    group: Plateforme
+    url: https://headplane.int.${DOMAIN}/admin/healthz
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"
+
   - name: Grafana
     group: Observabilité
     url: https://grafana.int.${DOMAIN}/api/health
@@ -126,13 +133,6 @@ endpoints:
   - name: Hubble
     group: Observabilité
     url: https://hubble.int.${DOMAIN}/
-    interval: 5m
-    conditions:
-      - "[STATUS] < 400"
-
-  - name: Homelable
-    group: Observabilité
-    url: https://homelable.int.${DOMAIN}/
     interval: 5m
     conditions:
       - "[STATUS] < 400"

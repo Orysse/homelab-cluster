@@ -8,6 +8,7 @@ resources:
   - homelable
   - holive
   - headscale
+  - headplane
   - glance
   - opencost
   - oxymore

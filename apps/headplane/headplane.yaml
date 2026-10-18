@@ -1,0 +1,128 @@
+# Headplane at headplane.int.${DOMAIN}: web admin UI for Headscale (nodes, users, routes, ACL).
+#   login    Pocket-ID (OIDC client "headplane"), or a Headscale API key as a fallback.
+#            Limit the client to the admins group in Pocket-ID.
+#   backend  Headscale's API through its Service (headscale namespace); no Kubernetes
+#            integration and no config_path, so no DNS/settings page and no pod signalling.
+# Data (SQLite: sessions, roles) on the NFS StorageClass.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headplane
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: headplane
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: headplane-data
+  namespace: headplane
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headplane
+  namespace: headplane
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate                # SQLite: one writer at a time
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headplane
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headplane
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: headplane
+          image: ghcr.io/tale/headplane:0.8.1
+          envFrom:
+            - secretRef:
+                name: headplane-env   # OIDC client ID (from OpenBao)
+          ports:
+            - { name: http, containerPort: 3000 }
+          readinessProbe:
+            httpGet: { path: /admin/healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /admin/healthz, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 96Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /etc/headplane/config.yaml, subPath: config.yaml, readOnly: true }
+            - { name: secrets, mountPath: /etc/headplane/secrets, readOnly: true }
+            - { name: data, mountPath: /var/lib/headplane }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap:
+            name: headplane
+        - name: secrets
+          secret:
+            secretName: headplane-files
+        - name: data
+          persistentVolumeClaim:
+            claimName: headplane-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headplane
+  namespace: headplane
+spec:
+  selector:
+    app.kubernetes.io/name: headplane
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: headplane
+  namespace: headplane
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - headplane.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: headplane
+          port: 80

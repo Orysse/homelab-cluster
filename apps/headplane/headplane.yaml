@@ -123,6 +123,14 @@ spec:
   hostnames:
     - headplane.int.${DOMAIN}
   rules:
+    # Headplane only serves under /admin: the bare host would render a blank page.
+    - matches:
+        - path: { type: Exact, value: / }
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path: { type: ReplaceFullPath, replaceFullPath: /admin/ }
+            statusCode: 302
     - backendRefs:
         - name: headplane
           port: 80

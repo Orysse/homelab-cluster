@@ -12,9 +12,9 @@ metadata:
   name: homelable
   labels:
     gateway-access: internal
-    # baseline, not restricted: the backend runs as root with NET_RAW (ping, nmap) and the
+    # privileged, not restricted: baseline refuses NET_RAW. The backend runs as root with it (ping, nmap) and the
     # nginx image starts as root.
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
 ---
 # The namespace's default account: pods that do not name one get no API token.
 apiVersion: v1

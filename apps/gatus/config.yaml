@@ -129,3 +129,10 @@ endpoints:
     interval: 5m
     conditions:
       - "[STATUS] < 400"
+
+  - name: Homelable
+    group: Observabilité
+    url: https://homelable.int.${DOMAIN}/
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"

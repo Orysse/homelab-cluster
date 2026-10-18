@@ -1,0 +1,91 @@
+/* abe.lc: the art direction of vitrine.abe.lc, kept light. Cream paper, ink, one signal colour,
+   Hanken Grotesk and IBM Plex Mono (both OFL, files next to this one). */
+@font-face { font-family: "Hanken Grotesk"; font-weight: 400; font-display: swap; src: url("/assets/hanken-400.woff2") format("woff2"); }
+@font-face { font-family: "Hanken Grotesk"; font-weight: 800; font-display: swap; src: url("/assets/hanken-800.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-display: swap; src: url("/assets/plex-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: swap; src: url("/assets/plex-mono-500.woff2") format("woff2"); }
+
+:root {
+  --ink: #16140f;
+  --paper: #f1ede4;
+  --signal: #e8431c;
+  --soft: #5b564a;
+  --display: "Hanken Grotesk", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html, body { background: var(--paper); color: var(--ink); }
+body { font-family: var(--display); }
+
+/* No navigation, no theme picker: one page. */
+.header-container, .mobile-navigation, .mobile-navigation-offset { display: none !important; }
+.content-bounds, .content-bounds-slim, .content-bounds-wide { max-width: 72rem; width: 100%; padding-inline: clamp(1rem, 4vw, 2rem); }
+.page-content { padding-block: 1.5rem 4rem; }
+.widget { margin: 0; }
+.widget-type-custom-api .widget-header, .widget-type-html .widget-header { display: none; }
+.widget-content-frameless { padding: 0; }
+
+/* Hero */
+.hero-bar {
+  display: flex; justify-content: space-between; align-items: center; margin: 0 0 clamp(1.5rem, 5vw, 3rem);
+  font: 500 0.8rem var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.pill {
+  padding: 0.4rem 1rem; border: 2px solid var(--ink); border-radius: 999px; color: var(--ink);
+  text-decoration: none; transition: background 0.2s, color 0.2s;
+}
+.pill:hover, .pill:focus-visible { background: var(--ink); color: var(--paper); }
+.hero h1 {
+  margin: 0 0 clamp(2rem, 5vw, 3.5rem); font: 800 clamp(3.25rem, 15vw, 10rem)/0.86 var(--display);
+  letter-spacing: -0.05em; color: var(--ink);
+}
+.hero h1 em { font-style: normal; color: var(--signal); }
+
+/* A group: a big row, opened on click into its services. */
+.state { border-top: 3px solid var(--ink); }
+.state summary {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; list-style: none;
+  padding-block: clamp(1rem, 2.6vw, 2rem); cursor: pointer;
+}
+.state summary::-webkit-details-marker { display: none; }
+.state-name {
+  font: 800 clamp(1.75rem, 6vw, 4.5rem)/1 var(--display); letter-spacing: -0.03em; text-transform: uppercase;
+}
+.state-count {
+  display: inline-flex; align-items: center; gap: 0.6rem; flex: none;
+  font: 500 clamp(0.8rem, 1.6vw, 1rem) var(--mono); letter-spacing: 0.02em;
+}
+.state-count::after {
+  content: "+"; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; margin-left: 0.4rem;
+  border: 2px solid var(--ink); border-radius: 999px; font-size: 1.1rem; transition: background 0.2s, color 0.2s;
+}
+.state[open] .state-count::after { content: "\2212"; }
+.state summary:hover .state-count::after { background: var(--ink); color: var(--paper); }
+.dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--ink); }
+.is-down .dot, .is-down.dot { background: var(--signal); }
+.is-down { color: var(--signal); }
+
+.state-list { list-style: none; margin: 0; padding: 0 0 1.25rem; }
+.state-list li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding-block: 0.55rem; border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.state-list a { font: 800 clamp(1.1rem, 2.4vw, 1.6rem)/1.1 var(--display); letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
+.state-list a:hover { color: var(--signal); }
+.state-list span { display: inline-flex; align-items: center; gap: 0.5rem; font: 400 0.85rem var(--mono); color: var(--soft); }
+
+/* The news */
+.widget-type-rss { border-top: 3px solid var(--ink); padding-top: clamp(1rem, 2.6vw, 2rem); }
+.widget-type-rss .widget-header { margin: 0 0 1rem; padding: 0; }
+.widget-type-rss .widget-header h2 { font: 800 clamp(1.75rem, 6vw, 4.5rem)/1 var(--display); letter-spacing: -0.03em; color: var(--ink); }
+.widget-type-rss .widget-content { background: none; border: 0; padding: 0; box-shadow: none; }
+.widget-type-rss .list > li { padding-block: 0.55rem; border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+.widget-type-rss .title { font: 800 clamp(1rem, 2vw, 1.25rem)/1.2 var(--display); letter-spacing: -0.01em; color: var(--ink) !important; }
+.widget-type-rss .title:hover { color: var(--signal) !important; }
+.widget-type-rss ul.list-horizontal-text, .widget-type-rss .list-horizontal-text { font: 400 0.8rem var(--mono); color: var(--soft); }
+.widget-type-rss .expand-toggle-button, .widget-type-rss .collapsible-expanded { font: 500 0.8rem var(--mono); text-transform: uppercase; color: var(--ink); }
+
+.state-list span a { font: inherit; }
+.widget-type-html .state-list span { color: var(--soft); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

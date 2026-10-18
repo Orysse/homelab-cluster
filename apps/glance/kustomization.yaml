@@ -2,28 +2,31 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - network-policy.yaml
-  - homepage.yaml
+  - glance.yaml
 # A new name (hash suffix) on every change: the pod restarts with it.
 configMapGenerator:
-  - name: homepage
-    namespace: homepage
+  - name: glance-config
+    namespace: glance
     files:
-      - config/settings.yaml
-      - config/services.yaml
-      - config/widgets.yaml
-      - config/kubernetes.yaml
-      - config/bookmarks.yaml
-      - config/custom.css
-      - config/custom.js
+      - config/glance.yml
+  - name: glance-assets
+    namespace: glance
+    files:
+      - assets/user.css
+      - assets/favicon.svg
+      - assets/hanken-400.woff2
+      - assets/hanken-800.woff2
+      - assets/plex-mono-400.woff2
+      - assets/plex-mono-500.woff2
 # app.kubernetes.io/version = the image tag (follows Renovate bumps).
 replacements:
   - source:
       kind: Deployment
-      name: homepage
-      fieldPath: spec.template.spec.containers.[name=homepage].image
+      name: glance
+      fieldPath: spec.template.spec.containers.[name=glance].image
       options: { delimiter: ":", index: 1 }
     targets:
-      - select: { kind: Deployment, name: homepage }
+      - select: { kind: Deployment, name: glance }
         fieldPaths:
           - metadata.labels.[app.kubernetes.io/version]
           - spec.template.metadata.labels.[app.kubernetes.io/version]

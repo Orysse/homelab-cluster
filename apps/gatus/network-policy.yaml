@@ -1,5 +1,5 @@
 # Gatus checks the sites from outside (public IP, through the box) and the internal ones
-# through Traefik; it is reached by Traefik, Homepage (widget) and Alloy (metrics).
+# through Traefik; it is reached by Traefik, Glance (state) and Alloy (metrics).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -13,7 +13,7 @@ spec:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: homepage, app.kubernetes.io/name: homepage }   # its Gatus widget
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }   # the front page reads the state
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     # Cluster DNS (names visible in Hubble).

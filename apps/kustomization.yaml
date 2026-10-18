@@ -7,6 +7,6 @@ resources:
   - umami
   - holive
   - headscale
-  - homepage
+  - glance
   - opencost
   - oxymore

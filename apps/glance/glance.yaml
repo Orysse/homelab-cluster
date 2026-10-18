@@ -1,0 +1,99 @@
+# Glance at home.int.${DOMAIN}: the homelab's front page (LAN/VPN, so visitors on Tailscale see
+# it too). State of the services comes from Gatus, the news from RSS feeds.
+# Configuration: config/glance.yml, assets/ (styles, fonts), both through kustomization.yaml.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: glance
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: glance
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glance
+  namespace: glance
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: glance
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: glance
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: glance
+          image: glanceapp/glance:v0.8.7
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /api/healthz, port: http }
+          livenessProbe:
+            httpGet: { path: /api/healthz, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /app/config/glance.yml, subPath: glance.yml, readOnly: true }
+            - { name: assets, mountPath: /app/assets, readOnly: true }
+      volumes:
+        - name: config
+          configMap:
+            name: glance-config
+        - name: assets
+          configMap:
+            name: glance-assets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glance
+  namespace: glance
+spec:
+  selector:
+    app.kubernetes.io/name: glance
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: glance
+  namespace: glance
+spec:
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - home.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: glance
+          port: 80

@@ -1,0 +1,108 @@
+# Glance at home.int.${DOMAIN}: the homelab's front page (LAN/VPN only).
+# State comes from Gatus (one source of truth); the art direction is vitrine.abe.lc's, in
+# assets/user.css. Flux substitutes ${DOMAIN}: there is no other "dollar + brace" in this file.
+server:
+  port: 8080
+  proxied: true
+  assets-path: /app/assets
+
+branding:
+  hide-footer: true
+  logo-text: abe.lc
+  app-name: abe.lc
+  favicon-url: /assets/favicon.svg
+
+theme:
+  light: true
+  background-color: 42 32 92
+  primary-color: 12 82 51
+  positive-color: 0 0 9
+  negative-color: 12 82 51
+  contrast-multiplier: 1.1
+  custom-css-file: /assets/user.css
+
+# One widget per group, one template. The group name is the Gatus one; the state of a check
+# is its latest result.
+x-state: &state
+  type: custom-api
+  frameless: true
+  cache: 1m
+  url: http://gatus.gatus.svc.cluster.local/api/v1/endpoints/statuses
+  template: |
+    {{ $group := .Options.StringOr "group" "" }}
+    {{ $ok := 0.0 }}{{ $all := 0.0 }}
+    {{ range .JSON.Array "" }}{{ if eq (.String "group") $group }}
+      {{ $all = add $all 1 }}{{ if .Bool "results.@reverse.0.success" }}{{ $ok = add $ok 1 }}{{ end }}
+    {{ end }}{{ end }}
+    <details class="state">
+      <summary>
+        <span class="state-name">{{ $group }}</span>
+        <span class="state-count{{ if lt $ok $all }} is-down{{ end }}"><i class="dot"></i>{{ printf "%.0f" $ok }} sur {{ printf "%.0f" $all }}</span>
+      </summary>
+      <ul class="state-list">
+        {{ range .JSON.Array "" }}{{ if eq (.String "group") $group }}
+          <li>
+            <a href="https://{{ .String "results.0.hostname" }}/">{{ .String "name" }}</a>
+            <span class="{{ if .Bool "results.@reverse.0.success" }}is-up{{ else }}is-down{{ end }}"><i class="dot"></i>{{ if .Bool "results.@reverse.0.success" }}{{ printf "%.0f" (div (.Int "results.@reverse.0.duration") 1000000.0) }} ms{{ else }}hors ligne{{ end }}</span>
+          </li>
+        {{ end }}{{ end }}
+      </ul>
+    </details>
+
+pages:
+  - name: Cluster
+    slug: home
+    width: slim
+    hide-desktop-navigation: true
+    columns:
+      - size: full
+        widgets:
+          - type: custom-api
+            frameless: true
+            cache: 1m
+            url: http://gatus.gatus.svc.cluster.local/api/v1/endpoints/statuses
+            template: |
+              {{ $down := 0.0 }}
+              {{ range .JSON.Array "" }}{{ if not (.Bool "results.@reverse.0.success") }}{{ $down = add $down 1 }}{{ end }}{{ end }}
+              <header class="hero">
+                <p class="hero-bar"><span>abe.lc · homelab</span><a class="pill" href="https://status.${DOMAIN}">Statut public ↗</a></p>
+                <h1>{{ if gt $down 0.0 }}{{ printf "%.0f" $down }} service{{ if gt $down 1.0 }}s{{ end }}<br><em>en panne.</em>{{ else }}Le cluster<br>tourne<em>.</em>{{ end }}</h1>
+              </header>
+
+          - <<: *state
+            options: { group: Plateforme }
+          - <<: *state
+            options: { group: Observabilité }
+          - <<: *state
+            options: { group: Sites }
+
+          - type: rss
+            title: Veille
+            style: vertical-list
+            limit: 16
+            collapse-after: 6
+            cache: 30m
+            feeds:
+              - url: https://selfh.st/rss/
+                title: selfh.st
+                limit: 4
+              - url: https://kubernetes.io/feed.xml
+                title: Kubernetes
+                limit: 4
+              - url: https://www.cert.ssi.gouv.fr/feed/
+                title: CERT-FR
+                limit: 4
+              - url: https://feeds.feedburner.com/TheHackersNews
+                title: The Hacker News
+                limit: 4
+
+          - type: html
+            source: |
+              <details class="state">
+                <summary><span class="state-name">Liens</span><span class="state-count">code et visite</span></summary>
+                <ul class="state-list">
+                  <li><a href="https://github.com/Orysse/homelab-nix">homelab-nix</a><span>NixOS, microVMs, k3s</span></li>
+                  <li><a href="https://github.com/Orysse/homelab-cluster">homelab-cluster</a><span>Flux, apps, policies</span></li>
+                  <li><a href="https://github.com/Orysse/homelab-cluster/blob/main/docs/onboarding/03-visiteur.md">Visite guidée</a><span>compte visiteur, VPN, kubectl</span></li>
+                </ul>
+              </details>

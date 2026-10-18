@@ -118,8 +118,9 @@ Un objet modifié à la main est remis comme dans git au passage suivant de Flux
 Ajoute un check dans `apps/gatus/config.yaml` (copie une entrée existante). Il apparaît sur
 https://status.abe.lc, et s'il échoue plus de 5 minutes, un mail d'alerte part.
 
-Tu peux aussi l'ajouter à la page d'accueil (https://home.int.abe.lc) : une tuile dans
-`apps/homepage/config/services.yaml`.
+Pour qu'il apparaisse aussi sur la page d'accueil (https://home.int.abe.lc), donne-lui l'un des
+groupes `Plateforme`, `Observabilité` ou `Sites` : la page lit l'état dans Gatus, rien d'autre à
+modifier.
 
 ## Aller plus loin
 

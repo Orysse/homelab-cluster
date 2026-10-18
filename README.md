@@ -30,7 +30,7 @@ apps/                      one app = one directory, listed in apps/kustomization
 ├─ umami/                  web analytics collector for vitrine and holive (stats in Grafana)
 ├─ gatus/                  status page, status.${DOMAIN}
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
-└─ homepage/               front page, home.int.${DOMAIN}
+└─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
 
 docs/onboarding/           access, deploying an app, visitor tour (French); modele/ = app template
 ```

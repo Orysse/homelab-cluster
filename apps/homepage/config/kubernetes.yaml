@@ -1,5 +1,0 @@
-mode: cluster
-# Services are listed by hand (services.yaml): no discovery, so no extra API rights.
-ingress: false
-traefik: false
-gateway: false

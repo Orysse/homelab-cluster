@@ -1,0 +1,26 @@
+# Glance: reached by Traefik only; reaches DNS, Gatus (the state of every service) and the news
+# feeds (HTTPS). It never calls the services itself.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: glance
+  namespace: glance
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: gatus, app.kubernetes.io/name: gatus }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

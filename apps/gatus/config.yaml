@@ -1,4 +1,6 @@
 # Gatus configuration: https://github.com/TwiN/gatus#configuration
+# Groups Plateforme, Observabilité and Sites are the ones the front page (Glance) shows; it reads
+# this API, so a name here is what visitors see, and the hostname is the link they follow.
 # Flux substitutes ${DOMAIN}; [STATUS] etc. are Gatus placeholders.
 # Results are kept in memory: history resets when the pod restarts.
 metrics: true
@@ -9,8 +11,8 @@ ui:
   header: ${DOMAIN}
 
 endpoints:
-  - name: ${DOMAIN}
-    group: public
+  - name: abe.lc
+    group: Sites
     url: https://${DOMAIN}
     interval: 1m
     conditions:
@@ -18,16 +20,16 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
       - "[CERTIFICATE_EXPIRATION] > 336h"   # cert-manager renews 30 days before expiry
 
-  - name: vitrine.${DOMAIN}
-    group: public
+  - name: Vitrine
+    group: Sites
     url: https://vitrine.${DOMAIN}
     interval: 1m
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 1000"
 
-  - name: www.holive.fr
-    group: public
+  - name: holive.fr
+    group: Sites
     url: https://www.holive.fr
     interval: 1m
     conditions:
@@ -35,8 +37,8 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
       - "[CERTIFICATE_EXPIRATION] > 336h"   # its own certificate (holive-tls)
 
-  - name: hs.${DOMAIN}
-    group: public
+  - name: Headscale
+    group: Plateforme
     url: https://hs.${DOMAIN}/health
     interval: 1m
     conditions:
@@ -44,7 +46,7 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: holive.fr to www redirect
-    group: public
+    group: Technique
     url: https://holive.fr
     interval: 5m
     client:
@@ -53,7 +55,7 @@ endpoints:
       - "[STATUS] == 301"
 
   - name: HTTP to HTTPS redirect
-    group: public
+    group: Technique
     url: http://${DOMAIN}
     interval: 5m
     client:
@@ -62,7 +64,7 @@ endpoints:
       - "[STATUS] == 301"
 
   - name: DNS
-    group: public
+    group: Technique
     url: 1.1.1.1
     interval: 5m
     dns:
@@ -71,37 +73,59 @@ endpoints:
     conditions:
       - "[DNS_RCODE] == NOERROR"
 
-  - name: Traefik dashboard
-    group: internal (VPN only)
+  - name: Traefik
+    group: Observabilité
     url: https://traefik.int.${DOMAIN}/dashboard/
     interval: 5m
     conditions:
       - "[STATUS] == any(200, 302)"   # 302: Pocket-ID login (oauth2-proxy)
 
-  - name: Homepage
-    group: internal (VPN only)
-    url: https://home.int.${DOMAIN}/api/healthcheck
+  - name: Glance
+    group: Observabilité
+    url: https://home.int.${DOMAIN}/api/healthz
     interval: 5m
     conditions:
       - "[STATUS] == 200"
 
-  - name: auth.${DOMAIN}
-    group: public
+  - name: Pocket-ID
+    group: Plateforme
     url: https://auth.${DOMAIN}/healthz
     interval: 1m
     conditions:
       - "[STATUS] == 204"   # Pocket-ID answers 204 No Content
 
-  - name: k8s.${DOMAIN}
-    group: public
+  - name: Headlamp
+    group: Plateforme
     url: https://k8s.${DOMAIN}/
     interval: 5m
     conditions:
       - "[STATUS] == 200"
 
-  - name: pulse.${DOMAIN}
-    group: public
+  - name: Umami
+    group: Technique
     url: https://pulse.${DOMAIN}/script.js
     interval: 5m
     conditions:
       - "[STATUS] == 200"
+
+  # Internal tools, checked through the internal gateway like Traefik. A login redirect counts as up.
+  - name: OpenBao
+    group: Plateforme
+    url: https://bao.int.${DOMAIN}/
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"
+
+  - name: Grafana
+    group: Observabilité
+    url: https://grafana.int.${DOMAIN}/api/health
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"
+
+  - name: Hubble
+    group: Observabilité
+    url: https://hubble.int.${DOMAIN}/
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"

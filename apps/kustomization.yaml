@@ -5,6 +5,7 @@ resources:
   - vitrine
   - gatus
   - umami
+  - open-webui
   - holive
   - headscale
   - headplane

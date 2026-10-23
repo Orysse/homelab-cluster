@@ -97,3 +97,17 @@ spec:
   credentialType: password
   passwordCredentialConfig: {}
   rotationPeriod: 31536000
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: DatabaseSecretEngineStaticRole
+metadata:
+  name: open-webui
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  path: database/postgres
+  dBName: postgres
+  username: open-webui
+  credentialType: password
+  passwordCredentialConfig: {}
+  rotationPeriod: 31536000

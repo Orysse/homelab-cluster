@@ -136,3 +136,10 @@ endpoints:
     interval: 5m
     conditions:
       - "[STATUS] < 400"
+
+  - name: Open WebUI
+    group: Observabilité
+    url: https://chat.int.${DOMAIN}/health
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"

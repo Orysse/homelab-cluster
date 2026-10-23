@@ -1,0 +1,26 @@
+# Open WebUI: reached by Traefik only; reaches DNS, its PostgreSQL on the database host,
+# Pocket-ID (auth.${DOMAIN}, through the public address) and the model API (DeepSeek).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: open-webui
+  namespace: open-webui
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toCIDR: ["${DATABASE_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
+    # auth.${DOMAIN} and api.deepseek.com.
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

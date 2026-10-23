@@ -22,4 +22,4 @@ spec:
     - toCIDR: ["${DATABASE_ADDRESS}/32"]
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - toEntities: [world]
-      toPorts: [{ ports: [{ port: "465", protocol: TCP }] }]
+      toPorts: [{ ports: [{ port: "587", protocol: TCP }] }]

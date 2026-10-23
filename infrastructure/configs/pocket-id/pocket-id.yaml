@@ -66,10 +66,10 @@ spec:
             - { name: ALLOW_USER_SIGNUPS, value: "disabled" } # admins create users and invite them
             - { name: ANALYTICS_DISABLED, value: "true" }
             - { name: VERSION_CHECK_DISABLED, value: "true" } # Renovate handles updates
-            - { name: SMTP_HOST, value: smtp.mail.ovh.net }
-            - { name: SMTP_PORT, value: "465" }
-            - { name: SMTP_TLS, value: tls }
-            - { name: SMTP_USER, value: "homelab@${DOMAIN}" }
+            - { name: SMTP_HOST, value: smtp-relay.brevo.com }
+            - { name: SMTP_PORT, value: "587" }
+            - { name: SMTP_TLS, value: starttls }
+            - { name: SMTP_USER, value: "bfaade001@smtp-brevo.com" }   # Brevo SMTP login
             - { name: SMTP_FROM, value: "homelab@${DOMAIN}" }
             # Invitations / login links sent by an admin (new user, lost device).
             - { name: EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED, value: "true" }

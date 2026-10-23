@@ -61,7 +61,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: headplane
-          image: ghcr.io/tale/headplane:0.8.1
+          image: ghcr.io/tale/headplane:0.8.2
           envFrom:
             - secretRef:
                 name: headplane-env   # OIDC client ID (from OpenBao)

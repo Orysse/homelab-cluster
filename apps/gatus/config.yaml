@@ -139,7 +139,7 @@ endpoints:
 
   - name: Open WebUI
     group: Observabilité
-    url: https://chat.int.${DOMAIN}/health
+    url: https://chat.${DOMAIN}/health
     interval: 5m
     conditions:
       - "[STATUS] < 400"

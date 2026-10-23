@@ -1,6 +1,6 @@
 # Open WebUI: chat for the team, on a shared DeepSeek account.
-#   chat.int.${DOMAIN}   LAN/VPN only. Login through Pocket-ID (OIDC client "open-webui");
-#                        a new account waits for an admin's approval ("pending").
+#   chat.int.${DOMAIN}   LAN/VPN only. Login through Pocket-ID only (OIDC client "open-webui");
+#                        whoever Pocket-ID lets in (client limited to a group) is a "user".
 # Chats, prompts, skills and users in PostgreSQL on the database host (database "open-webui",
 # credentials from OpenBao). Uploads and the vector store (Chroma) on the NFS StorageClass.
 # Local embeddings are off (RAG_EMBEDDING_ENGINE=openai without a provider): the model would
@@ -66,8 +66,10 @@ spec:
           env:
             - { name: WEBUI_URL, value: "https://chat.int.${DOMAIN}" }
             - { name: ENABLE_SIGNUP, value: "false" }
-            - { name: DEFAULT_USER_ROLE, value: pending }
-            # Pocket-ID. Keep the password form until an SSO login has been checked.
+            - { name: DEFAULT_USER_ROLE, value: user }       # access is limited by the Pocket-ID client (allowed groups)
+            # Pocket-ID only: no password form, no local accounts.
+            - { name: ENABLE_PASSWORD_AUTH, value: "false" }
+            - { name: ENABLE_LOGIN_FORM, value: "false" }
             - { name: ENABLE_OAUTH_SIGNUP, value: "true" }
             - { name: OAUTH_PROVIDER_NAME, value: Pocket-ID }
             - { name: OPENID_PROVIDER_URL, value: "https://auth.${DOMAIN}/.well-known/openid-configuration" }

@@ -112,6 +112,20 @@ spec:
     path "auth/kubernetes/role"  { capabilities = ["read", "list"] }
     path "auth/kubernetes/role/*" { capabilities = ["read", "list"] }
 ---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: devbox
+  namespace: openbao
+spec:
+  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
+  type: acl
+  policy: |
+    # The devbox VM (OIDC role devbox, oidc.yaml): reads its API keys and git credential, nothing
+    # else. The KV v2 mount is kv/apps, so kv/apps/devbox/<name> is kv/apps/data/devbox/<name>.
+    path "kv/apps/data/devbox/*"     { capabilities = ["read"] }
+    path "kv/apps/metadata/devbox/*" { capabilities = ["read", "list"] }
+---
 # For every namespace: an ExternalSecret reads kv/apps/<its namespace>/<key> with the
 # ServiceAccount "default" of its own namespace (referent authentication).
 apiVersion: external-secrets.io/v1

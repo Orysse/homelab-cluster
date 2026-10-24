@@ -3,18 +3,11 @@
 // Everyone else (Pocket-ID group "visitors"): the internal gateway (*.int, read-only views)
 // and the Kubernetes API (RBAC "view", oidc-rbac.yaml); no SSH, no hosts, no LAN.
 // autogroup:internet: admins may use nuc1 as an exit node (all their traffic through home).
-// tag:devbox: the devbox microVM on nuc1 (homelab-nix docs/devbox.md). Its tag comes from the
-// pre-auth key (headscale preauthkeys create --tags tag:devbox), which is not checked against
-// tagOwners; the tag only has to be defined here for the SSH rule below to be valid. Admins
-// reach SSH (22) on it over the tailnet; the rule for 192.168.1.192/26 above stays as the
-// break-glass path to its LAN address.
 {
   "groups": { "group:admins": ["abelc@"] },
-  "tagOwners": { "tag:devbox": ["group:admins"] },
   "acls": [
     { "action": "accept", "src": ["group:admins"], "dst": ["192.168.1.192/26:*"] },
     { "action": "accept", "src": ["group:admins"], "dst": ["autogroup:internet:*"] },
-    { "action": "accept", "src": ["group:admins"], "dst": ["tag:devbox:22"] },
     { "action": "accept", "src": ["*"], "dst": ["192.168.1.241:443", "192.168.1.211:6443"] }
   ]
 }

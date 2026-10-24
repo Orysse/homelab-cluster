@@ -66,27 +66,3 @@ spec:
     - http://localhost:8250/oidc/callback       # bao login -method=oidc -path=sso/oidc
   tokenPolicies: [admin]
   tokenTTL: 8h
----
-# The devbox VM (homelab-nix): `bao login -method=oidc -path=sso/oidc role=devbox` through an SSH
-# tunnel to localhost:8250, to fetch its API keys. Same people as admin, but the token can only
-# read kv/apps/devbox/* (policy devbox, config.yaml).
-apiVersion: redhatcop.redhat.io/v1alpha1
-kind: JWTOIDCAuthEngineRole
-metadata:
-  name: devbox
-  namespace: openbao
-spec:
-  authentication: { path: kubernetes, role: config-operator, serviceAccount: { name: config-operator } }
-  path: sso/oidc
-  name: devbox
-  roleType: oidc
-  userClaim: preferred_username
-  groupsClaim: groups
-  boundClaims:
-    groups: [admins]              # only Pocket-ID's "admins" group
-  OIDCScopes: [openid, profile, email, groups]
-  allowedRedirectURIs:
-    - https://bao.int.${DOMAIN}/ui/vault/auth/sso/oidc/oidc/callback
-    - http://localhost:8250/oidc/callback       # bao login -method=oidc -path=sso/oidc
-  tokenPolicies: [devbox]
-  tokenTTL: 8h

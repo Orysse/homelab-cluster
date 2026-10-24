@@ -3,9 +3,13 @@
 // Everyone else (Pocket-ID group "visitors"): the internal gateway (*.int, read-only views)
 // and the Kubernetes API (RBAC "view", oidc-rbac.yaml); no SSH, no hosts, no LAN.
 // autogroup:internet: admins may use nuc1 as an exit node (all their traffic through home).
+// tag:gamehost: Sunshine game-streaming host (laptop at home), reachable by admins only, on the
+// Sunshine ports (no web UI 47990: pair locally). It has no rule of its own as a source.
 {
   "groups": { "group:admins": ["abelc@"] },
+  "tagOwners": { "tag:gamehost": ["group:admins"] },
   "acls": [
+    { "action": "accept", "src": ["group:admins"], "dst": ["tag:gamehost:47984,47989,48010,47998-48000,48002"] },
     { "action": "accept", "src": ["group:admins"], "dst": ["192.168.1.192/26:*"] },
     { "action": "accept", "src": ["group:admins"], "dst": ["autogroup:internet:*"] },
     { "action": "accept", "src": ["*"], "dst": ["192.168.1.241:443", "192.168.1.211:6443"] }

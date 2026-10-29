@@ -1,0 +1,66 @@
+# local-path-provisioner: StorageClass "local", a directory per volume on the node's own
+# disk (/var/lib/local-volumes, a block volume per VM: homelab-nix k3s/node.nix). For data
+# that must not sit on NFS: PostgreSQL. A volume is tied to its node; the data survives a
+# VM restart and is kept after its PVC is deleted (Retain, cleaned up by hand).
+# The chart is not published in a Helm repository: Flux reads it from the git tag.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-path-storage
+  labels:
+    # Its helper pods create and remove the volume directories through a hostPath.
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: local-path-provisioner
+  namespace: local-path-storage
+spec:
+  interval: 24h
+  url: https://github.com/rancher/local-path-provisioner
+  ref:
+    tag: v0.0.37
+  ignore: |
+    /*
+    !/deploy/chart/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: local-path-provisioner
+  namespace: local-path-storage
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: ./deploy/chart/local-path-provisioner
+      sourceRef:
+        kind: GitRepository
+        name: local-path-provisioner
+  values:
+    helperImage:
+      tag: "1.37.0"
+    storageClass:
+      name: local
+      reclaimPolicy: Retain
+      volumeBindingMode: WaitForFirstConsumer
+    nodePathMap:
+      - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
+        paths: [/var/lib/local-volumes]
+    resources:
+      requests: { cpu: 5m, memory: 16Mi }
+      limits: { memory: 64Mi }
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: local-path-provisioner
+  namespace: local-path-storage
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]

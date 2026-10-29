@@ -1,0 +1,64 @@
+# headscale: its database in the cluster main, owned by the role headscale (cluster.yaml).
+# The password: generated once, kept in OpenBao at kv/apps/headscale/db, read back from there
+# (credentials.yaml). The app reads the same entry: username, password.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: headscale-db-generated
+  namespace: postgres
+spec:
+  refreshInterval: "0"            # generated once
+  target:
+    name: headscale-db-generated
+    template:
+      data:
+        username: headscale
+        password: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: Password
+          name: db-password
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: headscale-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  updatePolicy: IfNotExists       # never replaces what OpenBao holds
+  secretStoreRefs:
+    - { kind: SecretStore, name: openbao-writer }
+  selector:
+    secret: { name: headscale-db-generated }
+  data:
+    - match:
+        remoteRef: { remoteKey: headscale/db }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: headscale-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: SecretStore, name: openbao-writer }
+  target:
+    name: headscale-db
+    template:
+      type: kubernetes.io/basic-auth
+  dataFrom:
+    - extract: { key: headscale/db }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: headscale
+  namespace: postgres
+spec:
+  cluster: { name: main }
+  name: headscale
+  owner: headscale

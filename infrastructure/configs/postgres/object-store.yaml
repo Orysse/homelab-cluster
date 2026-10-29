@@ -1,0 +1,45 @@
+# Where backups go: Garage (S3) on the backup host, bucket cnpg. Base backups and WAL,
+# compressed, kept 30 days. The key (created by homelab-nix host/garage.nix) is stored in
+# OpenBao at kv/apps/postgres/s3 by hand.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: garage-s3
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target: { name: garage-s3 }
+  data:
+    - secretKey: access_key_id
+      remoteRef: { key: postgres/s3, property: access_key_id }
+    - secretKey: secret_access_key
+      remoteRef: { key: postgres/s3, property: secret_access_key }
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: garage
+  namespace: postgres
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: s3://cnpg/
+    endpointURL: http://${BACKUP_ADDRESS}:3900
+    s3Credentials:
+      accessKeyId: { name: garage-s3, key: access_key_id }
+      secretAccessKey: { name: garage-s3, key: secret_access_key }
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      - { name: AWS_DEFAULT_REGION, value: garage }
+      # Recent AWS SDKs add checksums S3-compatible stores may reject.
+      - { name: AWS_REQUEST_CHECKSUM_CALCULATION, value: when_required }
+      - { name: AWS_RESPONSE_CHECKSUM_VALIDATION, value: when_required }
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 256Mi }

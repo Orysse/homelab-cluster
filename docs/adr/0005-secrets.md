@@ -57,8 +57,8 @@ when an app is added.
   - Kubernetes auth, role `namespace-secrets` (ServiceAccount `default`, every namespace)
     with the templated policy: create, read and update on the namespace's own
     `kv/apps/<ns>/*`, no delete. Write access serves generated secrets (below);
-  - role `postgres-writer` for `postgres/openbao-writer`, policy `db-writer` (create and
-    update on `kv/apps/data/+/db`);
+  - role `postgres-writer` for `postgres/openbao-writer`, policy `db-writer` (create, read
+    and update on `kv/apps/data/+/db`: stored once, read back, ADR 0006);
   - auth `sso` (OIDC) and its role `admin`, bound to Pocket-ID group `admins`;
   - role `break-glass` for the ServiceAccount `openbao/break-glass`, policy `admin`.
 - **OIDC client settings by a Job.** `sso-config` (`secrets/sso.yaml`) waits for Pocket-ID's

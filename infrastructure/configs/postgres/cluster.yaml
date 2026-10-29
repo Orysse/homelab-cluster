@@ -1,0 +1,68 @@
+# The apps' PostgreSQL: one CloudNativePG cluster, one database and one role per app
+# (databases/). One instance on a local volume (StorageClass local): the node's disk, not
+# NFS. Losing the node means restoring from the backups (object-store.yaml); a second
+# instance waits for the NUC7s. Apps connect to main-rw.postgres.svc:5432.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: main
+  namespace: postgres
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-minimal-trixie
+  enablePDB: false                # one instance: a PDB would block every node drain
+  storage:
+    storageClass: local
+    size: 10Gi
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  postgresql:
+    parameters:
+      shared_buffers: 128MB       # three small databases
+      max_connections: "50"
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: garage
+  # Roles named after the app's namespace; passwords from databases/<app>.yaml.
+  managed:
+    roles:
+      - { name: pocket-id, login: true, passwordSecret: { name: pocket-id-db } }
+      - { name: headscale, login: true, passwordSecret: { name: headscale-db } }
+      - { name: open-webui, login: true, passwordSecret: { name: open-webui-db } }
+  # Cutover only (v2 -> v3): copies the databases and roles from PostgreSQL on nuc1, then
+  # never runs again. Removed after the cutover, with externalClusters.
+  bootstrap:
+    initdb:
+      import:
+        type: monolith
+        databases: [pocket-id, headscale, open-webui]
+        roles: [pocket-id, headscale, open-webui]
+        source:
+          externalCluster: nuc1
+  externalClusters:
+    - name: nuc1
+      connectionParameters:
+        host: 192.168.1.200
+        user: cnpg_import
+        dbname: postgres
+        sslmode: disable
+      password: { name: nuc1-import, key: password }
+---
+# The temporary superuser on nuc1 the import logs in with (runbook), kept in OpenBao at
+# kv/apps/postgres/nuc1-import. Removed after the cutover.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: nuc1-import
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target: { name: nuc1-import }
+  data:
+    - secretKey: password
+      remoteRef: { key: postgres/nuc1-import, property: password }

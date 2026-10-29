@@ -1,0 +1,40 @@
+# PostgreSQL: reached by the apps that own a database (5432), the operator (status, 8000) and
+# the metrics collector (9187). It reaches the API server, the Barman Cloud plugin, Garage on
+# the backup host, and (cutover import only) PostgreSQL on nuc1.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres
+  namespace: postgres
+spec:
+  endpointSelector:
+    matchLabels: { cnpg.io/cluster: main }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: pocket-id }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: headscale }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: open-webui }
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: cnpg-system, app.kubernetes.io/name: cloudnative-pg }
+      toPorts: [{ ports: [{ port: "8000", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring }
+      toPorts: [{ ports: [{ port: "9187", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: cnpg-system, app.kubernetes.io/name: plugin-barman-cloud }
+      toPorts: [{ ports: [{ port: "9090", protocol: TCP }] }]
+    - toCIDR: ["${BACKUP_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "3900", protocol: TCP }] }]
+    - toCIDR: ["192.168.1.200/32"]          # cutover import from nuc1; removed with it
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]

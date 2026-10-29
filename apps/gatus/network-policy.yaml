@@ -31,3 +31,6 @@ spec:
     # The Gateways (status checks of every site): Cilium hands the connection to Envoy.
     - toEntities: [ingress]
       toPorts: [{ ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }] }]
+    # The internal Gateway's address: seen as a LAN address, not as "ingress", from inside.
+    - toCIDR: ["${INTERNAL_ADDRESS}/32"]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

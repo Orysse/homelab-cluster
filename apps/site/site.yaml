@@ -1,3 +1,4 @@
+# Plain-text page at the domain apex, served by static-web-server (one static binary).
 # site-files (configMapGenerator) gets a hash suffix: editing index.txt redeploys the pods.
 ---
 apiVersion: v1
@@ -36,37 +37,37 @@ spec:
       enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 101            # "nginx" in nginx-unprivileged
-        runAsGroup: 101
+        runAsUser: 65534
+        runAsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: nginx
-          image: nginxinc/nginx-unprivileged:1.31.6-alpine
+        - name: site
+          image: ghcr.io/static-web-server/static-web-server:2.44.1
+          env:
+            - { name: SERVER_PORT, value: "8080" }
+            - { name: SERVER_ROOT, value: /public }
+            - { name: SERVER_INDEX_FILES, value: index.txt }
+            - { name: SERVER_HEALTH, value: "true" }      # GET /health
           ports:
             - name: http
               containerPort: 8080
           readinessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /health, port: http }
           resources:
-            requests: { cpu: 10m, memory: 16Mi }
-            limits: { memory: 64Mi }
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - { name: files, mountPath: /usr/share/nginx/html/index.txt, subPath: index.txt }
-            - { name: files, mountPath: /etc/nginx/conf.d/default.conf, subPath: nginx.conf }
-            - { name: tmp, mountPath: /tmp }   # nginx's pid file and temp paths
+            - { name: files, mountPath: /public }
       volumes:
         - name: files
           configMap:
             name: site-files
-        - name: tmp
-          emptyDir:
-            sizeLimit: 16Mi
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -95,12 +96,18 @@ metadata:
   namespace: site
 spec:
   parentRefs:
-    - name: public
-      namespace: kube-system
-      sectionName: https
+    - { name: public, namespace: gateway, sectionName: https }
   hostnames:
     - ${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: site
           port: 80

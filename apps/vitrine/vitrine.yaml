@@ -95,11 +95,19 @@ metadata:
 spec:
   parentRefs:
     - name: public
-      namespace: kube-system
+      namespace: gateway
       sectionName: https
   hostnames:
     - vitrine.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: vitrine
           port: 80

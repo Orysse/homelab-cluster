@@ -1,5 +1,5 @@
-# Static site: reached only by Traefik, reaches nothing (not even DNS). Kubelet probes
-# (host) are always allowed by Cilium.
+# Static site: reached only through the public Gateway, reaches nothing (not even DNS).
+# Kubelet probes (host) are always allowed by Cilium.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -11,6 +11,5 @@ spec:
   enableDefaultDeny: { ingress: true, egress: true }
   egress: [{}]                 # no egress rule = Cilium would not deny; an empty rule allows nothing
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]          # the Gateway (Cilium's Envoy)
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]

@@ -19,11 +19,11 @@ derp:
   update_frequency: 24h
 database:
   type: postgres
-  postgres:                         # user and password: environment (headscale-env)
-    host: ${DATABASE_ADDRESS}
+  postgres:                         # user and password: environment (headscale-db)
+    host: main-rw.postgres.svc.cluster.local   # CloudNativePG
     port: 5432
     name: headscale
-    ssl: false
+    ssl: true
 dns:
   magic_dns: true
   base_domain: ts.${DOMAIN}

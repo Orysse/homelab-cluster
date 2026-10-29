@@ -62,7 +62,9 @@ spec:
           image: ghcr.io/open-webui/open-webui:v0.12.3
           envFrom:
             - secretRef:
-                name: open-webui   # DATABASE_URL, WEBUI_SECRET_KEY, OAUTH_CLIENT_*, OPENAI_API_KEY (from OpenBao)
+                name: open-webui        # DATABASE_URL, WEBUI_SECRET_KEY, OPENAI_API_KEY (from OpenBao)
+            - secretRef:
+                name: open-webui-oidc   # OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET (Pocket-ID operator)
           env:
             - { name: WEBUI_URL, value: "https://chat.${DOMAIN}" }
             - { name: ENABLE_SIGNUP, value: "false" }
@@ -128,11 +130,19 @@ metadata:
 spec:
   parentRefs:
     - name: public
-      namespace: kube-system
+      namespace: gateway
       sectionName: https
   hostnames:
     - chat.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: open-webui
           port: 80

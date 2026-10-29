@@ -58,9 +58,13 @@ spec:
         - name: headscale
           image: docker.io/headscale/headscale:v0.29.5
           args: [serve]
-          envFrom:
-            - secretRef:
-                name: headscale-env   # PostgreSQL credentials, OIDC client ID (from OpenBao)
+          env:   # Headscale reads any setting from HEADSCALE_<SECTION>_<KEY>
+            - name: HEADSCALE_DATABASE_POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: headscale-db, key: username } }
+            - name: HEADSCALE_DATABASE_POSTGRES_PASS
+              valueFrom: { secretKeyRef: { name: headscale-db, key: password } }
+            - name: HEADSCALE_OIDC_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: headscale-oidc, key: client_id } }
           ports:
             - { name: http, containerPort: 8080 }
             - { name: metrics, containerPort: 9090 }
@@ -88,8 +92,12 @@ spec:
           configMap:
             name: headscale
         - name: secrets
-          secret:
-            secretName: headscale-files
+          projected:
+            sources:
+              - secret: { name: noise }
+              - secret:
+                  name: headscale-oidc
+                  items: [{ key: client_secret, path: oidc_client_secret }]
         - name: run
           emptyDir:
             sizeLimit: 1Mi
@@ -116,11 +124,19 @@ metadata:
 spec:
   parentRefs:
     - name: public
-      namespace: kube-system
+      namespace: gateway
       sectionName: https
   hostnames:
     - hs.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: headscale
           port: 80

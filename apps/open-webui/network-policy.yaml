@@ -1,5 +1,5 @@
-# Open WebUI: reached by Traefik only; reaches DNS, its PostgreSQL on the database host,
-# Pocket-ID (auth.${DOMAIN}, through the public address) and the model API (DeepSeek).
+# Open WebUI: reached through the public Gateway only; reaches DNS, its PostgreSQL,
+# Pocket-ID (auth.${DOMAIN}, through the public Gateway) and the model API (DeepSeek).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,8 +10,7 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]          # the Gateway (Cilium's Envoy)
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     - toEndpoints:
@@ -19,8 +18,12 @@ spec:
       toPorts:
         - ports: [{ port: "53", protocol: ANY }]
           rules: { dns: [{ matchPattern: "*" }] }
-    - toCIDR: ["${DATABASE_ADDRESS}/32"]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
-    # auth.${DOMAIN} and api.deepseek.com.
-    - toEntities: [world]
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+        - matchName: api.deepseek.com
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]            # auth.${DOMAIN}, once Cilium hands it to Envoy
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

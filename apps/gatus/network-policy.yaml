@@ -1,5 +1,6 @@
 # Gatus checks the sites from outside (public IP, through the box) and the internal ones
-# through Traefik; it is reached by Traefik, Glance (state) and Alloy (metrics).
+# through the internal Gateway; it is reached by the Gateway, Glance (state) and the
+# metrics collector.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,8 +11,9 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
+    - fromEntities: [ingress]          # the Gateway (status.${DOMAIN})
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }   # the front page reads the state
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
@@ -26,6 +28,6 @@ spec:
       toPorts:
         - ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }]
         - ports: [{ port: "53", protocol: UDP }]       # DNS check against 1.1.1.1
-    - toEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
-      toPorts: [{ ports: [{ port: "8443", protocol: TCP }, { port: "9443", protocol: TCP }] }]
+    # The Gateways (status checks of every site): Cilium hands the connection to Envoy.
+    - toEntities: [ingress]
+      toPorts: [{ ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }] }]

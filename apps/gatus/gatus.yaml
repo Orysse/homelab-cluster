@@ -32,7 +32,7 @@ spec:
       labels:
         app.kubernetes.io/name: gatus
       annotations:
-        prometheus.io/scrape: "true"   # scraped by Alloy (monitoring)
+        prometheus.io/scrape: "true"   # scraped by the OpenTelemetry Collector (monitoring)
         prometheus.io/port: "8080"
     spec:
       automountServiceAccountToken: false
@@ -89,11 +89,19 @@ metadata:
 spec:
   parentRefs:
     - name: public
-      namespace: kube-system
+      namespace: gateway
       sectionName: https
   hostnames:
     - status.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: gatus
           port: 80

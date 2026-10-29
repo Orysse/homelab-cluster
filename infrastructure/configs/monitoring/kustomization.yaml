@@ -17,6 +17,7 @@ configMapGenerator:
     files:
       - dashboards/overview.json
       - dashboards/network.json
+      - dashboards/electricity.json
       - dashboards/vulnerabilities.json
     options:
       disableNameSuffixHash: true

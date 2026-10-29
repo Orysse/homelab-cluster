@@ -10,7 +10,8 @@ metadata:
   namespace: postgres
 spec:
   instances: 1
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-minimal-trixie
+  # "standard", not "minimal": the databases imported from nuc1 use en_US.UTF-8, which the minimal image lacks.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
   enablePDB: false                # one instance: a PDB would block every node drain
   inheritedMetadata:
     annotations:                  # metrics (backups, replication, size) for the collector

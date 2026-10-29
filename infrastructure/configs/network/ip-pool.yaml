@@ -1,0 +1,21 @@
+# LoadBalancer addresses: Cilium assigns them from the LAN range the router leaves free and
+# answers ARP for them from one node at a time (L2 announcements, leader per Service).
+# The Gateways pin theirs (gateways.yaml); any other LoadBalancer Service gets the next free one.
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: lan
+spec:
+  blocks:
+    - start: "${INGRESS_POOL_START}"
+      stop: "${INGRESS_POOL_STOP}"
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: lan
+spec:
+  loadBalancerIPs: true
+  interfaces:
+    - ^en          # the VM's LAN interface (enp0s6), not the pods' veths or WireGuard

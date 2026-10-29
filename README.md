@@ -51,13 +51,13 @@ The network is defined **once**, in homelab-nix's topology, which publishes the
 | Variable | Value | Used for |
 |---|---|---|
 | `${DOMAIN}` | `abe.lc` | hostnames, certificates |
-| `${INGRESS_ADDRESS}` | `192.168.1.240` | public entry point (Traefik) |
+| `${INGRESS_ADDRESS}` | `192.168.1.240` | public entry point (Gateway `public`) |
 | `${INTERNAL_ADDRESS}` | `192.168.1.241` | internal entry point (LAN and VPN only) |
-| `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IPs MetalLB may assign |
+| `${INGRESS_POOL_START}`, `${INGRESS_POOL_STOP}` | `192.168.1.240`, `192.168.1.254` | LoadBalancer IPs Cilium may assign |
 | `${CLUSTER_NAME}` | `homelab` | `cluster` label on metrics and logs |
 | `${NFS_SERVER}`, `${NFS_SHARE}` | `192.168.1.200`, `/srv/data` | StorageClass `nfs` |
 | `${MONITORING_ADDRESS}` | `192.168.1.200` | VictoriaMetrics/VictoriaLogs/Alertmanager |
-| `${DATABASE_ADDRESS}` | `192.168.1.200` | PostgreSQL for the apps |
+| `${BACKUP_ADDRESS}` | `192.168.1.200` | S3 (Garage) for PostgreSQL backups |
 
 Flux also rewrites `$${X}` to `${X}`, for software that does its own substitution. An
 object full of `$` (a Grafana dashboard, a script) gets the annotation

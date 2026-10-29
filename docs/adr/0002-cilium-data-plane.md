@@ -1,6 +1,7 @@
 # ADR 0002: Cilium as the only data plane
 
-Status: draft (spike results, 2026-10-29). Finalized in Task 14.
+Status: accepted (2026-10-29). L2 announcements and the Internet client IP are checked at
+cutover.
 
 ## Context
 
@@ -44,8 +45,25 @@ Findings:
    per node, against an average of about 280 before. Gateway API did not add any
    noticeable agent memory.
 
-## Decision (provisional)
+## Decision
 
 Cilium does LB-IPAM, L2 announcements and Gateway API in v3. Traefik and MetalLB go.
-The Gateway API CRDs (v1.5.1, standard) are declared by homelab-nix once `traefik-crd`
-is disabled.
+
+- **CRDs**: Gateway API v1.5.1 (standard) is a k3s manifest in homelab-nix
+  (`k3s/gateway-api.nix`), next to the controller that serves it. The CRDs k3s's
+  `traefik-crd` chart had installed carry `helm.sh/resource-policy: keep`, so disabling
+  Traefik leaves them, and the existing objects, in place.
+- **Addresses**: one `CiliumLoadBalancerIPPool` `lan` over the router-free range, given as
+  `start`/`stop` (`${INGRESS_POOL_START}`/`${INGRESS_POOL_STOP}`); a CIDR would leave out
+  its first and last address, and `.240` is the first. One `CiliumL2AnnouncementPolicy`
+  restricted to the VMs' LAN interface (`^en`), so pod veths and WireGuard never answer ARP.
+- **Gateways**: `public` and `internal`, class `cilium`, in their own namespace `gateway`
+  with their certificates. Each pins its address (`spec.addresses`), since the router
+  forwards to it. Listeners keep v2's contract (`https`, `holive`, `holive-www`, namespace
+  label `gateway-access`), on 443 instead of Traefik's 8443/9443. Plain HTTP listeners
+  accept only one route, `https-redirect` (301).
+- **Security headers**: Gateway API has no gateway-wide filter, and v2's Traefik entry
+  point middleware has no equivalent. Each app's HTTPRoute sets its headers with a
+  `ResponseHeaderModifier`: explicit, visible next to the app.
+- **Policies**: Gateway traffic reaches backends from Cilium's reserved `ingress` identity.
+  Backends allow `fromEntities: [ingress]` instead of a Traefik pod selector.

@@ -1,29 +1,30 @@
-# Gateway API entry points. An app attaches an HTTPRoute to one of them and labels its
-# namespace accordingly:
+# Entry points, served by Cilium's Envoy (no ingress controller). An app attaches an
+# HTTPRoute to one of them, with sectionName https, and labels its namespace:
 #   public   (gateway-access=public)    any host, Internet-facing (${INGRESS_ADDRESS})
 #   internal (gateway-access=internal)  *.int.${DOMAIN}, LAN and VPN only (${INTERNAL_ADDRESS})
 #   both     (gateway-access=both)      an app with a public part and an internal admin UI
-# TLS: the wildcard certificate. HTTP->HTTPS redirect and security headers are applied by
-# Traefik's entry points (traefik.yaml).
+# TLS: the wildcard certificate (certificates.yaml). Plain HTTP only redirects to HTTPS.
+# Security headers: each app's route sets them (Gateway API has no gateway-wide filter).
 ---
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: traefik
-spec:
-  controllerName: traefik.io/gateway-controller
+  name: gateway
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: public
-  namespace: kube-system          # same namespace as Traefik and the wildcard certificate
+  namespace: gateway
 spec:
-  gatewayClassName: traefik
+  gatewayClassName: cilium
+  # Pinned: the router forwards 80/443 here.
+  addresses:
+    - { type: IPAddress, value: "${INGRESS_ADDRESS}" }
   listeners:
     - name: https
       protocol: HTTPS
-      port: 8443                  # must match Traefik's websecure entry point
+      port: 443
       tls:
         mode: Terminate
         certificateRefs:
@@ -37,7 +38,7 @@ spec:
     # holive.fr: its own certificate, chosen by SNI (the wildcard covers only ${DOMAIN}).
     - name: holive
       protocol: HTTPS
-      port: 8443
+      port: 443
       hostname: holive.fr
       tls:
         mode: Terminate
@@ -50,7 +51,7 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: holive }
     - name: holive-www
       protocol: HTTPS
-      port: 8443
+      port: 443
       hostname: www.holive.fr
       tls:
         mode: Terminate
@@ -61,19 +62,25 @@ spec:
           from: Selector
           selector:
             matchLabels: { kubernetes.io/metadata.name: holive }
-
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces: { from: Same }
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: internal
-  namespace: kube-system
+  namespace: gateway
 spec:
-  gatewayClassName: traefik
+  gatewayClassName: cilium
+  addresses:
+    - { type: IPAddress, value: "${INTERNAL_ADDRESS}" }
   listeners:
     - name: https
       protocol: HTTPS
-      port: 9443                  # must match Traefik's internal entry point
+      port: 443
       hostname: "*.int.${DOMAIN}"
       tls:
         mode: Terminate
@@ -85,3 +92,23 @@ spec:
           selector:
             matchExpressions:
               - { key: gateway-access, operator: In, values: [internal, both] }
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.int.${DOMAIN}"
+      allowedRoutes:
+        namespaces: { from: Same }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect
+  namespace: gateway
+spec:
+  parentRefs:
+    - { name: public, sectionName: http }
+    - { name: internal, sectionName: http }
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect: { scheme: https, statusCode: 301 }

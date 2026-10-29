@@ -89,6 +89,22 @@ spec:
           from: Selector
           selector:
             matchLabels: { kubernetes.io/metadata.name: holive }
+    # Headscale: TLS passthrough, it terminates TLS itself. Envoy's HTTP upgrade config
+    # refuses the Tailscale control protocol (403 on /ts2021: only websocket upgrades pass).
+    # Port 8443 and not 443: Cilium rejects a TLS listener next to the HTTPS one on a port
+    # (ProtocolConflict). Router port forwarding: TCP 8443 -> ${INGRESS_ADDRESS}.
+    - name: headscale
+      protocol: TLS
+      port: 8443
+      hostname: hs.${DOMAIN}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        kinds: [{ kind: TLSRoute }]
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels: { kubernetes.io/metadata.name: headscale }
     - name: http
       protocol: HTTP
       port: 80

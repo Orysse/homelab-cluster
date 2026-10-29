@@ -39,7 +39,7 @@ endpoints:
 
   - name: Headscale
     group: Plateforme
-    url: https://hs.${DOMAIN}/health
+    url: https://hs.${DOMAIN}:8443/health
     interval: 1m
     conditions:
       - "[STATUS] == 200"

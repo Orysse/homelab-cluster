@@ -37,7 +37,7 @@ spec:
     enabled: true
     hostnames: ["auth.${DOMAIN}"]
     parentRefs:
-      - { name: public, namespace: gateway, sectionName: https }
+      - { name: public, namespace: gateway, sectionName: auth }
   ui:
     appName: ${DOMAIN}
     sessionDuration: 480          # minutes

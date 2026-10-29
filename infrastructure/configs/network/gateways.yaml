@@ -1,6 +1,7 @@
 # Entry points, served by Cilium's Envoy (no ingress controller). An app attaches an
-# HTTPRoute to one of them, with sectionName https, and labels its namespace:
-#   public   (gateway-access=public)    any host, Internet-facing (${INGRESS_ADDRESS})
+# HTTPRoute to one of them, and labels its namespace (internal: sectionName https; public: the
+# listener of its host, one per public host):
+#   public   (gateway-access=public)    listed hosts, Internet-facing (${INGRESS_ADDRESS})
 #   internal (gateway-access=internal)  *.int.${DOMAIN}, LAN and VPN only (${INTERNAL_ADDRESS})
 #   both     (gateway-access=both)      an app with a public part and an internal admin UI
 # TLS: the wildcard certificate (certificates.yaml). Plain HTTP only redirects to HTTPS.
@@ -49,9 +50,83 @@ spec:
   addresses:
     - { type: IPAddress, value: "${INGRESS_ADDRESS}" }
   listeners:
-    - name: https
+    # One HTTPS listener per public host rather than a wildcard one: Cilium rejects a TLS
+    # passthrough listener (Headscale, below) whose hostname overlaps an HTTPS listener on
+    # the same port (ProtocolConflict). A new public app adds its listener here.
+    - name: apex
       protocol: HTTPS
       port: 443
+      hostname: ${DOMAIN}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
+    - name: status
+      protocol: HTTPS
+      port: 443
+      hostname: status.${DOMAIN}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
+    - name: chat
+      protocol: HTTPS
+      port: 443
+      hostname: chat.${DOMAIN}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
+    - name: auth
+      protocol: HTTPS
+      port: 443
+      hostname: auth.${DOMAIN}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
+    - name: k8s
+      protocol: HTTPS
+      port: 443
+      hostname: k8s.${DOMAIN}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
+    - name: vitrine
+      protocol: HTTPS
+      port: 443
+      hostname: vitrine.${DOMAIN}
       tls:
         mode: Terminate
         certificateRefs:
@@ -91,11 +166,10 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: holive }
     # Headscale: TLS passthrough, it terminates TLS itself. Envoy's HTTP upgrade config
     # refuses the Tailscale control protocol (403 on /ts2021: only websocket upgrades pass).
-    # Port 8443 and not 443: Cilium rejects a TLS listener next to the HTTPS one on a port
-    # (ProtocolConflict). Router port forwarding: TCP 8443 -> ${INGRESS_ADDRESS}.
+    # Cilium rejects it next to a wildcard HTTPS listener (hence the per-host listeners above).
     - name: headscale
       protocol: TLS
-      port: 8443
+      port: 443
       hostname: hs.${DOMAIN}
       tls:
         mode: Passthrough

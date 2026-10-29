@@ -96,7 +96,7 @@ spec:
   parentRefs:
     - name: public
       namespace: gateway
-      sectionName: https
+      sectionName: vitrine
   hostnames:
     - vitrine.${DOMAIN}
   rules:

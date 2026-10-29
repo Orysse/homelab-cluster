@@ -1,6 +1,6 @@
 # Headscale at hs.${DOMAIN}: self-hosted Tailscale control server, the everyday VPN.
 #   login    Pocket-ID, groups "admins" (the homelab) and "visitors" (read-only views, policy.json)
-#   entry    TLS passthrough on the public Gateway, port 8443 (TLSRoute), own certificate: the Tailscale
+#   entry    TLS passthrough on the public Gateway (TLSRoute), own certificate: the Tailscale
 #            control protocol (/ts2021) upgrades the connection to a Noise stream, which
 #            Cilium's Envoy refuses on HTTP routes (websocket upgrades only)
 #   relays   Tailscale's public DERP servers (traffic stays end-to-end WireGuard-encrypted);

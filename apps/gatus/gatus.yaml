@@ -90,7 +90,7 @@ spec:
   parentRefs:
     - name: public
       namespace: gateway
-      sectionName: https
+      sectionName: status
   hostnames:
     - status.${DOMAIN}
   rules:

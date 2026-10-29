@@ -97,7 +97,7 @@ metadata:
   namespace: headlamp
 spec:
   parentRefs:
-    - { name: public, namespace: gateway, sectionName: https }
+    - { name: public, namespace: gateway, sectionName: k8s }
   hostnames:
     - k8s.${DOMAIN}
   rules:

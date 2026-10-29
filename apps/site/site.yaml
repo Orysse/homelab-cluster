@@ -96,7 +96,7 @@ metadata:
   namespace: site
 spec:
   parentRefs:
-    - { name: public, namespace: gateway, sectionName: https }
+    - { name: public, namespace: gateway, sectionName: apex }
   hostnames:
     - ${DOMAIN}
   rules:

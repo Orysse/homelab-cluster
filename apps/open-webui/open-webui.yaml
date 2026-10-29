@@ -131,7 +131,7 @@ spec:
   parentRefs:
     - name: public
       namespace: gateway
-      sectionName: https
+      sectionName: chat
   hostnames:
     - chat.${DOMAIN}
   rules:

@@ -157,7 +157,7 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 - Pocket-ID login with an existing passkey; `kubectl` through kubelogin (update the
   kubeconfig's CA: `docs/onboarding/kubeconfig.yaml` and `~/.kube/configs/homelab-oidc.yaml`);
   Headlamp; Grafana; OpenBao UI login through Pocket-ID.
-- Headscale: an existing device reconnects without registering again (same noise key) once pointed at `https://hs.abe.lc:8443` (TLS passthrough, public Gateway listener `headscale`; router forwards TCP 8443 to `.240`; Cilium rejects a TLS listener next to HTTPS on 443). Check `tailscale status` on a client.
+- Headscale: an existing device reconnects without registering again (same noise key). It is served by TLS passthrough (TLSRoute on the public Gateway, listener `headscale`, which is why the public HTTPS listeners are per host): `tailscale status` on a client.
 - Open WebUI: existing chats are there.
 - Policies: `hubble observe --verdict DROPPED --since 15m` shows nothing legitimate. In
   particular, pods reaching `auth.abe.lc` (OpenBao, oauth2-proxy, Headlamp, Headscale,

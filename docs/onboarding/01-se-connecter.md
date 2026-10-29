@@ -51,9 +51,9 @@ Toutes se connectent avec Pocket-ID.
 | Page d'accueil, état des services | https://home.int.abe.lc | VPN |
 | Console Kubernetes (Headlamp) | https://k8s.abe.lc | Internet |
 | Page de statut | https://status.abe.lc | Internet |
-| Dashboards, logs, stats des sites (Grafana) | https://grafana.int.abe.lc | VPN |
-| Secrets (OpenBao), admins | https://bao.int.abe.lc, méthode *OIDC*, mount path `sso/oidc` | VPN |
-| Flux réseau (Hubble), routes (Traefik) | https://hubble.int.abe.lc, https://traefik.int.abe.lc/dashboard/ | VPN |
+| Dashboards, logs, électricité (Grafana) | https://grafana.int.abe.lc | VPN |
+| Secrets (OpenBao), admins | https://bao.int.abe.lc, méthode *OIDC*, mount path `sso` | VPN |
+| Flux réseau (Hubble) | https://hubble.int.abe.lc | VPN |
 
 Headlamp suffit pour voir et modifier le cluster sans rien installer.
 
@@ -105,9 +105,9 @@ décrit tout ce qui tourne, et Flux aligne le cluster dessus.
 - **Pour tester, `kubectl apply` direct**, de préférence dans un namespace à toi : Flux ne
   touche pas à ce qu'il ne connaît pas.
 - **Pas touche à la plateforme sans en parler** : `kube-system`, `flux-system`, `openbao`,
-  `pocket-id`, `headscale`, `monitoring`, `cert-manager`, `metallb-system`,
-  `external-secrets`, `crowdsec`. Si l'un d'eux casse, tout le monde perd l'accès, toi
-  compris.
+  `pocket-id`, `pocket-id-operator`, `postgres`, `cnpg-system`, `gateway`, `headscale`,
+  `monitoring`, `cert-manager`, `external-secrets`, `crowdsec`. Si l'un d'eux casse, tout
+  le monde perd l'accès, toi compris.
 - **Aucun secret en clair dans git** : le repo est public.
 
 ## En cas de souci

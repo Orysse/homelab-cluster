@@ -79,16 +79,9 @@ A suspended object shows `SUSPENDED=True` in `flux get`. Do not leave it that wa
 
 ```bash
 flux get hr -A
-flux reconcile hr metallb -n metallb-system --with-source
+flux reconcile hr grafana -n monitoring --with-source
+kubectl -n flux-system get fluxinstance flux   # the Flux Operator's FluxInstance: installs Flux itself
 helm -n cert-manager history cert-manager
-```
-
-Traefik is **not** a Flux HelmRelease: k3s installs it, we only override its values
-(`infrastructure/configs/traefik.yaml`, HelmChartConfig). Its upgrades run as a Job:
-
-```bash
-kubectl -n kube-system get jobs | grep helm-install-traefik
-kubectl -n kube-system logs job/helm-install-traefik
 ```
 
 ## Secrets (sops)
@@ -106,7 +99,7 @@ kubectl -n flux-system get secret sops-age             # Flux's key, published b
 kubectl get gateway -A                      # public (.240) and internal (.241), PROGRAMMED=True
 kubectl get httproute -A
 kubectl -n <ns> describe httproute <name>   # Accepted / ResolvedRefs conditions
-kubectl -n kube-system get certificate wildcard
+kubectl -n gateway get certificate        # wildcard and holive
 kubectl get certificaterequest,order,challenge -A   # stuck certificate
 ```
 
@@ -117,12 +110,23 @@ or wrong (`public` / `internal`).
 
 ```bash
 curl -sI https://abe.lc
-curl -s -o /dev/null -w '%{http_code}\n' https://traefik.int.abe.lc/dashboard/   # LAN/VPN only
+curl -s -o /dev/null -w '%{http_code}\n' https://grafana.int.abe.lc/api/health   # LAN/VPN only
 ```
 
-Status page: https://status.abe.lc. Traefik dashboard: https://traefik.int.abe.lc/dashboard/.
+Status page: https://status.abe.lc. Gateway access log: Grafana, dashboard Réseau.
 
 ## k9s
 
 `k9s` then `:` + resource: `:ks` Kustomizations, `:hr` HelmReleases, `:gitrepo`,
 `:httproute`, `:gateway`, `:certificate`. `l` logs, `d` describe, `0` all namespaces.
+
+## v3 additions
+
+```bash
+kubectl cnpg status -n postgres main                 # PostgreSQL: health, backups, WAL archiving
+kubectl -n postgres get backups                       # nightly base backups to Garage
+kubectl get pocketidoidcclient -A                     # OIDC clients (Pocket-ID operator)
+kubectl get ciliumcidrgroups -l crowdsec.net/banned=true   # bans, written by the bouncer
+kubectl -n kube-system logs ds/cilium-envoy | tail    # the Gateways' access log
+kubectl -n openbao get job sso-config                 # OpenBao's Pocket-ID login settings
+```

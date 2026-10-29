@@ -24,9 +24,8 @@ Installe Tailscale et connecte-le à notre serveur, `https://hs.abe.lc`
 | Quoi | Où |
 |---|---|
 | Page d'accueil : tous les services, la charge du cluster | https://home.int.abe.lc |
-| Dashboards, logs, stats des sites (Grafana) | https://grafana.int.abe.lc |
+| Dashboards, logs, électricité (Grafana) | https://grafana.int.abe.lc |
 | Flux réseau entre les pods (Hubble) | https://hubble.int.abe.lc |
-| Routes HTTP (Traefik) | https://traefik.int.abe.lc/dashboard/ |
 
 `kubectl` marche aussi, en lecture seule ([installation et kubeconfig](01-se-connecter.md#4-kubectl)).
 `kubectl auth whoami` affiche le groupe `oidc:visitors`. Pour te balader :

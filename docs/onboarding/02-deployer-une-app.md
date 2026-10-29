@@ -5,7 +5,7 @@ HTTPS, la redirection HTTP → HTTPS et les en-têtes de sécurité sont déjà 
 rien à faire pour eux.
 
 ```
-Internet → https://monapp.abe.lc → box → Traefik (HTTPS) → HTTPRoute → Service → tes pods
+Internet → https://monapp.abe.lc → box → Gateway Cilium (HTTPS) → HTTPRoute → Service → tes pods
 ```
 
 Prérequis : l'[accès admin](01-se-connecter.md) (Tailscale et `kubectl`), et git avec un
@@ -129,7 +129,7 @@ modifier.
 Jamais dans git : le repo est public. Les secrets vont dans OpenBao, et un namespace ne lit
 que les siens.
 
-1. Dans https://bao.int.abe.lc (méthode *OIDC*, mount path `sso/oidc`) : moteur `kv`,
+1. Dans https://bao.int.abe.lc (méthode *OIDC*, mount path `sso`) : moteur `kv`,
    chemin `apps/monapp/api`, une clé `token`.
 2. Dans `apps/monapp/secrets.yaml` (et dans la liste de `kustomization.yaml`) :
 
@@ -149,22 +149,26 @@ spec:
 3. Dans le conteneur : `envFrom: [{ secretRef: { name: api } }]`.
 
 Un secret généré automatiquement, que personne ne voit (clé de chiffrement, de session) :
-`RandomSecret`, dont un exemple se trouve dans `apps/umami/secrets.yaml`.
+un générateur crée la valeur une fois, OpenBao la garde, l'app la relit. Trois objets, à copier
+depuis `apps/headscale/secrets.yaml` (la clé `noise`) en changeant les noms.
 
 ### Une base de données
 
 Pas de SQLite ni de PostgreSQL sur un volume NFS : le NFS gère mal les verrous, et la base
-finit corrompue. Il y a un PostgreSQL sur le serveur, avec une base par app :
+finit corrompue. Il y a un PostgreSQL dans le cluster (CloudNativePG), avec une base par app :
 
-1. **homelab-nix** (Abel) : ajouter le nom de l'app à `database.databases` dans
-   `modules/topology/topology.nix`, puis déployer nuc1.
-2. **Ici** : un `DatabaseSecretEngineStaticRole` de plus dans
-   `infrastructure/configs/openbao/database.yaml`, puis le `VaultDynamicSecret` et
-   l'`ExternalSecret` de l'app. Copie ceux de `apps/umami/secrets.yaml`, qui construit aussi
-   l'URL de connexion.
-3. Dans `network-policy.yaml`, décommente les blocs DNS et PostgreSQL.
+1. Dans `infrastructure/configs/postgres/` : copie `databases/headscale.yaml` en
+   `databases/monapp.yaml` (remplace `headscale` par le nom de ton namespace), ajoute-le à
+   `kustomization.yaml`, et ajoute le rôle dans `cluster.yaml` (`managed.roles`), sur le
+   modèle des autres. Ajoute aussi ton namespace à l'entrée de `network-policy.yaml`.
+2. Le mot de passe est créé une fois et rangé dans OpenBao à `kv/apps/monapp/db`
+   (`username`, `password`). Personne ne le connaît.
+3. Dans ton app, un `ExternalSecret` le lit comme n'importe quel secret ; l'hôte est
+   `main-rw.postgres.svc.cluster.local:5432`, la base porte le nom du namespace. Exemple
+   avec l'URL de connexion : `apps/open-webui/secrets.yaml`.
+4. Dans `network-policy.yaml`, décommente les blocs DNS et PostgreSQL.
 
-OpenBao crée le mot de passe et le fait tourner : personne ne le connaît.
+Les sauvegardes sont automatiques : chaque nuit vers le serveur, gardées 30 jours.
 
 ### Des fichiers à garder
 
@@ -206,10 +210,10 @@ main : à refaire si le cluster est reconstruit.
 
 ### Login Pocket-ID pour ton app
 
-Si l'app sait faire de l'OIDC : crée un client dans Pocket-ID (https://auth.abe.lc,
-*OIDC Clients*), avec la callback de l'app. Mets son ID et son secret dans OpenBao
-(`kv/apps/monapp/oidc`, clés `client_id` et `client_secret`), puis lis-les avec un
-`ExternalSecret`. L'issuer est `https://auth.abe.lc`.
+Si l'app sait faire de l'OIDC : déclare son client à côté d'elle, et l'opérateur Pocket-ID
+le crée et écrit ses identifiants dans un Secret de ton namespace (`client_id`,
+`client_secret`, `issuer_url`). Rien à copier à la main. Exemple :
+`apps/open-webui/secrets.yaml` (le `PocketIDOIDCClient`) ; l'issuer est `https://auth.abe.lc`.
 
 ## Quand ça ne marche pas
 

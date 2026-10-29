@@ -23,8 +23,7 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 - Garage is deployed on nuc1 (homelab-nix Task 12) and answers: `nuc1$ garage status`
   shows one healthy node; from kube-1, `curl -s -o /dev/null -w '%{http_code}'
   http://192.168.1.200:3900` prints `403`.
-- The bouncer image exists: tag `bouncer-v0.1.0` pushed, CI built
-  `ghcr.io/orysse/crowdsec-cilium-bouncer:0.1.0`, the GHCR package is public.
+- nuc1's sops file holds `crowdsec-bouncer-key` (homelab-nix `secrets/nuc1.yaml`).
 - `nuc1$ ps -eo rss,comm --sort=-rss | head -20` saved in `docs/measurements.md` (Task 2
   could not measure nuc1).
 
@@ -38,14 +37,19 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 2. Export OpenBao's application secrets to nuc1's tmpfs, never to git or a disk:
    ```sh
    export BAO_ADDR=https://bao.int.abe.lc && bao login -method=oidc -path=sso/oidc
-   for k in $(bao kv list -format=json kv/apps | jq -r '.[]'); do
-     for s in $(bao kv list -format=json "kv/apps/$k" | jq -r '.[]'); do
-       printf '%s\t%s\n' "$k$s" "$(bao kv get -format=json "kv/apps/$k$s" | jq -c .data.data)"
+   walk() {   # every secret, at any depth
+     bao kv list -format=json "kv/apps/$1" | jq -r '.[]' | while read -r e; do
+       case "$e" in
+         */) walk "$1$e" ;;
+         *) printf '%s\t%s\n' "$1$e" "$(bao kv get -format=json "kv/apps/$1$e" | jq -c .data.data)" ;;
+       esac
      done
-   done | ssh nuc1 'umask 077; cat > /run/v2-secrets.tsv'
+   }
+   walk "" | ssh nuc1 'umask 077; cat > /run/v2-secrets.tsv'
    ```
-   One kind of path is dropped at import (Step 4): `*/oidc`, since the Pocket-ID operator
-   now owns the OIDC clients. Everything else (Cloudflare token, SMTP and API keys,
+   Two kinds of path are dropped at import (Step 4): `*/oidc`, since the Pocket-ID operator
+   now owns the OIDC clients, and `crowdsec/bouncer`, replaced by the hosts' firewall
+   bouncer key (Step 4). Everything else (Cloudflare token, SMTP and API keys,
    generated keys) keeps its path.
 3. Temporary import user on nuc1's PostgreSQL, and the two credentials v3 needs, appended
    to the same file:
@@ -63,8 +67,11 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 
 ## Step 2: freeze
 
-1. homelab-cluster: merge `v3` into `main` locally, **do not push yet**.
+1. homelab-cluster: merge `v3` into `main` locally, **do not push yet**: v2's Flux would
+   apply it.
 2. Stop the VMs, last agent first: `nuc1$ systemctl stop microvm@kube-3 microvm@kube-2 microvm@kube-1`.
+   Nothing reconciles any more: push homelab-cluster `main` now, so the new Flux finds
+   v3 at its first start (and Step 3 never waits on a push).
 3. Set v2 aside (rename, never delete):
    ```sh
    nuc1$ for n in kube-1 kube-2 kube-3; do mv /var/lib/microvms/$n/k3s-data.img /var/lib/microvms/$n/k3s-data.img.v2-backup; done
@@ -82,8 +89,8 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
    `kubectl -n kube-system rollout restart deploy/cilium-operator`. Nodes turn Ready.
 3. Check the Gateway API CRDs came from the k3s manifest:
    `kubectl get crd gateways.gateway.networking.k8s.io -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}'` prints `v1.5.1`.
-4. Push homelab-cluster `main`. The FluxInstance reconciles `infra-controllers`, then
-   `infra-configs`, then `apps`: `flux get kustomizations -w`.
+4. The FluxInstance reconciles `infra-controllers`, then `infra-configs`, then `apps`:
+   `flux get kustomizations -w`.
 
 ## Step 4: seed OpenBao (right after it reports unsealed)
 
@@ -98,10 +105,15 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
    ```
 2. Import, skipping the OIDC entries, then destroy the file:
    ```sh
-   ssh nuc1 'cat /run/v2-secrets.tsv' | grep -v -P '^[^\t]*/oidc\t' | while IFS=$'\t' read -r path json; do
+   ssh nuc1 'cat /run/v2-secrets.tsv' | grep -v -P '^([^\t]*/oidc|crowdsec/bouncer)\t' | while IFS=$'\t' read -r path json; do
      echo "$json" | bao kv put "kv/apps/$path" -
    done
    ssh nuc1 'shred -u /run/v2-secrets.tsv'
+   ```
+   The firewall bouncer's key is the one nuc1 already holds (sops, deployed in Step 3);
+   the LAPI registers it from OpenBao:
+   ```sh
+   ssh nuc1 'sudo cat /run/secrets/crowdsec-bouncer-key' | tr -d '\n' | bao kv put kv/apps/crowdsec/bouncer key=-
    ```
 3. Generated secrets may have been pushed before the import (PushSecret `IfNotExists`
    found nothing); the import replaced them with v2's. Make every consumer read again,
@@ -114,7 +126,14 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
    kubectl -n open-webui rollout restart deploy/open-webui
    ```
 4. CNPG: `kubectl cnpg status -n postgres main` shows the import done and the cluster
-   healthy; then `kubectl -n postgres get backups` shows the first backup `completed`.
+   healthy; then `kubectl -n postgres get backups` shows the first backup `completed`
+   (the `garage-s3` Secret must exist; else, once it does, take one now:
+   `kubectl cnpg backup -n postgres main --method plugin --plugin-name barman-cloud.cloudnative-pg.io`).
+   If the import Job fails (nuc1 unreachable, wrong password, a dump error), the Cluster
+   does not retry cleanly: fix the cause, then `kubectl -n postgres delete cluster main`,
+   delete its PVCs (`kubectl -n postgres delete pvc -l cnpg.io/cluster=main`), empty the
+   `cnpg` bucket (`nuc1$ garage bucket info cnpg`, remove its objects with an S3 client
+   using the `cnpg` key) and let Flux recreate the Cluster. Nuc1's data is only read.
 5. Pocket-ID operator (ADR 0004, first live run): `kubectl get pocketidinstance -A`,
    `kubectl get pocketidoidcclient -A` all Ready; each app namespace has its
    `*-oidc-credentials` (or renamed) Secret. The `sso-config` Job in `openbao` completes.
@@ -153,16 +172,16 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
   headscale-db`, let Flux recreate them: the Secret and OpenBao's value are unchanged.
   Restore test: a `Cluster` `restore-test` bootstrapped from `ObjectStore` `garage` reaches
   Ready and holds Pocket-ID's tables; delete it.
-- Bans (Task 18): `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions add
-  --ip <LAN test host> --duration 10m`; within 40 s the test host times out on
-  `https://abe.lc` and Hubble shows the drop; `cscli decisions delete --ip <test host>`
-  restores it. Then LAPI down for 2 minutes (`kubectl -n crowdsec scale deploy/crowdsec-lapi
-  --replicas 0`): the groups' `resourceVersion` does not change, `bouncer_sync_errors_total`
-  rises; scale back to 1.
-- Scale (Task 4, deferred here): let the community blocklist load; `kubectl get
-  ciliumcidrgroups -l crowdsec.net/banned=true` totals its size. Watch `cilium-agent`
-  memory and CPU per node for an hour (Grafana, Détails, Cilium). Record the result in
-  ADR 0003; if the agents suffer, lower the list or move enforcement to the host firewall.
+- Bans (Task 18, ADR 0003): `nuc1$ systemctl status crowdsec-firewall-bouncer` is active
+  (it pulls from the LAPI at `192.168.1.242:8080`); `nuc1$ sudo nft list ruleset | grep -A3
+  'table ip crowdsec'` shows the set and the `input` and `forward` chains.
+  `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions add --ip <LAN test
+  host> --duration 10m`; within 20 s the test host times out on `https://abe.lc` (this
+  tests the bridged `forward` path, `br_netfilter`) and on `ssh nuc1` (the `input` path);
+  `cscli decisions delete --ip <test host>` restores both. `nft list sets` (table crowdsec)
+  shows how many community addresses loaded. Then LAPI down for 2
+  minutes (`kubectl -n crowdsec scale deploy/crowdsec-lapi --replicas 0`): bans stay in
+  place; scale back to 1.
 - Monitoring (Task 19): `count by (job) (up{cluster="homelab"})` lists the jobs of
   `/tmp/v2-jobs.json` (minus alloy, traefik, tetragon, opencost; plus otel-collector,
   cilium-envoy, cloudnative-pg); vmalert on nuc1 shows no rule in error; VictoriaLogs

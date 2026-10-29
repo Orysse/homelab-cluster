@@ -1,8 +1,5 @@
 # Headscale at hs.${DOMAIN}: self-hosted Tailscale control server, the everyday VPN.
 #   login    Pocket-ID, groups "admins" (the homelab) and "visitors" (read-only views, policy.json)
-#   entry    TLS passthrough on the public Gateway (TLSRoute), own certificate: the Tailscale
-#            control protocol (/ts2021) upgrades the connection to a Noise stream, which
-#            Cilium's Envoy refuses on HTTP routes (websocket upgrades only)
 #   relays   Tailscale's public DERP servers (traffic stays end-to-end WireGuard-encrypted);
 #            clients connect directly when they can (router UDP 41641 -> the subnet router)
 #   routes   the subnet router is Tailscale on the database host (homelab-nix: tailscale.nix),
@@ -17,6 +14,7 @@ kind: Namespace
 metadata:
   name: headscale
   labels:
+    gateway-access: public
     pod-security.kubernetes.io/enforce: restricted
 ---
 # The namespace's default account: pods that do not name one get no API token.
@@ -26,21 +24,6 @@ metadata:
   name: default
   namespace: headscale
 automountServiceAccountToken: false
----
-# Served by Headscale itself (passthrough). It reads the certificate at start: after a
-# renewal (every ~60 days), kubectl -n headscale rollout restart deploy/headscale.
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: headscale-tls
-  namespace: headscale
-spec:
-  secretName: headscale-tls
-  dnsNames:
-    - hs.${DOMAIN}
-  issuerRef:
-    kind: ClusterIssuer
-    name: letsencrypt
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -83,12 +66,12 @@ spec:
             - name: HEADSCALE_OIDC_CLIENT_ID
               valueFrom: { secretKeyRef: { name: headscale-oidc, key: client_id } }
           ports:
-            - { name: https, containerPort: 8443 }
+            - { name: http, containerPort: 8080 }
             - { name: metrics, containerPort: 9090 }
           readinessProbe:
-            httpGet: { path: /health, port: https, scheme: HTTPS }
+            httpGet: { path: /health, port: http }
           livenessProbe:
-            httpGet: { path: /health, port: https, scheme: HTTPS }
+            httpGet: { path: /health, port: http }
             periodSeconds: 30
           resources:
             requests: { cpu: 10m, memory: 48Mi }
@@ -102,7 +85,6 @@ spec:
             - { name: config, mountPath: /etc/headscale/config.yaml, subPath: config.yaml, readOnly: true }
             - { name: config, mountPath: /etc/headscale/policy.json, subPath: policy.json, readOnly: true }
             - { name: secrets, mountPath: /etc/headscale/secrets, readOnly: true }
-            - { name: tls, mountPath: /etc/headscale/tls, readOnly: true }
             - { name: run, mountPath: /var/run/headscale }   # CLI socket
             - { name: tmp, mountPath: /tmp }
       volumes:
@@ -116,9 +98,6 @@ spec:
               - secret:
                   name: headscale-oidc
                   items: [{ key: client_secret, path: oidc_client_secret }]
-        - name: tls
-          secret:
-            secretName: headscale-tls
         - name: run
           emptyDir:
             sizeLimit: 1Mi
@@ -135,19 +114,29 @@ spec:
   selector:
     app.kubernetes.io/name: headscale
   ports:
-    - { name: https, port: 443, targetPort: https }
+    - { name: http, port: 80, targetPort: http }
 ---
 apiVersion: gateway.networking.k8s.io/v1
-kind: TLSRoute
+kind: HTTPRoute
 metadata:
   name: headscale
   namespace: headscale
 spec:
   parentRefs:
-    - { name: public, namespace: gateway, sectionName: headscale }
+    - name: public
+      namespace: gateway
+      sectionName: https
   hostnames:
     - hs.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: headscale
-          port: 443
+          port: 80

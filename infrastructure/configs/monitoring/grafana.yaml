@@ -1,9 +1,27 @@
-# Grafana: dashboards only, everything provisioned from here. Its database is PostgreSQL
-# "monitoring" on the database host (credentials from OpenBao, grafana-secrets.yaml): the pod
-# keeps nothing.
+# Grafana: dashboards only, everything provisioned from here (datasources, dashboards), so
+# it keeps nothing: SQLite on an emptyDir, rebuilt at every start.
 # Metrics and logs live on the monitoring host; alerts are NOT evaluated here but by
 # vmalert + Alertmanager on that host, so they still fire when the cluster is down.
-# Login: Pocket-ID (group "admins" = Grafana Admin). Dashboards: grafana.com ids at pinned revisions.
+# Login: Pocket-ID ("admins" = Grafana Admin, everyone else Viewer). Dashboards: ours
+# (dashboards/, generated from .jq) and grafana.com ids at pinned revisions.
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  callbackUrls: ["https://grafana.int.${DOMAIN}/login/generic_oauth"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+    - { name: visitors, namespace: pocket-id }
+  launchUrl: https://grafana.int.${DOMAIN}
+  secret:
+    name: grafana-oidc
+    keys:
+      clientID: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+      clientSecret: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
@@ -34,34 +52,21 @@ spec:
     automountServiceAccountToken: false   # no sidecar talks to the API: dashboards come from ConfigMaps
     persistence:
       enabled: false
-    envFromSecrets:             # grafana-secrets.yaml (from OpenBao): settings and file paths
-      - name: grafana-db        # GF_DATABASE_*
-      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-    extraSecretMounts:          # the secret values themselves, as files
-      - name: grafana-files
-        secretName: grafana-files
-        mountPath: /etc/secrets/grafana
-        readOnly: true
-    # First start (database migrations, plugin download) is slow on the capped CPU: up to
-    # 10 minutes before the liveness probe takes over.
+    envFromSecrets:
+      - name: grafana-oidc      # GF_AUTH_GENERIC_OAUTH_CLIENT_ID/_SECRET (Pocket-ID operator)
+    # First start (plugin download) is slow on the capped CPU.
     startupProbe:
       httpGet: { path: /api/health, port: grafana }
       periodSeconds: 10
       failureThreshold: 60
-    deploymentStrategy:
-      type: Recreate          # one pod at a time: no two schema migrations in parallel
     resources:
       # The request is what it really uses after start (~500 Mi), so the scheduler only puts
       # it where that fits: at 128Mi it landed on full nodes and pushed them over (2026-10-11).
       requests: { cpu: 20m, memory: 512Mi }
-      limits: { memory: 768Mi }   # first start (migrations) peaks well above steady state
+      limits: { memory: 768Mi }
     plugins:
       - victoriametrics-logs-datasource@0.32.0
     grafana.ini:
-      # Secret values from the mounted files (grafana-files); the rest of [database] comes
-      # from the environment (grafana-db). This image ignores GF_*__FILE.
-      database:
-        password: $$__file{/etc/secrets/grafana/db-password}
       server:
         root_url: https://grafana.int.${DOMAIN}/
       users:
@@ -77,10 +82,8 @@ spec:
         disable_login_form: true
       auth.basic:
         enabled: false
-      # Login through Pocket-ID; its "admins" group is Grafana Admin, everyone else Viewer.
       auth.generic_oauth:
         enabled: true
-        client_secret: $$__file{/etc/secrets/grafana/oauth-client-secret}
         name: Pocket-ID
         allow_sign_up: true
         auto_login: true
@@ -114,62 +117,27 @@ spec:
             url: http://${MONITORING_ADDRESS}:9093
             jsonData:
               implementation: prometheus
-          # Umami's analytics, read straight from its database: Grafana's own PostgreSQL user
-          # may SELECT website, website_event and session (homelab-nix topology:
-          # database.readers), nothing else. $${...} and $$__file{...}: left for Grafana.
-          - name: Umami
-            uid: umami
-            type: grafana-postgresql-datasource
-            url: ${DATABASE_ADDRESS}:5432
-            user: $${GF_DATABASE_USER}
-            jsonData:
-              database: umami
-              sslmode: disable
-              postgresVersion: 1800
-            secureJsonData:
-              password: $$__file{/etc/secrets/grafana/db-password}
     dashboardProviders:
       dashboardproviders.yaml:
         apiVersion: 1
         providers:
+          # Ours (dashboards/, one ConfigMap, Flux substitution off).
           - name: homelab
             folder: Homelab
             type: file
             disableDeletion: true
             options:
               path: /var/lib/grafana/dashboards/homelab
-          # Our own dashboards (dashboards/, one ConfigMap, Flux substitution off).
-          - name: sites
-            folder: Sites
+          - name: community
+            folder: Détails
             type: file
             disableDeletion: true
             options:
-              path: /var/lib/grafana/dashboards/sites
-          - name: sites-community
-            folder: Sites
-            type: file
-            disableDeletion: true
-            options:
-              path: /var/lib/grafana/dashboards/sites-community
-          # Our own homelab dashboards (dashboards/, one ConfigMap): cost, vulnerabilities.
-          - name: homelab-own
-            folder: Homelab
-            type: file
-            disableDeletion: true
-            options:
-              path: /var/lib/grafana/dashboards/homelab-own
+              path: /var/lib/grafana/dashboards/community
     dashboardsConfigMaps:
-      sites: grafana-dashboards-sites
-      homelab-own: grafana-dashboards-homelab
+      homelab: grafana-dashboards-homelab
     dashboards:
-      sites-community:
-        # Community Umami dashboard: hourly heatmap, 7-day moving averages, qualified sessions.
-        umami-bi:
-          gnetId: 24431
-          revision: 1
-          datasource:
-            - { name: DS_UMAMI-POSTGRES, value: umami }
-      homelab:
+      community:
         node-exporter:
           gnetId: 1860
           revision: 45
@@ -190,10 +158,6 @@ spec:
           gnetId: 15760
           revision: 41
           datasource: VictoriaMetrics
-        traefik:
-          gnetId: 17346
-          revision: 9
-          datasource: VictoriaMetrics
         cilium-agent:
           gnetId: 16611
           revision: 1
@@ -205,6 +169,10 @@ spec:
         hubble:
           gnetId: 16613
           revision: 1
+          datasource: VictoriaMetrics
+        cloudnative-pg:
+          gnetId: 20417
+          revision: 4
           datasource: VictoriaMetrics
         flux-cluster:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/cluster.json

@@ -1,4 +1,4 @@
-# Each VM's own metrics (CPU, memory, disk, network), scraped by the Alloy on that node.
+# Each VM's own metrics (CPU, memory, disk, network), scraped by the collector on that node.
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

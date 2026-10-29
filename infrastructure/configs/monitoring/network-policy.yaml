@@ -1,6 +1,6 @@
-# Grafana: reached by Traefik;
-# reaches DNS, the monitoring host (VictoriaMetrics, VictoriaLogs, Alertmanager), its
-# PostgreSQL, and HTTPS (Pocket-ID login, plugin and dashboard downloads at start).
+# Grafana: reached through the internal Gateway; reaches DNS, the monitoring host
+# (VictoriaMetrics, VictoriaLogs, Alertmanager) and HTTPS (Pocket-ID login, plugin and
+# dashboard downloads at start).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -12,8 +12,7 @@ spec:
     matchLabels: { app.kubernetes.io/name: grafana }
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]
       toPorts: [{ ports: [{ port: "3000", protocol: TCP }] }]
   egress:
     - toEndpoints:
@@ -21,28 +20,30 @@ spec:
       toPorts:
         - ports: [{ port: "53", protocol: ANY }]
           rules: { dns: [{ matchPattern: "*" }] }
-    - toCIDR: ["${MONITORING_ADDRESS}/32", "${DATABASE_ADDRESS}/32"]
+    - toCIDR: ["${MONITORING_ADDRESS}/32"]
       toPorts:
         - ports:
             - { port: "8428", protocol: TCP }
             - { port: "9428", protocol: TCP }
             - { port: "9093", protocol: TCP }
-            - { port: "5432", protocol: TCP }
-    - toEntities: [world]
+    - toEntities: [world, ingress]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
 ---
-# Alloy scrapes every pod and kubelet in the cluster and ships to the monitoring host; nothing
-# reaches it (kubelet probes aside).
+# The collector scrapes every pod and kubelet on its node and ships to the monitoring host;
+# nothing reaches it but its own scrape (kubelet probes aside).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: alloy
+  name: otel-collector
   namespace: monitoring
 spec:
   endpointSelector:
-    matchLabels: { app.kubernetes.io/name: alloy }
+    matchLabels: { app.kubernetes.io/name: otel-collector }
   enableDefaultDeny: { ingress: true, egress: true }
-  ingress: [{}]
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: otel-collector }
+      toPorts: [{ ports: [{ port: "8888", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
@@ -54,7 +55,7 @@ spec:
       toPorts:
         - ports: [{ port: "8428", protocol: TCP }, { port: "9428", protocol: TCP }]
 ---
-# kube-state-metrics: scraped by Alloy, reads the API server.
+# kube-state-metrics: scraped by the collector, reads the API server.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -66,7 +67,7 @@ spec:
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
     - fromEndpoints:
-        - matchLabels: { app.kubernetes.io/name: alloy }
+        - matchLabels: { app.kubernetes.io/name: otel-collector }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "8081", protocol: TCP }] }]
   egress:
     - toEntities: [kube-apiserver]

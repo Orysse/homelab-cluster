@@ -14,7 +14,7 @@ spec:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
       toPorts: [{ ports: [{ port: "9090", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: headplane, app.kubernetes.io/name: headplane }

@@ -14,7 +14,7 @@ spec:
     - fromEntities: [kube-apiserver]
       toPorts: [{ ports: [{ port: "10250", protocol: TCP }] }]
     - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
       toPorts: [{ ports: [{ port: "9402", protocol: TCP }] }]
   egress:
     - toEndpoints:

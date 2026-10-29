@@ -1,0 +1,295 @@
+# OpenTelemetry Collector, one per node (DaemonSet): everything on its own node only, so the
+# load follows the pods. ADR 0007.
+#   metrics  Prometheus scrapes: annotated pods (prometheus.io/scrape), CoreDNS, Hubble,
+#            kube-state-metrics, kubelet and cAdvisor -> VictoriaMetrics (OTLP)
+#   logs     every container's log file, Kubernetes metadata attached -> VictoriaLogs (OTLP)
+# Series keep their Prometheus names and the labels the alert rules on nuc1 use (job,
+# instance, namespace, pod, node, cluster): see transform/prometheus below.
+#
+# Flux does not substitute this HelmRelease ($$ below is for the collector, which turns it
+# into the $ Prometheus relabelling expects); the addresses come from collector-env.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector-env
+  namespace: monitoring
+data:
+  MONITORING_ADDRESS: ${MONITORING_ADDRESS}
+  CLUSTER_NAME: ${CLUSTER_NAME}
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: open-telemetry
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://open-telemetry.github.io/opentelemetry-helm-charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: opentelemetry-collector
+      version: "0.176.0"    # collector 0.162.0
+      sourceRef:
+        kind: HelmRepository
+        name: open-telemetry
+  values:
+    mode: daemonset
+    nameOverride: otel-collector
+    fullnameOverride: otel-collector
+    image:
+      repository: otel/opentelemetry-collector-k8s
+    podAnnotations:           # its own metrics, scraped by itself (job otel-collector)
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8888"
+    command:
+      name: otelcol-k8s
+    extraEnvs:
+      - name: K8S_NODE_NAME
+        valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+    extraEnvsFrom:
+      - configMapRef: { name: collector-env }
+    # Reads /var/log/pods (root-owned): root, no capability, read-only mounts. Read
+    # positions survive restarts in /var/lib/otel-collector on the node.
+    securityContext:
+      runAsUser: 0
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: { drop: [ALL] }
+    extraVolumes:
+      - name: pods-logs
+        hostPath: { path: /var/log/pods }
+      - name: state
+        hostPath: { path: /var/lib/otel-collector, type: DirectoryOrCreate }
+    extraVolumeMounts:
+      - { name: pods-logs, mountPath: /var/log/pods, readOnly: true }
+      - { name: state, mountPath: /var/lib/otel-collector }
+    clusterRole:
+      create: true
+      rules:
+        - apiGroups: [""]
+          resources: [pods, nodes, nodes/metrics, endpoints, services]
+          verbs: [get, list, watch]
+    ports:
+      otlp: { enabled: false }
+      otlp-http: { enabled: false }
+      jaeger-compact: { enabled: false }
+      jaeger-thrift: { enabled: false }
+      jaeger-grpc: { enabled: false }
+      zipkin: { enabled: false }
+      metrics: { enabled: true }
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 384Mi }
+    alternateConfig:
+      extensions:
+        health_check:
+          endpoint: 0.0.0.0:13133
+        file_storage:
+          directory: /var/lib/otel-collector
+
+      receivers:
+        prometheus:
+          config:
+            global:
+              scrape_interval: 30s
+            scrape_configs:
+              # Pods annotated prometheus.io/scrape (Flux, cert-manager, Gatus, CrowdSec,
+              # node-exporter, Cilium...). job = app.kubernetes.io/name, else "app".
+              - job_name: pods
+                kubernetes_sd_configs:
+                  - role: pod
+                    selectors:
+                      - { role: pod, field: "spec.nodeName=${env:K8S_NODE_NAME}" }
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                    regex: "true"
+                    action: keep
+                  # kube-state-metrics has its own job (honor_labels), below.
+                  - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+                    regex: kube-state-metrics
+                    action: drop
+                  - source_labels: [__meta_kubernetes_pod_phase]
+                    regex: Running
+                    action: keep
+                  - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                    regex: '([^:]+)(?::\d+)?;(\d+)'
+                    replacement: "$$1:$$2"
+                    target_label: __address__
+                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                    regex: "(.+)"
+                    target_label: __metrics_path__
+                  - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_app]
+                    regex: "([^;]+);.*|;(.+)"
+                    replacement: "$$1$$2"
+                    target_label: job
+                  - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+                  - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+                  - { source_labels: [__meta_kubernetes_pod_node_name], target_label: node }
+              # CoreDNS only annotates its Service: scrape its pods directly.
+              - job_name: coredns
+                kubernetes_sd_configs:
+                  - role: pod
+                    selectors:
+                      - { role: pod, field: "spec.nodeName=${env:K8S_NODE_NAME}" }
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+                    regex: kube-dns
+                    action: keep
+                  - source_labels: [__address__]
+                    regex: '([^:]+)(?::\d+)?'
+                    replacement: "$$1:9153"
+                    target_label: __address__
+                  - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+              # Hubble (Cilium agents, host network): flow metrics on 9965.
+              - job_name: hubble
+                kubernetes_sd_configs:
+                  - role: pod
+                    selectors:
+                      - { role: pod, field: "spec.nodeName=${env:K8S_NODE_NAME}" }
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+                    regex: cilium
+                    action: keep
+                  - source_labels: [__meta_kubernetes_pod_container_port_number]
+                    regex: "9965"
+                    action: keep
+                  - { source_labels: [__meta_kubernetes_pod_node_name], target_label: node }
+              # cilium-envoy (host network): the Gateways' HTTP statistics on 9964.
+              - job_name: cilium-envoy
+                kubernetes_sd_configs:
+                  - role: pod
+                    selectors:
+                      - { role: pod, field: "spec.nodeName=${env:K8S_NODE_NAME}" }
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+                    regex: cilium-envoy
+                    action: keep
+                  - source_labels: [__meta_kubernetes_pod_container_port_number]
+                    regex: "9964"
+                    action: keep
+                  - { source_labels: [__meta_kubernetes_pod_node_name], target_label: node }
+              # kube-state-metrics describes OTHER pods: their namespace/pod labels win over
+              # the scrape target's.
+              - job_name: kube-state-metrics
+                honor_labels: true
+                kubernetes_sd_configs:
+                  - role: pod
+                    selectors:
+                      - { role: pod, field: "spec.nodeName=${env:K8S_NODE_NAME}" }
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+                    regex: kube-state-metrics
+                    action: keep
+                  - source_labels: [__meta_kubernetes_pod_container_port_number]
+                    regex: "8080"
+                    action: keep
+              - job_name: kubelet
+                scheme: https
+                authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
+                tls_config: { insecure_skip_verify: true }   # k3s's kubelet certificate is self-signed
+                kubernetes_sd_configs:
+                  - role: node
+                    selectors:
+                      - { role: node, field: "metadata.name=${env:K8S_NODE_NAME}" }
+                # On the k3s server this endpoint also serves the API server's and etcd's
+                # metrics (one process): ~68k series, mostly histogram buckets. Drop those
+                # buckets; _sum, _count and _total stay.
+                metric_relabel_configs:
+                  - source_labels: [__name__]
+                    regex: "(apiserver|etcd|workqueue)_.*_bucket"
+                    action: drop
+              - job_name: cadvisor
+                scheme: https
+                metrics_path: /metrics/cadvisor
+                authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
+                tls_config: { insecure_skip_verify: true }
+                kubernetes_sd_configs:
+                  - role: node
+                    selectors:
+                      - { role: node, field: "metadata.name=${env:K8S_NODE_NAME}" }
+
+        filelog:
+          include: [/var/log/pods/*/*/*.log]
+          start_at: end
+          include_file_path: true
+          storage: file_storage
+          operators:
+            - type: container      # CRI format; namespace, pod, container from the path
+
+      processors:
+        memory_limiter:
+          check_interval: 5s
+          limit_percentage: 80
+          spike_limit_percentage: 25
+        batch: {}
+        # The receiver puts job and instance on the resource; VictoriaMetrics would turn every
+        # resource attribute into a label with a dotted name. Keep the Prometheus labels.
+        transform/prometheus:
+          metric_statements:
+            - context: datapoint
+              statements:
+                - set(attributes["job"], resource.attributes["service.name"])
+                - set(attributes["instance"], resource.attributes["service.instance.id"])
+                - set(attributes["cluster"], "${env:CLUSTER_NAME}")
+            - context: resource
+              statements:
+                - keep_keys(attributes, [])
+        k8sattributes:
+          filter:
+            node_from_env_var: K8S_NODE_NAME
+          pod_association:
+            - sources: [{ from: resource_attribute, name: k8s.pod.uid }]
+          extract:
+            metadata: []
+            labels:
+              - { tag_name: app, key: app.kubernetes.io/name, from: pod }
+        # Log fields as before: namespace, pod, container, app, node, cluster.
+        transform/logs:
+          log_statements:
+            - context: resource
+              statements:
+                - set(attributes["namespace"], attributes["k8s.namespace.name"])
+                - set(attributes["pod"], attributes["k8s.pod.name"])
+                - set(attributes["container"], attributes["k8s.container.name"])
+                - set(attributes["node"], "${env:K8S_NODE_NAME}")
+                - set(attributes["cluster"], "${env:CLUSTER_NAME}")
+                - keep_keys(attributes, ["namespace", "pod", "container", "app", "node", "cluster"])
+
+      exporters:
+        otlphttp/victoriametrics:
+          metrics_endpoint: http://${env:MONITORING_ADDRESS}:8428/opentelemetry/v1/metrics
+          compression: gzip
+        otlphttp/victorialogs:
+          logs_endpoint: http://${env:MONITORING_ADDRESS}:9428/insert/opentelemetry/v1/logs
+          compression: gzip
+          headers:
+            VL-Stream-Fields: namespace,pod,container
+
+      service:
+        extensions: [health_check, file_storage]
+        telemetry:
+          metrics:
+            readers:
+              - pull:
+                  exporter:
+                    prometheus: { host: 0.0.0.0, port: 8888 }
+        pipelines:
+          metrics:
+            receivers: [prometheus]
+            processors: [memory_limiter, transform/prometheus, batch]
+            exporters: [otlphttp/victoriametrics]
+          logs:
+            receivers: [filelog]
+            processors: [memory_limiter, k8sattributes, transform/logs, batch]
+            exporters: [otlphttp/victorialogs]

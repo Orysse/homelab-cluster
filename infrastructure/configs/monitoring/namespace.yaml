@@ -1,7 +1,7 @@
-# Collectors only: the backends (VictoriaMetrics, VictoriaLogs, Grafana) run on the
+# Collectors and Grafana; the backends (VictoriaMetrics, VictoriaLogs, vmalert) run on the
 # monitoring host, below the cluster (homelab-nix modules/host/monitoring.nix).
-# privileged: node-exporter needs the host's network, PIDs and filesystem; Alloy reads
-# /var/log/pods.
+# privileged: node-exporter needs the host's network, PIDs and filesystem; the OpenTelemetry
+# Collector reads /var/log/pods.
 ---
 apiVersion: v1
 kind: Namespace

@@ -12,7 +12,7 @@ spec:
   ingress:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }   # the front page reads the state
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:

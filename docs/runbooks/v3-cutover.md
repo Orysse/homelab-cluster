@@ -90,7 +90,10 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 3. Check the Gateway API CRDs came from the k3s manifest:
    `kubectl get crd gateways.gateway.networking.k8s.io -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}'` prints `v1.5.1`.
 4. The FluxInstance reconciles `infra-controllers`, then `infra-configs`, then `apps`:
-   `flux get kustomizations -w`.
+   `flux get kustomizations -w`. Until OpenBao is seeded (Step 4) expect `apps` health
+   timeouts and a CNPG import Pod waiting on its `nuc1-import` Secret: both clear by
+   themselves once the secrets are in. Check the cilium-operator log for TLSRoute
+   (`kubectl -n kube-system logs deploy/cilium-operator | grep -i tlsroute`).
 
 ## Step 4: seed OpenBao (right after it reports unsealed)
 
@@ -119,7 +122,7 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
    found nothing); the import replaced them with v2's. Make every consumer read again,
    then restart the three apps that cache them:
    ```sh
-   kubectl get externalsecret -A -o json | jq -r '.items[] | "\(.metadata.namespace) \(.metadata.name)"' |
+   kubectl get externalsecret -A -o json | jq -r '.items[] | select(.spec.dataFrom[0].sourceRef.generatorRef == null) | "\(.metadata.namespace) \(.metadata.name)"' |
      while read ns n; do kubectl -n $ns annotate externalsecret $n force-sync=$(date +%s) --overwrite; done
    kubectl -n pocket-id rollout restart deploy
    kubectl -n headscale rollout restart deploy/headscale
@@ -137,7 +140,10 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 5. Pocket-ID operator (ADR 0004, first live run): `kubectl get pocketidinstance -A`,
    `kubectl get pocketidoidcclient -A` all Ready; each app namespace has its
    `*-oidc-credentials` (or renamed) Secret. The `sso-config` Job in `openbao` completes.
-   If the operator fails here: fallback in ADR 0004.
+   The imported Pocket-ID database already holds the groups `admins` and `visitors`:
+   check in its UI that there is still one of each, with the owner as a member of
+   `admins` (a duplicate or an empty group locks the owner out of kubectl, OpenBao and
+   Grafana: break-glass, ADR 0005). If the operator fails here: fallback in ADR 0004.
 
 ## Step 5: verify, from outside
 
@@ -191,9 +197,13 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 
 1. Stop the three VMs.
 2. Put v2 back: `k3s-data.img.v2-backup` -> `k3s-data.img` on each node (remove the v3
-   image first), and `/srv/data/v2-backup-openbao_data-openbao-0` -> `/srv/data/openbao_data-openbao-0`.
-3. Deploy homelab-nix `main` (v2). Do not push homelab-cluster `main`, or reset it to the
-   pre-merge commit and push.
+   image first). Move v3's OpenBao volume away first (`mv /srv/data/openbao_data-openbao-0
+   /srv/data/v3-openbao_data-openbao-0`), or the next `mv` would nest v2's inside it; then
+   `/srv/data/v2-backup-openbao_data-openbao-0` -> `/srv/data/openbao_data-openbao-0`.
+3. Force-push the pre-merge `main` of homelab-cluster **before** any VM starts (Step 2
+   pushed v3 there: v2's Flux would apply it and prune v2's objects):
+   `git push --force-with-lease origin <pre-merge commit>:main`. Then deploy
+   homelab-nix `main` (v2) and start the VMs.
 4. nuc1's PostgreSQL was only read: v2's data is intact. Drop the import user:
    `nuc1$ sudo -u postgres psql -c 'DROP ROLE cnpg_import'`.
 

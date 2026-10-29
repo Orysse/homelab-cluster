@@ -53,7 +53,7 @@ spec:
         host: 192.168.1.200
         user: cnpg_import
         dbname: postgres
-        sslmode: disable
+        sslmode: prefer             # TLS if nuc1 offers it
       password: { name: nuc1-import, key: password }
 ---
 # The temporary superuser on nuc1 the import logs in with (runbook), kept in OpenBao at

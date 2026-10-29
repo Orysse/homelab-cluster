@@ -31,3 +31,17 @@ spec:
     # The Gateways (status checks of every site): Cilium hands the connection to Envoy.
     - toEntities: [ingress]
       toPorts: [{ ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }] }]
+    # The internal tools' checks go through the internal Gateway, and Cilium evaluates the
+    # request from the original client (Gatus) to the backend too: the backends' ports.
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: grafana }
+      toPorts: [{ ports: [{ port: "3000", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: openbao, app.kubernetes.io/name: openbao }
+      toPorts: [{ ports: [{ port: "8200", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: oauth2-proxy, app.kubernetes.io/name: oauth2-proxy }
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]

@@ -63,7 +63,7 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - { name: files, mountPath: /public }
+            - { name: files, mountPath: /public/index.txt, subPath: index.txt, readOnly: true }   # a subPath: a whole ConfigMap mount is hidden symlinks, which the server refuses
       volumes:
         - name: files
           configMap:

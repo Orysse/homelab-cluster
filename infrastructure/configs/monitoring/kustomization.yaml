@@ -8,7 +8,6 @@ resources:
   - grafana-secrets.yaml
   - grafana.yaml
   - grafana-route.yaml
-  - hubble.yaml
 # Our dashboards (Grafana: dashboardsConfigMaps). Their queries are full of $__timeFilter:
 # Flux must not substitute them. Fixed names: the chart refers to them.
 # Each <name>.json is generated from <name>.jq (jq -n -f <name>.jq > <name>.json).

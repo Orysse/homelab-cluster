@@ -1,5 +1,5 @@
-# oauth2-proxy: reached by Traefik only; reaches DNS and Pocket-ID (auth.${DOMAIN}, through
-# the public address).
+# oauth2-proxy: reached through the internal Gateway; reaches DNS, Pocket-ID (auth.${DOMAIN},
+# through the public Gateway) and Hubble UI.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,8 +10,7 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]
       toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
   egress:
     - toEndpoints:
@@ -22,3 +21,8 @@ spec:
     - toFQDNs:
         - matchName: auth.${DOMAIN}
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # the same, once Cilium hands the connection to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: hubble-ui }
+      toPorts: [{ ports: [{ port: "8081", protocol: TCP }] }]

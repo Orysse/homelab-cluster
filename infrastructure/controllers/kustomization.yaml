@@ -6,3 +6,4 @@ resources:
   - csi-driver-nfs.yaml
   - local-path-provisioner.yaml
   - cloudnative-pg.yaml
+  - pocket-id-operator.yaml

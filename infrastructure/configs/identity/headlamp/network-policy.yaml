@@ -1,5 +1,5 @@
-# Headlamp: reached by Traefik only; reaches the API server (with the user's token) and
-# Pocket-ID (auth.${DOMAIN}, through the public address).
+# Headlamp: reached through the public Gateway; reaches the API server (with the user's
+# token) and Pocket-ID (auth.${DOMAIN}, through the public Gateway).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,8 +10,7 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]
       toPorts: [{ ports: [{ port: "4466", protocol: TCP }] }]
   egress:
     - toEndpoints:
@@ -21,5 +20,8 @@ spec:
           rules: { dns: [{ matchPattern: "*" }] }
     - toEntities: [kube-apiserver]
       toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
-    - toEntities: [world]
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

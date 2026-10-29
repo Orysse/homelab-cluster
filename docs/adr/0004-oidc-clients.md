@@ -1,6 +1,6 @@
 # ADR 0004: OIDC clients declared in git
 
-Status: draft (2026-10-29). Finalized in Task 17.
+Status: accepted (2026-10-29). Tried live at cutover.
 
 ## Context
 
@@ -31,23 +31,28 @@ a new secret.
 Risks: a young project, with code partly AI-written (the author says so). It supports only
 Pocket-ID `>=2.14 <3.0`: outside that range the operator exits and crash-loops, so
 Renovate must not bump Pocket-ID to 3.x without the operator. It deploys Pocket-ID itself,
-so the Pocket-ID Deployment becomes a `PocketIDInstance`.
+so the Pocket-ID Deployment becomes a `PocketIDInstance`. (It can also adopt an existing
+Pocket-ID through `spec.external`; this ADR first said it could not.)
 
 ## Decision: go
 
-- Pocket-ID is deployed through a `PocketIDInstance`, database on CNPG (`spec.databaseUrl`;
-  how to pass it from a Secret is checked in Task 17).
-- Each app declares its `PocketIDOIDCClient` in its own namespace, next to its
-  Deployment. The app reads the credentials Secret directly, with no copy through OpenBao.
-  This is the operator's natural flow; checking that the Secret lands in the client's
-  namespace is Task 17's first check.
-- `kubernetes` (public) and `headlamp` are adopted with their current `clientID`, so the
-  homelab-nix topology does not change. The other clients are adopted by name. Their
+- Pocket-ID is deployed through a `PocketIDInstance` (`identity/pocket-id`), with typed
+  settings (SMTP, email notifications, sign-ups, UI) instead of environment variables, its
+  database on CNPG (`databaseUrl.valueFrom`, from `kv/apps/pocket-id/db`) and its
+  encryption key generated in the cluster and kept in OpenBao (ADR 0005). Stateless: files
+  in the database. The operator creates its HTTPRoute.
+- Each app declares its `PocketIDOIDCClient` in its own namespace, next to its Deployment,
+  and mounts the Secret the operator writes there. No copy through OpenBao. Where a chart
+  expects other key names (Headlamp), `spec.secret.keys` renames them.
+- `kubernetes` (kubectl, public) and `headlamp` are adopted with their current `clientID`,
+  so the homelab-nix topology does not change. The others are adopted by name; their
   secrets change at cutover, which does not matter since the apps read the new Secret.
-- The `admins` and `visitors` groups become `PocketIDUserGroup`s. Users and their passkeys
-  stay managed by people, not by git.
+- OpenBao's client: the Secret is read by the `sso-config` Job, not by OpenBao's
+  self-initialization (ADR 0005).
+- `admins` and `visitors` are `PocketIDUserGroup`s; clients list them in
+  `allowedUserGroups`. Members and their passkeys stay managed by people, not by git.
+- Renovate holds Pocket-ID below 3.0 (`renovate.json`).
 
-The live trial (plan Step 2) did not run: the operator wants its own instance, so it
-cannot be tried against v2's Pocket-ID without migrating it. It is tried at cutover.
-Fallback if it fails then: Pocket-ID as a plain Deployment, clients created in the UI,
-credentials in `kv/apps/<ns>/oidc` (the v2 flow).
+Fallback if the operator fails at cutover: Pocket-ID as a plain Deployment, clients created
+in the UI, credentials in `kv/apps/<ns>/oidc` (the v2 flow), or `spec.external` to keep the
+client objects against a hand-run Pocket-ID.

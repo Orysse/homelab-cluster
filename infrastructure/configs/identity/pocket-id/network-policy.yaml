@@ -1,5 +1,6 @@
-# Pocket-ID: reached by Traefik only (every client, in or out of the cluster, comes through
-# auth.${DOMAIN}); reaches DNS, its PostgreSQL and the SMTP server (invitations).
+# Pocket-ID: reached through the public Gateway only (every client, in or out of the
+# cluster, comes through auth.${DOMAIN}), by its operator (API) and by the metrics
+# collector; reaches DNS, its PostgreSQL and the SMTP server (invitations).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,16 +11,22 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]
       toPorts: [{ ports: [{ port: "1411", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: pocket-id-operator }
+      toPorts: [{ ports: [{ port: "1411", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring }
+      toPorts: [{ ports: [{ port: "9464", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
       toPorts:
         - ports: [{ port: "53", protocol: ANY }]
           rules: { dns: [{ matchPattern: "*" }] }
-    - toCIDR: ["${DATABASE_ADDRESS}/32"]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "587", protocol: TCP }] }]

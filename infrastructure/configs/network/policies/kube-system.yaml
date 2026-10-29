@@ -70,7 +70,7 @@ spec:
     - toEntities: [host, remote-node]
       toPorts: [{ ports: [{ port: "4244", protocol: TCP }] }]
 ---
-# Hubble UI: reached through the internal Gateway (hubble.int), reads the relay and the API
+# Hubble UI: reached only through oauth2-proxy (hubble.int, admins), reads the relay and the API
 # server.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -82,7 +82,8 @@ spec:
     matchLabels: { k8s-app: hubble-ui }
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEntities: [ingress]         # Cilium's Envoy, serving the Gateways
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: oauth2-proxy, app.kubernetes.io/name: oauth2-proxy }
       toPorts: [{ ports: [{ port: "8081", protocol: TCP }] }]
   egress:
     - toEndpoints:

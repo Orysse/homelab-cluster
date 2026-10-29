@@ -1,7 +1,9 @@
-# Pocket-ID at auth.${DOMAIN}: the homelab's identity provider (passkeys, OIDC).
-# Everything is configured here (UI_CONFIG_DISABLED): the admin UI manages users, groups
-# and OIDC clients, not settings. Users get an invitation email from homelab@${DOMAIN}.
-# State (users, passkeys, clients) in PostgreSQL on the database host (homelab-nix).
+# Pocket-ID at auth.${DOMAIN}: the homelab's identity provider (passkeys, OIDC). Run by the
+# Pocket-ID operator from the PocketIDInstance below (ADR 0004): settings are here, the
+# admin UI manages users and passkeys only. OIDC clients are PocketIDOIDCClient objects in
+# each app's namespace; groups are below. Users get an invitation email from
+# homelab@${DOMAIN}. Stateless pod: everything, uploads included, lives in PostgreSQL
+# (CloudNativePG, database pocket-id).
 ---
 apiVersion: v1
 kind: Namespace
@@ -11,131 +13,79 @@ metadata:
     gateway-access: public
     pod-security.kubernetes.io/enforce: restricted
 ---
-# The namespace's default account: pods that do not name one get no API token.
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: default
-  namespace: pocket-id
-automountServiceAccountToken: false
----
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDInstance
 metadata:
   name: pocket-id
   namespace: pocket-id
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate                # one instance at a time (no shared state between replicas)
-  revisionHistoryLimit: 3
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: pocket-id
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: pocket-id
-    spec:
-      automountServiceAccountToken: false
-      enableServiceLinks: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65532
-        runAsGroup: 65532
-        fsGroup: 65532
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: pocket-id
-          image: ghcr.io/pocket-id/pocket-id:v2.18.0-distroless
-          # Secrets (from OpenBao) read from files where Pocket-ID allows it, so they are not in
-          # its environment; SMTP_PASSWORD has no _FILE variant.
-          env:
-            - { name: ENCRYPTION_KEY_FILE, value: /secrets/app/ENCRYPTION_KEY }
-            - { name: DB_CONNECTION_STRING_FILE, value: /secrets/db/DB_CONNECTION_STRING }
-            - name: SMTP_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: pocket-id, key: SMTP_PASSWORD }
-            - { name: APP_URL, value: "https://auth.${DOMAIN}" }
-            - { name: TRUST_PROXY, value: "10.42.0.0/16" }   # Traefik, from the pod network
-            - { name: UI_CONFIG_DISABLED, value: "true" }
-            - { name: FILE_BACKEND, value: database }          # uploads in PostgreSQL too: stateless pod
-            - { name: APP_NAME, value: "${DOMAIN}" }
-            - { name: SESSION_DURATION, value: "480" }       # minutes
-            - { name: ALLOW_USER_SIGNUPS, value: "disabled" } # admins create users and invite them
-            - { name: ANALYTICS_DISABLED, value: "true" }
-            - { name: VERSION_CHECK_DISABLED, value: "true" } # Renovate handles updates
-            - { name: SMTP_HOST, value: smtp-relay.brevo.com }
-            - { name: SMTP_PORT, value: "587" }
-            - { name: SMTP_TLS, value: starttls }
-            - { name: SMTP_USER, value: "bfaade001@smtp-brevo.com" }   # Brevo SMTP login
-            - { name: SMTP_FROM, value: "homelab@${DOMAIN}" }
-            # Invitations / login links sent by an admin (new user, lost device).
-            - { name: EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED, value: "true" }
-            # Fallback for people without a usable passkey: a code by email. Their
-            # account is then only as safe as their mailbox.
-            - { name: EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED, value: "true" }
-            - { name: EMAIL_LOGIN_NOTIFICATION_ENABLED, value: "true" }
-          ports:
-            - { name: http, containerPort: 1411 }
-          readinessProbe:
-            httpGet: { path: /healthz, port: http }
-          livenessProbe:
-            httpGet: { path: /healthz, port: http }
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 20m, memory: 64Mi }
-            limits: { memory: 256Mi }
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: ["ALL"]
-          volumeMounts:
-            - { name: data, mountPath: /app/data }   # scratch only, everything lives in PostgreSQL
-            - { name: tmp, mountPath: /tmp }
-            - { name: secrets-app, mountPath: /secrets/app, readOnly: true }
-            - { name: secrets-db, mountPath: /secrets/db, readOnly: true }
-      volumes:
-        - name: data
-          emptyDir:
-            sizeLimit: 64Mi
-        - name: tmp
-          emptyDir:
-            sizeLimit: 64Mi
-        - name: secrets-app
-          secret:
-            secretName: pocket-id
-            items: [{ key: ENCRYPTION_KEY, path: ENCRYPTION_KEY }]
-        - name: secrets-db
-          secret:
-            secretName: pocket-id-db
+  image: ghcr.io/pocket-id/pocket-id:v2.18.0-distroless
+  appUrl: https://auth.${DOMAIN}
+  encryptionKey:
+    valueFrom:
+      secretKeyRef: { name: pocket-id, key: ENCRYPTION_KEY }
+  databaseUrl:
+    valueFrom:
+      secretKeyRef: { name: pocket-id-db, key: url }
+  fileBackend: database
+  persistence:
+    enabled: false
+  trustedProxies:
+    enabled: true
+    cidrs: ["10.42.0.0/16"]       # Cilium's Envoy reaches the pod from the pod network
+  route:
+    enabled: true
+    hostnames: ["auth.${DOMAIN}"]
+    parentRefs:
+      - { name: public, namespace: gateway, sectionName: https }
+  ui:
+    appName: ${DOMAIN}
+    sessionDuration: 480          # minutes
+  userManagement:
+    allowUserSignups: disabled    # admins create users and invite them
+  smtp:
+    host: smtp-relay.brevo.com
+    port: 587
+    tls: starttls
+    user: bfaade001@smtp-brevo.com      # Brevo SMTP login
+    from: homelab@${DOMAIN}
+    password:
+      valueFrom:
+        secretKeyRef: { name: pocket-id, key: SMTP_PASSWORD }
+  emailNotifications:
+    oneTimeAccessAsAdmin: true    # invitations and login links sent by an admin
+    # Fallback for people without a usable passkey: a code by email. Their account is
+    # then only as safe as their mailbox.
+    oneTimeAccessAsUnauthenticated: true
+    loginNotification: true
+  analyticsDisabled: true
+  versionCheckDisabled: true      # Renovate handles updates
+  metrics:
+    enabled: true
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    seccompProfile: { type: RuntimeDefault }
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities: { drop: [ALL] }
 ---
-apiVersion: v1
-kind: Service
+# Groups. Membership is managed in Pocket-ID's UI (people, not git).
+#   admins    cluster-admin (oidc-rbac.yaml), OpenBao admin, Grafana admin, Headscale exit node
+#   visitors  read-only on the cluster
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDUserGroup
 metadata:
-  name: pocket-id
+  name: admins
   namespace: pocket-id
-spec:
-  selector:
-    app.kubernetes.io/name: pocket-id
-  ports:
-    - { name: http, port: 80, targetPort: http }
 ---
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDUserGroup
 metadata:
-  name: pocket-id
+  name: visitors
   namespace: pocket-id
-spec:
-  parentRefs:
-    - name: public
-      namespace: kube-system
-      sectionName: https
-  hostnames:
-    - auth.${DOMAIN}
-  rules:
-    - backendRefs:
-        - name: pocket-id
-          port: 80

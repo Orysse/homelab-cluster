@@ -1,6 +1,8 @@
 # Kubernetes rights of people logging in through Pocket-ID (API server config: homelab-nix
-# modules/k3s/node.nix, users and groups prefixed "oidc:").
+# modules/k3s/node.nix, users and groups prefixed "oidc:", audiences in its topology).
 # Pocket-ID group "admins": cluster-admin; "visitors": view (below).
+# The OIDC client kubectl uses (kubelogin) is declared here too; its id is pinned because the
+# API server trusts it by id.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -39,6 +41,25 @@ metadata:
   labels:
     rbac.authorization.k8s.io/aggregate-to-view: "true"
 rules:
-  - apiGroups: [cilium.io, gateway.networking.k8s.io, traefik.io, metallb.io]
+  - apiGroups: [cilium.io, gateway.networking.k8s.io]
     resources: ["*"]
     verbs: [get, list, watch]
+---
+# kubectl's client (kubelogin): public, PKCE, no secret. Adopted from v2 by its id.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: kubernetes
+  namespace: pocket-id
+spec:
+  clientID: 46031658-1b1a-4d3b-8bfa-82dfaf67d4c4
+  isPublic: true
+  pkceEnabled: true
+  callbackUrls:
+    - http://localhost:8000
+    - http://localhost:18000
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+    - { name: visitors, namespace: pocket-id }
+  secret:
+    enabled: false

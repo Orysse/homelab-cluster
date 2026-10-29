@@ -126,7 +126,7 @@ Status page: https://status.abe.lc. Gateway access log: Grafana, dashboard Rése
 kubectl cnpg status -n postgres main                 # PostgreSQL: health, backups, WAL archiving
 kubectl -n postgres get backups                       # nightly base backups to Garage
 kubectl get pocketidoidcclient -A                     # OIDC clients (Pocket-ID operator)
-kubectl get ciliumcidrgroups -l crowdsec.net/banned=true   # bans, written by the bouncer
+ssh nuc1 nft list set ip crowdsec crowdsec-blacklists | head   # bans, as the host enforces them
 kubectl -n kube-system logs ds/cilium-envoy | tail    # the Gateways' access log
 kubectl -n openbao get job sso-config                 # OpenBao's Pocket-ID login settings
 ```

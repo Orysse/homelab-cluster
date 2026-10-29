@@ -1,7 +1,7 @@
 # Source of network.json (Grafana dashboard "Réseau"). Regenerate after editing:
 #   jq -n -f network.jq > network.json
 # The Gateways (Cilium's Envoy), the flows Hubble sees, and the scanners CrowdSec bans
-# (crowdsec-cilium-bouncer, ADR 0003). The last panel reads the Gateways' access log.
+# (firewall bouncer on the hosts, ADR 0003). The last panel reads the Gateways' access log.
 def ds: {type: "prometheus", uid: "victoriametrics"};
 def logs: {type: "victoriametrics-logs-datasource", uid: "victorialogs"};
 def pos(x; y; w; h): {x: x, y: y, w: w, h: h};
@@ -29,20 +29,20 @@ def ts(t; x; y; w; unit; targets): {
       "sum(rate(envoy_http_downstream_rq_xx{envoy_response_code_class=\"5\"}[5m])) / sum(rate(envoy_http_downstream_rq_total[5m]))";
       "Part des réponses en 5xx sur 5 minutes."),
     stat("Connexions ouvertes"; 12; 1; "#18b39b"; "none"; "sum(envoy_http_downstream_cx_active)"; ""),
-    stat("Paquets rejetés / s"; 18; 1; "#ff7a1a"; "pps"; "sum(rate(hubble_drop_total[5m]))"; "Par les politiques réseau et le ban."),
+    stat("Paquets rejetés / s"; 18; 1; "#ff7a1a"; "pps"; "sum(rate(hubble_drop_total[5m]))"; "Par les politiques réseau du cluster (les bans sont jetés plus tôt, sur les hôtes)."),
     ts("Réponses par classe"; 0; 5; 12; "reqps"; [
       ["A", "sum by (envoy_response_code_class) (rate(envoy_http_downstream_rq_xx[5m]))", "{{envoy_response_code_class}}xx"]]),
     ts("Rejets par raison"; 12; 5; 12; "pps"; [
       ["A", "sum by (reason) (rate(hubble_drop_total[5m]))", "{{reason}}"]]),
 
     row("Scanners bannis"; 13),
-    stat("Adresses bannies"; 0; 14; "#e2135f"; "none"; "max(bouncer_banned_prefixes)"; "Préfixes dans les CiliumCIDRGroups."),
-    stat("Groupes"; 6; 14; "#7b2ff7"; "none"; "max(bouncer_groups)"; "CiliumCIDRGroups écrits par le bouncer."),
-    stat("Synchros en échec (24 h)"; 12; 14; "#ffcf5a"; "none"; "sum(increase(bouncer_sync_errors_total[24h])) or vector(0)";
-      "LAPI injoignable : les bans restent en place."),
+    stat("Adresses bannies"; 0; 14; "#e2135f"; "none"; "sum(fw_bouncer_banned_ips)"; "Dans les sets nftables des hôtes (bouncer pare-feu)."),
+    stat("Paquets rejetés (24 h)"; 6; 14; "#7b2ff7"; "none"; "sum(increase(fw_bouncer_dropped_packets[24h]))"; "Paquets d'adresses bannies, jetés par le noyau des hôtes."),
+    stat("Bouncer joignable"; 12; 14; "#ffcf5a"; "none"; "min(up{job=\"crowdsec-firewall-bouncer\"})";
+      "1 : le bouncer des hôtes répond. Si le LAPI est injoignable, les bans restent jusqu'à leur expiration."),
     stat("Décisions locales"; 18; 14; "#ff4fb0"; "none"; "sum(cs_active_decisions{origin=\"crowdsec\"}) or vector(0)";
       "Bans décidés à partir des logs de ce cluster (hors liste communautaire)."),
-    ts("Adresses bannies"; 0; 18; 12; "none"; [["A", "max(bouncer_banned_prefixes)", "bannies"]]),
+    ts("Adresses bannies"; 0; 18; 12; "none"; [["A", "sum(fw_bouncer_banned_ips)", "bannies"]]),
     ts("Alertes CrowdSec par scénario"; 12; 18; 12; "none"; [
       ["A", "sum by (reason) (increase(cs_alerts[1h]))", "{{reason}}"]]),
 

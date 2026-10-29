@@ -1,0 +1,15 @@
+# The key the hosts' firewall bouncer authenticates with. Written by a person in two places:
+# sops on the hosts (homelab-nix secrets/nuc1.yaml, crowdsec-bouncer-key) and OpenBao
+# (kv/apps/crowdsec/bouncer, key), from where the LAPI registers it at every start.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: bouncer
+  namespace: crowdsec
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target: { name: bouncer }
+  data:
+    - secretKey: key
+      remoteRef: { key: crowdsec/bouncer, property: key }

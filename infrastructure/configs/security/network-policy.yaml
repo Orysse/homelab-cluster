@@ -1,7 +1,8 @@
-# CrowdSec: the agents, the registration job and the bouncer talk to the LAPI; the LAPI and
-# the agents download the hub (parsers, scenarios) and the LAPI talks to CrowdSec's central
-# API (community blocklist), all over HTTPS. The bouncer and the registration job also
-# talk to the API server. The metrics collector scrapes 6060 (CrowdSec) and 9090 (bouncer).
+# CrowdSec: the agents and the registration job talk to the LAPI, and so do the hosts'
+# firewall bouncers, from outside the cluster (LAN address, not port-forwarded; the bouncer
+# key is required). The LAPI and the agents download the hub (parsers, scenarios) and the
+# LAPI talks to CrowdSec's central API (community blocklist), all over HTTPS. The
+# registration job also talks to the API server. The collector scrapes 6060.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -15,12 +16,13 @@ spec:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: crowdsec }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEntities: [world]          # the physical hosts' bouncers
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring }
       toPorts:
         - ports:
             - { port: "6060", protocol: TCP }
-            - { port: "9090", protocol: TCP }
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }

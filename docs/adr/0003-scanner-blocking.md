@@ -1,37 +1,16 @@
 # ADR 0003: Blocking scanners
 
-Status: accepted (2026-10-29). Enforcement point and list size measured after cutover.
+Status: accepted (2026-10-29), revised the same day: enforcement moved from a Cilium bouncer
+of our own to CrowdSec's firewall bouncer on the hosts.
 
 ## Context
 
 The goal is the effect: scanners and bots blocked. CrowdSec as such is not a requirement
 (spec, "Blocking scanners"). In v2, a Traefik plugin downloaded at start enforced the bans
-in the request path, and per-node agents read Traefik's log files.
+in the request path, and per-node agents read Traefik's log files. Traefik is gone in v3
+(ADR 0002).
 
-## Enforcement (Task 4): deferred
-
-The scale spike (30 000 CIDRs in `CiliumCIDRGroup`s, choice of the enforcement point) did
-not run before the cutover. It would load production Cilium agents, with about 1 GB free
-per node and swap in use on kube-3. It also needs a Gateway with an LB IP, which conflicts
-with MetalLB (ADR 0002, finding 2). It runs right after the cutover:
-
-- the two enforcement points to compare: a `CiliumClusterwideNetworkPolicy` with
-  `ingressDeny.fromCIDRSet[].cidrGroupSelector` on Gateway traffic, and the host firewall;
-- start with a trimmed list (local decisions plus one community list), then grow it while
-  measuring agent CPU, memory and update latency;
-- the bouncer keeps `CHUNK_SIZE` configurable, so no rebuild is needed whatever size is
-  chosen.
-
-## Bouncer (Task 5)
-
-No published CrowdSec bouncer writes `CiliumCIDRGroup`s or Cilium policies. The existing
-bouncers are the firewall bouncer (iptables/nftables on the host, outside Cilium's policy
-model) and in-proxy plugins (Traefik, Caddy, nginx), which put the ban back in the request
-path, which is an anti-goal. Decision: write a small controller,
-`tools/crowdsec-cilium-bouncer` (Task 8). It streams decisions from LAPI and syncs them
-into labelled `CiliumCIDRGroup`s. On error it keeps the existing groups (fail-static).
-
-## Detection source (Task 5)
+## Detection
 
 Cilium's Gateway can emit Envoy access logs, configured by a `CiliumGatewayClassConfig`
 (`spec.telemetry.accessLogs`, format `Text` or `JSON`, Envoy format operators plus
@@ -57,21 +36,38 @@ Conditions: `DOWNSTREAM_REMOTE_ADDRESS` must be the visitor's IP (ADR 0002, find
 retested from the Internet at cutover). The exact format string is checked against the
 Envoy version shipped with Cilium 1.20 (Task 18).
 
-## Decision (Task 18)
+## Enforcement
 
-- **Detection**: the `CiliumGatewayClassConfig` above, referenced by the GatewayClass
-  `cilium`, which homelab-cluster now declares itself (`network/gateways.yaml`; Cilium's
-  chart no longer creates it). CrowdSec agents read the `cilium-envoy` pods' logs with
-  `program: nginx` and the collections `crowdsecurity/nginx`, `base-http-scenarios`,
-  `http-cve`. Private ranges stay whitelisted.
-- **Bouncer**: `crowdsec-cilium-bouncer` (Task 8) in namespace `crowdsec`, with a
-  ClusterRole limited to `ciliumcidrgroups`. Its key is generated in the cluster: the LAPI
-  and the bouncer read the same Secret, and the LAPI registers the key at every start, so
-  it needs no copy in OpenBao.
-- **Enforcement (first shape)**: one `CiliumClusterwideNetworkPolicy` selecting Envoy's
-  endpoint (`reserved:ingress`) with `ingressDeny` from the groups labelled
-  `crowdsec.net/banned`: a banned address is dropped before Envoy parses anything, and a
-  deny wins over every allow. `enableDefaultDeny` is off, so the policy adds the deny and
-  nothing else. The post-cutover test (runbook) checks a ban from a LAN host, then grows
-  the list toward the community blocklist while watching agent memory, CPU and update
-  latency, and compares with the host firewall.
+**CrowdSec's own firewall bouncer, on the physical hosts** (homelab-nix
+`host/crowdsec-bouncer.nix`, packaged in nixpkgs). It pulls the decisions from the LAPI,
+exposed on a fixed LAN address (`${LAPI_ADDRESS}`, LoadBalancer, never port-forwarded),
+into nftables sets on the `input` and `forward` hooks. nuc1 bridges the VMs onto the LAN
+(`br0`), so every packet to the Gateways crosses its kernel; `br_netfilter` hands bridged
+packets to those hooks. A banned address is dropped before it reaches a VM.
+
+- nftables sets are hash sets: the community blocklist (tens of thousands of addresses)
+  costs the host a few megabytes, and the cluster nothing.
+- Decisions carry their expiry into the set: if the LAPI is down, bans stay until they
+  expire, and nothing lifts them early.
+- Its key is written by a person in two places: sops on the hosts, OpenBao for the LAPI.
+- Temporary place, by design: once the NUC7s are the workers, a firewall VM on nuc1 in
+  front of the cluster runs the same bouncer with the same configuration.
+
+## Rejected
+
+- **A bouncer of our own writing `CiliumCIDRGroup`s**, dropped by a clusterwide policy on
+  Envoy's endpoint. It was written and tested (first version of this ADR), then removed:
+  code to maintain alone, for a scale (tens of thousands of CIDRs in every Cilium agent, on
+  nodes with about 1 GB free) that was never proven, while the end state is a firewall VM
+  running the official bouncer anyway.
+- **Cilium's host firewall**: the same scale question, inside the agents.
+- **A bouncer in the request path** (Traefik plugin, Envoy ext_authz): every request pays
+  for it, and a down LAPI becomes a choice between failing open and failing closed.
+
+## Consequences
+
+- Traffic to Headscale's TLS passthrough listener is not in the access log (ADR 0002), so
+  CrowdSec does not see it; it is still dropped for banned addresses.
+- The LAPI keeps no volume: after it restarts, decisions come back from the community
+  list and from new detections; local bans issued before stay in the hosts' sets until
+  their expiry.

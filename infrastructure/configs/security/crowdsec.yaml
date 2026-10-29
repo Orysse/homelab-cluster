@@ -4,8 +4,9 @@
 #           Gateway's access log in nginx format (network/gateways.yaml)
 #   LAPI    holds the decisions (bans); no volume: decisions last 4 h and the hub data is
 #           downloaded again at start (SQLite on NFS would corrupt)
-# The bouncer (bouncer.yaml) turns the decisions into CiliumCIDRGroups; Cilium drops the
-# traffic before Envoy (deny-policy.yaml).
+# Enforcement is below the cluster: CrowdSec's firewall bouncer on the physical hosts pulls
+# the decisions from the LAPI and drops banned addresses in nftables (homelab-nix
+# host/crowdsec-bouncer.nix).
 # `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list` / `cscli alerts list`
 ---
 apiVersion: v1
@@ -27,9 +28,6 @@ kind: HelmRelease
 metadata:
   name: crowdsec
   namespace: crowdsec
-  annotations:
-    # ${REGISTRATION_TOKEN} below is for CrowdSec itself, not for Flux.
-    kustomize.toolkit.fluxcd.io/substitute: disabled
 spec:
   interval: 1h
   chart:
@@ -50,16 +48,24 @@ spec:
           server:
             auto_registration:   # agents register with the chart's token, from pod IPs only
               enabled: true
-              token: "${REGISTRATION_TOKEN}"
+              token: "$${REGISTRATION_TOKEN}"   # for CrowdSec, not Flux ($$ -> $)
               allowed_ranges: ["10.42.0.0/16"]
     lapi:
       persistentVolume:
         data: { enabled: false }
         config: { enabled: false }
-      # Registers the bouncer with this key at start (bouncer.yaml).
+      # Registers the hosts' firewall bouncer with this key at start (bouncer-key.yaml).
       env:
-        - name: BOUNCER_KEY_cilium
+        - name: BOUNCER_KEY_firewall
           valueFrom: { secretKeyRef: { name: bouncer, key: key } }
+      # Reachable from the physical hosts (their firewall bouncer, homelab-nix
+      # host/crowdsec-bouncer.nix) at a fixed LAN address, never port-forwarded. Local: the
+      # policy sees the host's own address.
+      service:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          lbipam.cilium.io/ips: "${LAPI_ADDRESS}"
       podAnnotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "6060"

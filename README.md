@@ -23,7 +23,7 @@ infrastructure/
    ├─ secrets/             OpenBao, the cluster secret store
    ├─ postgres/            the shared PostgreSQL cluster, its backups, one file per database
    ├─ identity/            Pocket-ID, oauth2-proxy, OIDC RBAC, Headlamp
-   ├─ security/            CrowdSec, its bouncer, the deny policy
+   ├─ security/            CrowdSec (detection; bans are enforced on the hosts)
    └─ monitoring/          OpenTelemetry Collector, exporters, Grafana and its dashboards
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
@@ -35,7 +35,6 @@ apps/                      one app = one directory, listed in apps/kustomization
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
 └─ open-webui/             chat UI for LLM APIs
 
-tools/crowdsec-cilium-bouncer/   CrowdSec decisions -> CiliumCIDRGroups (Go)
 docs/adr/                  architecture decisions
 docs/onboarding/           access, deploying an app, visitor tour (French); modele/ = app template
 ```
@@ -179,10 +178,10 @@ dashboards: overview, network, vulnerabilities, electricity (a software estimate
 
 ## Scanner blocking
 
-CrowdSec reads the Gateways' access log and the community blocklist; a small controller of
-ours, [crowdsec-cilium-bouncer](tools/crowdsec-cilium-bouncer/), writes the bans into
-`CiliumCIDRGroup`s, and one clusterwide policy drops their traffic before Envoy
-([ADR 0003](docs/adr/0003-scanner-blocking.md)). If CrowdSec is down, the bans stay.
+CrowdSec reads the Gateways' access log and the community blocklist. CrowdSec's own
+firewall bouncer, on the physical hosts (homelab-nix), pulls the bans from the LAPI into
+nftables and drops those addresses before they reach a VM; if CrowdSec is down, the bans
+stay until they expire ([ADR 0003](docs/adr/0003-scanner-blocking.md)).
 `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list`; unban:
 `cscli decisions delete --ip <ip>`. LAN, VPN and pods are whitelisted.
 

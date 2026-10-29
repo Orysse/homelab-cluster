@@ -181,7 +181,7 @@
     {
       "type": "stat",
       "title": "Paquets rejetés / s",
-      "description": "Par les politiques réseau et le ban.",
+      "description": "Par les politiques réseau du cluster (les bans sont jetés plus tôt, sur les hôtes).",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -337,7 +337,7 @@
     {
       "type": "stat",
       "title": "Adresses bannies",
-      "description": "Préfixes dans les CiliumCIDRGroups.",
+      "description": "Dans les sets nftables des hôtes (bouncer pare-feu).",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -378,7 +378,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "max(bouncer_banned_prefixes)",
+          "expr": "sum(fw_bouncer_banned_ips)",
           "instant": true,
           "range": false
         }
@@ -386,8 +386,8 @@
     },
     {
       "type": "stat",
-      "title": "Groupes",
-      "description": "CiliumCIDRGroups écrits par le bouncer.",
+      "title": "Paquets rejetés (24 h)",
+      "description": "Paquets d'adresses bannies, jetés par le noyau des hôtes.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -428,7 +428,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "max(bouncer_groups)",
+          "expr": "sum(increase(fw_bouncer_dropped_packets[24h]))",
           "instant": true,
           "range": false
         }
@@ -436,8 +436,8 @@
     },
     {
       "type": "stat",
-      "title": "Synchros en échec (24 h)",
-      "description": "LAPI injoignable : les bans restent en place.",
+      "title": "Bouncer joignable",
+      "description": "1 : le bouncer des hôtes répond. Si le LAPI est injoignable, les bans restent jusqu'à leur expiration.",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -478,7 +478,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "sum(increase(bouncer_sync_errors_total[24h])) or vector(0)",
+          "expr": "min(up{job=\"crowdsec-firewall-bouncer\"})",
           "instant": true,
           "range": false
         }
@@ -574,7 +574,7 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "max(bouncer_banned_prefixes)",
+          "expr": "sum(fw_bouncer_banned_ips)",
           "legendFormat": "bannies",
           "range": true,
           "instant": false

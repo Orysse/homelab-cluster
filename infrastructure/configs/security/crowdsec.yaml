@@ -1,9 +1,11 @@
-# CrowdSec: reads Traefik's access logs, detects scans and attacks (HTTP scenarios, known
-# CVE probes) and shares/receives the community blocklist.
-#   agents  one per node (DaemonSet), reading the Traefik pod's log files from /var/log
+# CrowdSec: reads the Gateway's access log, detects scans and attacks (HTTP scenarios, known
+# CVE probes) and shares/receives the community blocklist. ADR 0003.
+#   agents  one per node (DaemonSet), reading the cilium-envoy pod's log on that node: the
+#           Gateway's access log in nginx format (network/gateways.yaml)
 #   LAPI    holds the decisions (bans); no volume: decisions last 4 h and the hub data is
-#           downloaded again at start (SQLite on NFS would corrupt, see the topology)
-# Traefik's bouncer plugin enforces the decisions (traefik.yaml, middleware.yaml).
+#           downloaded again at start (SQLite on NFS would corrupt)
+# The bouncer (bouncer.yaml) turns the decisions into CiliumCIDRGroups; Cilium drops the
+# traffic before Envoy (deny-policy.yaml).
 # `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list` / `cscli alerts list`
 ---
 apiVersion: v1
@@ -54,9 +56,9 @@ spec:
       persistentVolume:
         data: { enabled: false }
         config: { enabled: false }
-      # Registers Traefik's bouncer with this key at start (bouncer-key.yaml).
+      # Registers the bouncer with this key at start (bouncer.yaml).
       env:
-        - name: BOUNCER_KEY_traefik
+        - name: BOUNCER_KEY_cilium
           valueFrom: { secretKeyRef: { name: bouncer, key: key } }
       podAnnotations:
         prometheus.io/scrape: "true"
@@ -67,12 +69,12 @@ spec:
     agent:
       acquisition:
         - namespace: kube-system
-          podName: traefik-*
-          program: traefik
+          podName: cilium-envoy-*
+          program: nginx
           poll_without_inotify: true   # the log is a symlink: inotify would miss rotations
       env:
         - name: COLLECTIONS
-          value: "crowdsecurity/traefik crowdsecurity/base-http-scenarios crowdsecurity/http-cve"
+          value: "crowdsecurity/nginx crowdsecurity/base-http-scenarios crowdsecurity/http-cve"
         # Private ranges (LAN, VPN, pods) are never banned.
         - name: PARSERS
           value: "crowdsecurity/whitelists"

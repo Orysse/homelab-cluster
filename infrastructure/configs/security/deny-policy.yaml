@@ -1,0 +1,19 @@
+# The ban: traffic from any banned address is dropped where it enters, before Cilium hands
+# it to Envoy (the Gateways' proxy, endpoint "reserved:ingress"). Deny rules win over every
+# allow rule. A deny-only policy: it does not turn default-deny on for what it selects.
+# Enforcement point and list size are measured right after the cutover (ADR 0003); the
+# host firewall is the other candidate.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: crowdsec-banned
+spec:
+  description: Drop traffic from addresses CrowdSec banned (crowdsec-cilium-bouncer)
+  endpointSelector:
+    matchExpressions:
+      - { key: reserved:ingress, operator: Exists }
+  enableDefaultDeny: { ingress: false, egress: false }
+  ingressDeny:
+    - fromCIDRSet:
+        - cidrGroupSelector:
+            matchLabels: { crowdsec.net/banned: "true" }

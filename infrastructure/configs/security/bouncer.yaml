@@ -1,0 +1,90 @@
+# crowdsec-cilium-bouncer (tools/crowdsec-cilium-bouncer): streams the LAPI's ban decisions
+# into CiliumCIDRGroups labelled crowdsec.net/banned, which deny-policy.yaml drops. If the
+# LAPI is unreachable, the groups keep their content: bans are never lifted by an outage.
+---
+# The key the bouncer authenticates with; the LAPI registers it at start (crowdsec.yaml,
+# BOUNCER_KEY_cilium). Both read this Secret, so it needs no copy elsewhere: generated once.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: bouncer
+  namespace: crowdsec
+spec:
+  refreshInterval: "0"
+  target:
+    name: bouncer
+    template:
+      data:
+        key: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crowdsec-cilium-bouncer
+  namespace: crowdsec
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crowdsec-cilium-bouncer
+rules:
+  - apiGroups: [cilium.io]
+    resources: [ciliumcidrgroups]
+    verbs: [get, list, watch, create, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crowdsec-cilium-bouncer
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: crowdsec-cilium-bouncer }
+subjects:
+  - { kind: ServiceAccount, name: crowdsec-cilium-bouncer, namespace: crowdsec }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowdsec-cilium-bouncer
+  namespace: crowdsec
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: crowdsec-cilium-bouncer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: crowdsec-cilium-bouncer
+    spec:
+      serviceAccountName: crowdsec-cilium-bouncer
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: bouncer
+          image: ghcr.io/orysse/crowdsec-cilium-bouncer:0.1.0
+          env:
+            - { name: CROWDSEC_LAPI_URL, value: http://crowdsec-service.crowdsec.svc.cluster.local:8080 }
+            - { name: CROWDSEC_BOUNCER_KEY_FILE, value: /secrets/key }
+            - { name: SYNC_INTERVAL, value: 30s }
+          ports:
+            - { name: metrics, containerPort: 9090 }
+          resources:
+            requests: { cpu: 5m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: key, mountPath: /secrets, readOnly: true }
+      volumes:
+        - name: key
+          secret: { secretName: bouncer }

@@ -1,6 +1,6 @@
 # ADR 0003: Blocking scanners
 
-Status: draft (2026-10-29). Finalized in Task 18.
+Status: accepted (2026-10-29). Enforcement point and list size measured after cutover.
 
 ## Context
 
@@ -56,3 +56,22 @@ over 7 days, below the 50m-per-node limit set in the plan.
 Conditions: `DOWNSTREAM_REMOTE_ADDRESS` must be the visitor's IP (ADR 0002, finding 4,
 retested from the Internet at cutover). The exact format string is checked against the
 Envoy version shipped with Cilium 1.20 (Task 18).
+
+## Decision (Task 18)
+
+- **Detection**: the `CiliumGatewayClassConfig` above, referenced by the GatewayClass
+  `cilium`, which homelab-cluster now declares itself (`network/gateways.yaml`; Cilium's
+  chart no longer creates it). CrowdSec agents read the `cilium-envoy` pods' logs with
+  `program: nginx` and the collections `crowdsecurity/nginx`, `base-http-scenarios`,
+  `http-cve`. Private ranges stay whitelisted.
+- **Bouncer**: `crowdsec-cilium-bouncer` (Task 8) in namespace `crowdsec`, with a
+  ClusterRole limited to `ciliumcidrgroups`. Its key is generated in the cluster: the LAPI
+  and the bouncer read the same Secret, and the LAPI registers the key at every start, so
+  it needs no copy in OpenBao.
+- **Enforcement (first shape)**: one `CiliumClusterwideNetworkPolicy` selecting Envoy's
+  endpoint (`reserved:ingress`) with `ingressDeny` from the groups labelled
+  `crowdsec.net/banned`: a banned address is dropped before Envoy parses anything, and a
+  deny wins over every allow. `enableDefaultDeny` is off, so the policy adds the deny and
+  nothing else. The post-cutover test (runbook) checks a ban from a LAN host, then grows
+  the list toward the community blocklist while watching agent memory, CPU and update
+  latency, and compares with the host firewall.

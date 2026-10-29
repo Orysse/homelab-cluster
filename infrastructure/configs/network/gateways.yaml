@@ -12,6 +12,33 @@ metadata:
   name: gateway
 ---
 apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cilium
+spec:
+  controllerName: io.cilium/gateway-controller
+  parametersRef:
+    group: cilium.io
+    kind: CiliumGatewayClassConfig
+    name: cilium
+    namespace: gateway
+---
+# Access log of every request, on the cilium-envoy pods' stdout, in nginx's "combined"
+# format: CrowdSec's maintained nginx parser reads it as is (ADR 0003), and the same lines
+# go to VictoriaLogs.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumGatewayClassConfig
+metadata:
+  name: cilium
+  namespace: gateway
+spec:
+  telemetry:
+    accessLogs:
+      - format: Text
+        text: |
+          %DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT% - - [%START_TIME(%d/%b/%Y:%H:%M:%S %z)%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %BYTES_SENT% "%REQ(REFERER)%" "%REQ(USER-AGENT)%"
+---
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: public

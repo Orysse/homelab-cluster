@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 export CLUSTER_NAME=homelab DOMAIN=example.org
 export INGRESS_ADDRESS=192.0.2.240 INTERNAL_ADDRESS=192.0.2.241 INGRESS_POOL=192.0.2.240-192.0.2.254
 export NFS_SERVER=192.0.2.200 NFS_SHARE=/srv/data
-export MONITORING_ADDRESS=192.0.2.200 DATABASE_ADDRESS=192.0.2.200 BACKUP_ADDRESS=192.0.2.200
+export MONITORING_ADDRESS=192.0.2.200 BACKUP_ADDRESS=192.0.2.200
 
 catalog='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 status=0

@@ -3,12 +3,8 @@ kind: Kustomization
 resources:
   - site
   - vitrine
-  - gatus
-  - umami
-  - open-webui
   - holive
-  - headscale
-  - headplane
+  - gatus
   - glance
-  - opencost
-  - oxymore
+  - headscale
+  - open-webui

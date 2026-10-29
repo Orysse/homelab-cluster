@@ -11,27 +11,32 @@ then deploying an app from a ready-made template. Day-to-day commands:
 ## Layout = application order
 
 ```
-clusters/homelab/          Flux entry point (homelab-nix points here)
+clusters/homelab/          Flux entry point (the FluxInstance in homelab-nix syncs it)
 ├─ infrastructure.yaml     infra-controllers -> infra-configs
 └─ apps.yaml               apps (after infra-configs)
 
 infrastructure/
-├─ controllers/            what installs CRDs: MetalLB, cert-manager, csi-driver-nfs,
-│                          External Secrets, vault-config-operator, Tetragon
-└─ configs/                what uses them: MetalLB pool, Traefik, Gateways, certificates,
-                           storage class, network policies, monitoring (Alloy, Grafana and
-                           its dashboards), OpenBao, Pocket-ID, Headlamp, OIDC RBAC,
-                           CrowdSec, Tetragon policies
+├─ controllers/            what installs CRDs: cert-manager, External Secrets, csi-driver-nfs,
+│                          local-path-provisioner, CloudNativePG, CrowdSec, Pocket-ID operator
+└─ configs/                what uses them, by concern:
+   ├─ network/             IP pool, L2 policy, Gateways, certificates, platform policies
+   ├─ secrets/             OpenBao, the cluster secret store
+   ├─ postgres/            the shared PostgreSQL cluster, its backups, one file per database
+   ├─ identity/            Pocket-ID, oauth2-proxy, OIDC RBAC, Headlamp
+   ├─ security/            CrowdSec, its bouncer, the deny policy
+   └─ monitoring/          OpenTelemetry Collector, exporters, Grafana and its dashboards
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page at the domain apex
 ├─ vitrine/                showcase site (image built in its own repository)
 ├─ holive/                 www.holive.fr, a portfolio (own certificate; holive.fr redirects)
-├─ umami/                  web analytics collector for vitrine and holive (stats in Grafana)
 ├─ gatus/                  status page, status.${DOMAIN}
+├─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
-└─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
+└─ open-webui/             chat UI for LLM APIs
 
+tools/crowdsec-cilium-bouncer/   CrowdSec decisions -> CiliumCIDRGroups (Go)
+docs/adr/                  architecture decisions
 docs/onboarding/           access, deploying an app, visitor tour (French); modele/ = app template
 ```
 

@@ -3,29 +3,19 @@ kind: Kustomization
 resources:
   - network-policy.yaml
   - namespace.yaml
-  - alloy.yaml
   - kube-state-metrics.yaml
   - node-exporter.yaml
   - grafana-secrets.yaml
   - grafana.yaml
   - grafana-route.yaml
   - hubble.yaml
-# Our dashboards (Grafana: dashboardsConfigMaps). Their queries are full of $__timeFilter and
-# $website or $rendement: Flux must not substitute them. Fixed names: the chart refers to them.
+# Our dashboards (Grafana: dashboardsConfigMaps). Their queries are full of $__timeFilter:
+# Flux must not substitute them. Fixed names: the chart refers to them.
 # Each <name>.json is generated from <name>.jq (jq -n -f <name>.jq > <name>.json).
 configMapGenerator:
-  - name: grafana-dashboards-sites
-    namespace: monitoring
-    files:
-      - dashboards/umami.json
-    options:
-      disableNameSuffixHash: true
-      annotations:
-        kustomize.toolkit.fluxcd.io/substitute: disabled
   - name: grafana-dashboards-homelab
     namespace: monitoring
     files:
-      - dashboards/cost.json
       - dashboards/vulnerabilities.json
     options:
       disableNameSuffixHash: true

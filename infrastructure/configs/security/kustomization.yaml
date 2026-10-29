@@ -4,4 +4,3 @@ resources:
   - crowdsec.yaml
   - network-policy.yaml
   - bouncer-key.yaml
-  - middleware.yaml

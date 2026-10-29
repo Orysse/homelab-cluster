@@ -9,7 +9,7 @@ spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
-    name: homelab-cluster
+    name: flux-system       # created by the FluxInstance (homelab-nix: k3s/flux.nix)
   path: ./infrastructure/controllers
   prune: true
   wait: true
@@ -21,11 +21,11 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: infra-controllers   # CRDs: MetalLB, cert-manager, CSI driver
+    - name: infra-controllers   # their CRDs
   interval: 10m
   sourceRef:
     kind: GitRepository
-    name: homelab-cluster
+    name: flux-system       # created by the FluxInstance (homelab-nix: k3s/flux.nix)
   path: ./infrastructure/configs
   prune: true
   decryption:

@@ -10,7 +10,7 @@ spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
-    name: homelab-cluster
+    name: flux-system       # created by the FluxInstance (homelab-nix: k3s/flux.nix)
   path: ./apps
   prune: true
   wait: true

@@ -89,6 +89,20 @@ spec:
           from: Selector
           selector:
             matchLabels: { kubernetes.io/metadata.name: holive }
+    # Headscale: TLS passthrough, it terminates TLS itself (Envoy's HTTP upgrade config
+    # refuses the Tailscale control protocol, /ts2021). Chosen by SNI.
+    - name: headscale
+      protocol: TLS
+      port: 443
+      hostname: hs.${DOMAIN}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        kinds: [{ kind: TLSRoute }]
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels: { kubernetes.io/metadata.name: headscale }
     - name: http
       protocol: HTTP
       port: 80

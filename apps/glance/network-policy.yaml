@@ -12,6 +12,9 @@ spec:
   ingress:
     - fromEntities: [ingress]          # the Gateway (Cilium's Envoy)
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:   # Gatus's health check, through the Gateway: Envoy checks the original client
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: gatus, app.kubernetes.io/name: gatus }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }

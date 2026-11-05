@@ -47,6 +47,9 @@ spec:
             - { name: TZ, value: Europe/Paris }
             - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
             - { name: PGID, value: "1000" }
+            # Login is Pocket-ID in front (auth.yaml); the network policy lets only that proxy
+            # reach this pod. "External" is only settable in the config, hence the environment.
+            - { name: Lidarr__Auth__Method, value: External }
             - { name: Lidarr__Postgres__Host, value: main-rw.postgres.svc.cluster.local }
             - { name: Lidarr__Postgres__Port, value: "5432" }
             - { name: Lidarr__Postgres__MainDb, value: lidarr }

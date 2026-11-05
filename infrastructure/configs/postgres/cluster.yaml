@@ -32,6 +32,10 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: garage
+        # The bucket holds the archive of the previous `main` (three-VM cluster): barman refuses
+        # a new database lineage in a non-empty archive ("Expected empty archive"), so the
+        # archive of this one has its own prefix.
+        serverName: main-2
   # Roles named after the app's namespace; passwords from databases/<app>.yaml.
   managed:
     roles:

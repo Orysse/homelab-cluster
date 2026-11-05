@@ -136,6 +136,8 @@ spec:
                   - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
                   - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
                   - { source_labels: [__meta_kubernetes_pod_node_name], target_label: node }
+                  # CloudNativePG's dashboards expect `cluster` to be the database cluster ("main").
+                  - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster], regex: "(.+)", target_label: cluster }
               # CoreDNS only annotates its Service: scrape its pods directly.
               - job_name: coredns
                 kubernetes_sd_configs:
@@ -241,7 +243,7 @@ spec:
               statements:
                 - set(attributes["job"], resource.attributes["service.name"])
                 - set(attributes["instance"], resource.attributes["service.instance.id"])
-                - set(attributes["cluster"], "${env:CLUSTER_NAME}")
+                - set(attributes["cluster"], "${env:CLUSTER_NAME}") where attributes["cluster"] == nil
             - context: resource
               statements:
                 - keep_keys(attributes, [])

@@ -64,6 +64,9 @@ spec:
       # it where that fits: at 128Mi it landed on full nodes and pushed them over (2026-10-11).
       requests: { cpu: 20m, memory: 512Mi }
       limits: { memory: 768Mi }
+    env:
+      # Go collects harder before the container limit: Grafana sat at 744 of 768 Mi (2026-11-05).
+      GOMEMLIMIT: 640MiB
     plugins:
       - victoriametrics-logs-datasource@0.32.0
     grafana.ini:

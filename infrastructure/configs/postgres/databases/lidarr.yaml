@@ -1,0 +1,74 @@
+# lidarr: Lidarr keeps two databases (main and log), both owned by the role lidarr
+# (cluster.yaml). The password: generated once, kept in OpenBao at kv/apps/lidarr/db, read back
+# from there (credentials.yaml); the app reads the same entry (apps/music/secrets.yaml).
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: lidarr-db-generated
+  namespace: postgres
+spec:
+  refreshInterval: "0"            # generated once
+  target:
+    name: lidarr-db-generated
+    template:
+      data:
+        username: lidarr
+        password: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: lidarr-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  updatePolicy: IfNotExists       # never replaces what OpenBao holds
+  secretStoreRefs:
+    - { kind: SecretStore, name: openbao-writer }
+  selector:
+    secret: { name: lidarr-db-generated }
+  data:
+    - match:
+        remoteRef: { remoteKey: lidarr/db }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: lidarr-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: SecretStore, name: openbao-writer }
+  target:
+    name: lidarr-db
+    template:
+      type: kubernetes.io/basic-auth
+  dataFrom:
+    - extract: { key: lidarr/db }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: lidarr
+  namespace: postgres
+spec:
+  cluster: { name: main }
+  name: lidarr
+  owner: lidarr
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: lidarr-log
+  namespace: postgres
+spec:
+  cluster: { name: main }
+  name: lidarr-log
+  owner: lidarr

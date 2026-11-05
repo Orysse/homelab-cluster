@@ -1,0 +1,52 @@
+# The library and the downloads: library/ and downloads/ in one PVC (a hardlink cannot cross
+# two mounts). The size is not enforced by SeaweedFS; the guard is the volume server's
+# minimum free space (infrastructure/storage).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: music
+  namespace: music
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: seaweedfs
+  resources:
+    requests:
+      storage: 200Gi
+---
+# Creates library/ and downloads/ (a subPath mount of a missing directory fails). Owned by
+# uid 1000, the user of Lidarr and qBittorrent.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: music-init
+  namespace: music
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: init
+          image: docker.io/library/busybox:1.37
+          command: [sh, -ec, "mkdir -p /data/library /data/downloads"]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: music, mountPath: /data }
+      volumes:
+        - name: music
+          persistentVolumeClaim:
+            claimName: music

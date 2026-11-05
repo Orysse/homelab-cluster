@@ -152,3 +152,7 @@ Each size change needs the owner's approval.
 
 Estimated, not measured: the 900 MB per node (k3s agent, kubelet, containerd, kernel), the
 music stack's memory, and how much of the 1650 MB in swap is hot.
+
+## SeaweedFS spike (2026-11-05)
+
+Master + filer + volume + CSI pods: ~380 MiB idle, ~690 MiB during a 10 000-file Navidrome scan, ~1.5 GiB peak while a 4 GB torrent was written (the CSI mount cache, 1.1 GiB, then released). Details: `spikes/seaweedfs/README.md`.

@@ -1,0 +1,16 @@
+# Criterion 6: qBittorrent completes a multi-GB torrent (Debian DVD, ~4 GB) onto the mount.
+# Not the real music pod: no VPN here, and the config is on emptyDir.
+apiVersion: v1
+kind: Pod
+metadata: { name: qbittorrent, namespace: seaweedfs-spike }
+spec:
+  containers:
+    - name: qbittorrent
+      image: lscr.io/linuxserver/qbittorrent:5.0.4
+      env:
+        - { name: WEBUI_PORT, value: "8080" }
+        - { name: PUID, value: "0" }
+        - { name: PGID, value: "0" }
+      volumeMounts:
+        - { name: d, mountPath: /data }
+  volumes: [{ name: d, persistentVolumeClaim: { claimName: music } }]

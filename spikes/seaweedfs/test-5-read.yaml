@@ -1,0 +1,16 @@
+# Criterion 5: after uninstalling and reinstalling SeaweedFS (same filer database, same
+# subvolume), the files written by test 1 are still there. Run before and after; compare.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: test-5-read, namespace: seaweedfs-spike }
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: t
+          image: busybox:1.37
+          command: [sh, -ec, "cd /data; sha256sum library/a.flac downloads/b.flac; cat library/new.txt"]
+          volumeMounts: [{ name: d, mountPath: /data }]
+      volumes: [{ name: d, persistentVolumeClaim: { claimName: music } }]

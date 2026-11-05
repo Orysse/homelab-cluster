@@ -33,7 +33,7 @@ apps/                      one app = one directory, listed in apps/kustomization
 ├─ gatus/                  status page, status.${DOMAIN}
 ├─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
-└─ open-webui/             chat UI for LLM APIs
+└─ music/                  Lidarr, qBittorrent behind a VPN, Navidrome, Syncthing (SeaweedFS volume)
 
 docs/adr/                  architecture decisions
 docs/onboarding/           access, deploying an app, visitor tour (French); modele/ = app template

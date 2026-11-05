@@ -15,7 +15,6 @@ spec:
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: pocket-id }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: headscale }
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: open-webui }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: seaweedfs }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: lidarr }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]

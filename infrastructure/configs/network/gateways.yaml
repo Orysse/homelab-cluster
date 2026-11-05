@@ -81,20 +81,6 @@ spec:
           selector:
             matchExpressions:
               - { key: gateway-access, operator: In, values: [public, both] }
-    - name: chat
-      protocol: HTTPS
-      port: 443
-      hostname: chat.${DOMAIN}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: wildcard-tls
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchExpressions:
-              - { key: gateway-access, operator: In, values: [public, both] }
     - name: auth
       protocol: HTTPS
       port: 443

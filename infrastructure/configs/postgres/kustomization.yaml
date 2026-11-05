@@ -9,6 +9,5 @@ resources:
   - network-policy.yaml
   - databases/pocket-id.yaml
   - databases/headscale.yaml
-  - databases/open-webui.yaml
   - databases/seaweedfs.yaml
   - databases/lidarr.yaml

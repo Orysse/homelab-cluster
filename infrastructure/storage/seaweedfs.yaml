@@ -1,0 +1,130 @@
+# SeaweedFS: the pooled bulk storage (the music library, later others). Design:
+# homelab-v3-hosts-storage.md, "Storage"; measured in spikes/seaweedfs/.
+#   master + filer   metadata in the CNPG database `seaweedfs` (databases/seaweedfs.yaml in
+#                    infrastructure/configs/postgres), master state on the host subvolume
+#   volume server    data in /var/lib/seaweed = host subvolume @seaweed (virtiofs), no replication
+#   CSI driver       StorageClass `seaweedfs` (ReadWriteMany, FUSE)
+# shortcut: the chart's volume server is a StatefulSet (one replica): enough for one host.
+# With a second host, replace it by a DaemonSet of our own, one volume server per node.
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: seaweedfs
+  namespace: seaweedfs
+spec:
+  interval: 24h
+  url: https://seaweedfs.github.io/seaweedfs/helm
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: seaweedfs
+  namespace: seaweedfs
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: seaweedfs
+      version: "4.52.0"
+      sourceRef:
+        kind: HelmRepository
+        name: seaweedfs
+  values:
+    global:
+      seaweedfs:
+        createClusterRole: false
+    master:
+      replicas: 1
+      defaultReplication: "000"
+      # Raft state and max volume id outlive the VM; logs are disposable.
+      data: { type: hostPath, hostPathPrefix: /var/lib/seaweed }
+      logs: { type: emptyDir }
+      resources:
+        requests: { cpu: 10m, memory: 48Mi }
+        limits: { memory: 256Mi }
+    filer:
+      replicas: 1
+      defaultReplicaPlacement: "000"
+      data: { type: emptyDir }        # metadata is in PostgreSQL
+      logs: { type: emptyDir }
+      extraEnvironmentVars:
+        WEED_LEVELDB2_ENABLED: "false"
+        WEED_POSTGRES2_ENABLED: "true"
+        WEED_POSTGRES2_CREATETABLE: "CREATE TABLE IF NOT EXISTS \"%s\" (dirhash BIGINT, name VARCHAR(65535), directory VARCHAR(65535), meta bytea, PRIMARY KEY (dirhash, name))"
+        WEED_POSTGRES2_HOSTNAME: main-rw.postgres.svc.cluster.local
+        WEED_POSTGRES2_PORT: "5432"
+        WEED_POSTGRES2_DATABASE: seaweedfs
+        WEED_POSTGRES2_SSLMODE: require
+      secretExtraEnvironmentVars:
+        WEED_POSTGRES2_USERNAME: { secretKeyRef: { name: seaweedfs-db, key: username } }
+        WEED_POSTGRES2_PASSWORD: { secretKeyRef: { name: seaweedfs-db, key: password } }
+      resources:
+        requests: { cpu: 10m, memory: 96Mi }
+        limits: { memory: 512Mi }
+    volume:
+      replicas: 1
+      # Stops writing when the disk under it has less than this free (percent). virtiofs
+      # reports the host filesystem, which the OS, the VM images and Garage share.
+      minFreeSpacePercent: 10
+      dataDirs:
+        - { name: data, type: hostPath, hostPathPrefix: /var/lib/seaweed, maxVolumes: 0 }
+      resources:
+        requests: { cpu: 10m, memory: 64Mi }
+        limits: { memory: 512Mi }
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: seaweedfs-csi
+  namespace: seaweedfs
+spec:
+  interval: 24h
+  url: https://seaweedfs.github.io/seaweedfs-csi-driver/helm
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: seaweedfs-csi
+  namespace: seaweedfs
+spec:
+  interval: 1h
+  dependsOn:
+    - name: seaweedfs
+  chart:
+    spec:
+      chart: seaweedfs-csi-driver
+      version: "0.2.44"
+      sourceRef:
+        kind: HelmRepository
+        name: seaweedfs-csi
+  values:
+    seaweedfsFiler: seaweedfs-filer.seaweedfs.svc.cluster.local:8888
+    storageClassName: ""              # ours, below: the chart's cannot set Retain
+    mountService:
+      # The FUSE client buffers writes: ~1.1 GiB at the peak of a 4 GB torrent (spike). The
+      # cap protects the node; a mount killed by it fails its pods' I/O, so watch it.
+      resources:
+        requests: { cpu: 10m, memory: 64Mi }
+        limits: { memory: 1536Mi }
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: seaweedfs
+provisioner: seaweedfs-csi-driver
+allowVolumeExpansion: true
+reclaimPolicy: Retain               # deleting a PVC must not delete the music
+volumeBindingMode: Immediate
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: seaweedfs-db
+  namespace: seaweedfs
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target: { name: seaweedfs-db }      # username, password (databases/seaweedfs.yaml)
+  dataFrom:
+    - extract: { key: seaweedfs/db }

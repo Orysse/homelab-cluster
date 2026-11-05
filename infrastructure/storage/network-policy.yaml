@@ -1,0 +1,29 @@
+# SeaweedFS: its pods talk to each other (master, filer, volume, CSI mount service); the
+# filer reaches PostgreSQL; the CSI pods reach the API server. Application pods never talk to
+# SeaweedFS: the FUSE mount lives in the CSI mount service.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: seaweedfs
+  namespace: seaweedfs
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: seaweedfs }
+    - fromEntities: [host, remote-node]    # kubelet probes, the node plugin's mounts
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: seaweedfs }
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]

@@ -7,6 +7,7 @@ metadata:
 spec:
   dependsOn:
     - name: infra-configs
+    - name: infra-storage
   interval: 10m
   sourceRef:
     kind: GitRepository

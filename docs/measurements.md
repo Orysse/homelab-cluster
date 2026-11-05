@@ -127,22 +127,28 @@ total 4096. Ceiling of the rule on a 16 384 MB host: 12 288.
 
 | | MB |
 |---|---|
-| Containers today (sum of the namespaces above) | 4432 |
-| Removed by v3: tetragon, two cilium-agents, two alloy instances, replicas at 1 | about -1260 |
-| k3s server, kubelet, containerd, kernel and swapped-out pages | about 2300 |
-| Need today | about 5400 |
+The three VMs above already run v3 (since the cutover of 2026-10-29), so the 7693 MB are
+v3's. The namespace table further up is v2's and is not used here.
+
+| | MB |
+|---|---|
+| The three VMs, p95 "used" | 7693 |
+| Three nodes become one: two fewer kernels, k3s agents, kubelets and containerd (about 900 each, estimated) and two fewer cilium-agents (844 / 3 = 281 each, measured above) | about -2360 |
+| Used by one node | about 5300 |
+| Pages swapped out inside the VMs now (cold, may not all come back) | 0 to 1650 |
+| Need today | 5300 to 6900 |
 | Phase 4: SeaweedFS (design cap 1500) and the music stack (estimate, not measured) | about 2300 |
-| Need after phase 4 | about 7700 |
+| Need after phase 4 | 7600 to 9200 |
 
-Decision: `kube-0` gets **9216 MB** and 12 vCPU (nuc1's cores), about 20% above the need
-after phase 4, which leaves 3 GB on the host after the reserves. Floor for the assertion:
-**6912** (9216 minus 25%). Larger is worse: without a balloon a guest's page cache fills
+Decision (approved by the owner on 2026-11-05, on the first version of this table, which
+started from v2's figures and gave 5.4 and 7.7 GB): `kube-0` gets **9216 MB** and 12 vCPU
+(nuc1's cores). With the corrected range, 9216 covers the need after phase 4 with 0 to 20%
+to spare, and leaves 3 GB on the host after the reserves. The rule's ceiling is 12 288, so
+a larger size stays possible, at the cost of restarting `kube-0` (the only node): measure
+after the migration and again after phase 4 before choosing. Floor for the assertion:
+**6912** (9216 minus 25%). Larger is not free: without a balloon a guest's page cache fills
 its RAM and the host cannot take it back, which is how kube-3 ended up in the host's swap.
-Going up means restarting `kube-0`, which stops the only node: each size change needs the
-owner's approval.
+Each size change needs the owner's approval.
 
-Estimated, not measured: the share of alloy in the 989 MB of `monitoring`, the OpenTelemetry
-Collector's footprint, the music stack's memory, and the 2300 line: 1300 for the node
-itself (the VMs' p95 "used" minus the namespaces' working sets is 3261 over three nodes,
-about 1090 each, a bit more for the server) plus 1000 for pages that are swapped out in
-the VMs now.
+Estimated, not measured: the 900 MB per node (k3s agent, kubelet, containerd, kernel), the
+music stack's memory, and how much of the 1650 MB in swap is hot.

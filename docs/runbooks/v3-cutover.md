@@ -1,8 +1,8 @@
 # Runbook: cutover to v3
 
-Hard cutover, owner on site: the v2 cluster (three VMs, `kube-1` to `kube-3`) is stopped
-and set aside, v3 starts as a new cluster on one VM, `kube-0` (`192.168.1.210`, 9216 MB).
-Everything v2 needs to come back stays untouched until the end (rollback, Step 7). Spec: `docs/superpowers/specs/2026-10-29-cluster-v3-design.md`.
+Hard cutover, owner on site: the v2 cluster is stopped and set aside, v3 starts as a new
+cluster on the same VMs. Everything v2 needs to come back stays untouched until the end
+(rollback, Step 7). Spec: `docs/superpowers/specs/2026-10-29-cluster-v3-design.md`.
 
 What carries over, and how:
 
@@ -11,7 +11,7 @@ What carries over, and how:
 | Application secrets | OpenBao on NFS (`openbao_data-openbao-0`) | exported, imported into a fresh OpenBao (Steps 1, 4) |
 | Databases | PostgreSQL on nuc1 | copied by CNPG's import (`postgres/cluster.yaml`) |
 | Open WebUI uploads | NFS `open-webui_open-webui-data` | same directory: the PVC name is unchanged |
-| Flux's age key, k3s token | `/var/lib/microvms/kube-1/persist` | moved to `kube-0/persist` (Step 2) |
+| Flux's age key, k3s token | `/var/lib/microvms/kube-1/persist` | unchanged |
 | Pocket-ID users and passkeys | its database | imported with it |
 
 Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
@@ -21,11 +21,11 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 - homelab-nix `v3` builds (`nix flake check`, nuc1 toplevel), homelab-cluster `v3` passes
   `scripts/validate.sh`.
 - Garage is deployed on nuc1 (homelab-nix Task 12) and answers: `nuc1$ garage status`
-  shows one healthy node; from kube-1 (still v2), `curl -s -o /dev/null -w '%{http_code}'
+  shows one healthy node; from kube-1, `curl -s -o /dev/null -w '%{http_code}'
   http://192.168.1.200:3900` prints `403`.
 - nuc1's sops file holds `crowdsec-bouncer-key` (homelab-nix `secrets/nuc1.yaml`).
-- nuc1's per-service memory is in `docs/measurements.md` (2026-11-05); the 9216 MB size
-  of `kube-0` was approved by the owner on that basis.
+- `nuc1$ ps -eo rss,comm --sort=-rss | head -20` saved in `docs/measurements.md` (Task 2
+  could not measure nuc1).
 
 ## Step 1: before
 
@@ -69,7 +69,7 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 
 1. homelab-cluster: merge `v3` into `main` locally, **do not push yet**: v2's Flux would
    apply it.
-2. Stop the VMs, agents first: `nuc1$ systemctl stop microvm@kube-3 microvm@kube-2 microvm@kube-1`.
+2. Stop the VMs, last agent first: `nuc1$ systemctl stop microvm@kube-3 microvm@kube-2 microvm@kube-1`.
    Nothing reconciles any more: push homelab-cluster `main` now, so the new Flux finds
    v3 at its first start (and Step 3 never waits on a push).
 3. Set v2 aside (rename, never delete):
@@ -79,20 +79,12 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
    ```
    The second line matters: the new OpenBao's volume has the same name, and on the old
    (already initialized) storage its self-initialization would never run.
-4. Carry `kube-1`'s persistent state over to `kube-0` **before its first boot**:
-   ```sh
-   nuc1$ mv /var/lib/microvms/kube-1/persist /var/lib/microvms/kube-0/persist
-   ```
-   `microvm-guest.nix` keys that path by VM name. It holds Flux's age key
-   (`flux-age.key`), the VM's SSH host keys and the etcd snapshots. Without it, `flux-sops.nix`
-   generates a new age key and every sops secret in this repository stops decrypting.
 
 ## Step 3: deploy
 
 1. homelab-nix: `nix run .#deploy-rs -- .#nuc1` from `v3`. The VMs may start during
-   activation; if not, start `kube-0` and wait for `kubectl get nodes` (admin kubeconfig,
-   new CA and a certificate for `192.168.1.210`: copy `/etc/rancher/k3s/k3s.yaml` from
-   kube-0) to show it Ready.
+   activation; if not, start kube-1, wait for `kubectl get nodes` (admin kubeconfig, new
+   CA: copy `/etc/rancher/k3s/k3s.yaml` from kube-1) to show it Ready, then kube-2, kube-3.
 2. Restart the Cilium operator once the Cilium chart has been applied (ADR 0002, finding 1):
    `kubectl -n kube-system rollout restart deploy/cilium-operator`. Nodes turn Ready.
 3. Check the Gateway API CRDs came from the k3s manifest:
@@ -158,8 +150,8 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 - Every hostname from `/tmp/v2-routes.txt` answers over HTTPS with a valid certificate;
   `https://holive.fr` redirects to `https://www.holive.fr`; `http://` redirects to `https://`.
 - L2 announcements (ADR 0002, finding 5): from a LAN machine, `arping -c 3 192.168.1.240`
-  and `.241` answer with kube-0's MAC. Failover between nodes cannot be tested with one
-  node: it is tested when the first NUC joins.
+  and `.241` answer with a node's MAC; stop the VM holding the lease, another node takes
+  it within a few seconds.
 - Client IP (ADR 0002, finding 4): a request from a phone on 4G appears in the Gateway's
   access log (Grafana, Réseau, last panel) with the phone's public address.
 - Pocket-ID login with an existing passkey; `kubectl` through kubelogin (update the
@@ -176,7 +168,7 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 
 - Local volume survives a VM restart (Task 11): write a file in the PostgreSQL volume's
   pod (`kubectl -n postgres exec main-1 -- touch /var/lib/postgresql/data/canary`),
-  `nuc1$ systemctl restart microvm@kube-0`, the file is still there.
+  `nuc1$ systemctl restart microvm@<its node>`, the file is still there.
 - OpenBao (Task 15): `bao secrets list` shows `kv/apps/`, `bao auth list` shows
   `kubernetes/` and `sso/`. `kubectl -n openbao delete pod openbao-0`: within 2 minutes
   `bao status` is `Sealed false` with nobody unsealing, and `kubectl -n gatus get
@@ -203,11 +195,9 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 
 ## Step 7: rollback (only if Steps 4 and 5 fail and cannot be fixed in the session)
 
-1. Stop `kube-0`: `nuc1$ systemctl stop microvm@kube-0`.
-2. Put v2 back: move the persistent state home first, `mv /var/lib/microvms/kube-0/persist
-   /var/lib/microvms/kube-1/persist`; then `k3s-data.img.v2-backup` -> `k3s-data.img` on
-   `kube-1`, `kube-2` and `kube-3` (v3's image lives in the `kube-0` directory, which v2
-   ignores). Move v3's OpenBao volume away first (`mv /srv/data/openbao_data-openbao-0
+1. Stop the three VMs.
+2. Put v2 back: `k3s-data.img.v2-backup` -> `k3s-data.img` on each node (remove the v3
+   image first). Move v3's OpenBao volume away first (`mv /srv/data/openbao_data-openbao-0
    /srv/data/v3-openbao_data-openbao-0`), or the next `mv` would nest v2's inside it; then
    `/srv/data/v2-backup-openbao_data-openbao-0` -> `/srv/data/openbao_data-openbao-0`.
 3. Force-push the pre-merge `main` of homelab-cluster **before** any VM starts (Step 2
@@ -221,10 +211,5 @@ Commands below run from the laptop (kubectl, bao) or on nuc1 (`nuc1$`).
 
 - `DROP ROLE cnpg_import` on nuc1 (Task 22 removes the import block and PostgreSQL on nuc1
   once a restore test passed).
-- Measure `MemAvailable` and swap on nuc1 and in `kube-0` (`grep -E 'MemAvailable|Swap'
-  /proc/meminfo`, plus `free -m` on both) and fill the v3 columns of
-  `docs/measurements.md`.
-- Keep the `.v2-backup` images and directory for a week, then delete them, together with
-  the now unused `/var/lib/microvms/kube-2` and `/var/lib/microvms/kube-3` directories and
-  `/var/lib/microvms/kube-1`'s images.
+- Keep the `.v2-backup` images and directory for a week, then delete them.
 - Commit this runbook with a "done on <date>" line and every deviation.

@@ -156,3 +156,17 @@ music stack's memory, and how much of the 1650 MB in swap is hot.
 ## SeaweedFS spike (2026-11-05)
 
 Master + filer + volume + CSI pods: ~380 MiB idle, ~690 MiB during a 10 000-file Navidrome scan, ~1.5 GiB peak while a 4 GB torrent was written (the CSI mount cache, 1.1 GiB, then released). Details: `spikes/seaweedfs/README.md`.
+
+## After phase 4 (2026-11-05, about 6 hours after the single-node cutover)
+
+Same VM (`kube-0`, 9216 MB), idle, with SeaweedFS, the music stack, two oauth2-proxies and
+OpenBao on its host subvolume.
+
+| What | Value |
+|---|---|
+| VM `MemAvailable` | 4320 MB (4615 used, swap 205 of 4467) |
+| nuc1 host | 4954 MB available of 15 704 (the VM's 9 GB counted as used) |
+| Namespaces (working set, MB) | monitoring 1084, kube-system 602, flux-system 336, seaweedfs 281, music 190, external-secrets 165, postgres 142, cert-manager 129 |
+
+A single sample, not a 7-day average: redo it around 2026-11-12 and replace this table.
+Open WebUI (440 MB before) is gone; SeaweedFS and the music stack took 471 MB at idle.

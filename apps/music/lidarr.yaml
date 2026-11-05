@@ -115,5 +115,5 @@ spec:
               - { name: X-Frame-Options, value: DENY }
               - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
       backendRefs:
-        - name: lidarr
+        - name: oauth2-proxy-lidarr
           port: 80

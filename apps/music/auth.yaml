@@ -1,0 +1,220 @@
+# Pocket-ID in front of Lidarr and Navidrome: one oauth2-proxy each (same image and settings
+# as the Hubble one, infrastructure/configs/identity/oauth2-proxy), its own Pocket-ID client,
+# admins only. The Gateway routes to the proxy; the proxy is the only thing allowed to reach
+# the app (network-policy.yaml). Both apps keep their own login behind it (Lidarr: set it to
+# "Disabled for Local Addresses" once the proxy works, the proxy is a cluster address).
+# Skipped by the proxy: Lidarr's /api/ (API key) and Navidrome's /rest/ (Subsonic apps, which
+# log in with their own credentials).
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-cookie
+  namespace: music
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-lidarr
+  namespace: music
+spec:
+  callbackUrls: ["https://lidarr.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://lidarr.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-lidarr
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-lidarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-lidarr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://lidarr.music.svc.cluster.local
+            - --redirect-url=https://lidarr.int.${DOMAIN}/oauth2/callback
+            - --skip-auth-route=^/api/
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-lidarr-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-lidarr-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-lidarr
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-lidarr
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-navidrome
+  namespace: music
+spec:
+  callbackUrls: ["https://navidrome.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://navidrome.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-navidrome
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-navidrome
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-navidrome
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://navidrome.music.svc.cluster.local
+            - --redirect-url=https://navidrome.int.${DOMAIN}/oauth2/callback
+            - --skip-auth-route=^/rest/
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-navidrome-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-navidrome-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-navidrome
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-navidrome
+  ports:
+    - { name: http, port: 80, targetPort: http }

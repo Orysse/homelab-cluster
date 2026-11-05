@@ -9,3 +9,4 @@ resources:
   - qbittorrent.yaml
   - navidrome.yaml
   - syncthing.yaml
+  - auth.yaml

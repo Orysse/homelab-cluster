@@ -113,5 +113,5 @@ spec:
               - { name: X-Frame-Options, value: DENY }
               - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
       backendRefs:
-        - name: navidrome
+        - name: oauth2-proxy-navidrome
           port: 80

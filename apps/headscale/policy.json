@@ -12,6 +12,6 @@
     { "action": "accept", "src": ["group:admins"], "dst": ["tag:gamehost:22,47984,47989,48010,47998-48000,48002"] },
     { "action": "accept", "src": ["group:admins"], "dst": ["192.168.1.192/26:*"] },
     { "action": "accept", "src": ["group:admins"], "dst": ["autogroup:internet:*"] },
-    { "action": "accept", "src": ["*"], "dst": ["192.168.1.241:443", "192.168.1.211:6443"] }
+    { "action": "accept", "src": ["*"], "dst": ["192.168.1.241:443", "192.168.1.210:6443"] }
   ]
 }

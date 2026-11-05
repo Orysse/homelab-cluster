@@ -23,7 +23,7 @@ metadata:
   name: site
   namespace: site
 spec:
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -68,13 +68,6 @@ spec:
         - name: files
           configMap:
             name: site-files
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: site
 ---
 apiVersion: v1
 kind: Service

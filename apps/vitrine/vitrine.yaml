@@ -24,7 +24,7 @@ metadata:
   name: vitrine
   namespace: vitrine
 spec:
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -66,13 +66,6 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 16Mi
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: vitrine
 ---
 apiVersion: v1
 kind: Service

@@ -67,6 +67,82 @@ CPU per namespace is low everywhere (7-day average): monitoring 0.11 cores, kube
 avg_over_time((sum by (container) (container_memory_working_set_bytes{container=~"..."}))[7d:10m])
 ```
 
-Not measured: per-process RSS on nuc1 (microVMs, PostgreSQL, VictoriaMetrics,
-VictoriaLogs). There is no process exporter, and this session had no SSH access to the
-host. To add before the cutover: `ps -eo rss,comm --sort=-rss | head` on nuc1.
+## Three VMs to one: before (2026-11-05, same 7-day window, nuc1 up 11 days)
+
+Memory in MB. "Used" is `MemTotal - MemAvailable`, so it leaves out pages in swap. Each VM
+appears as two series in VictoriaMetrics (two label sets); the larger value is kept.
+
+| Node | MemTotal | Used, max 7d | Used, p95 7d | Swap used (now) | CPU busy p95 |
+|---|---|---|---|---|---|
+| kube-1 (server) | 4007 | 2923 | 2895 | 622 | 23% |
+| kube-2 | 3491 | 2483 | 2434 | 1026 | 13% |
+| kube-3 | 3043 | 2387 | 2364 | 0 | 37% |
+| Sum of the three VMs | 10 541 | 7793 | 7693 | 1648 | |
+| nuc1 (host) | 16 468 | 12 265 | 11 903 | 3817 | 16% |
+
+On nuc1, 7075 MB are shared memory (the guests' RAM, backed by memfd) and 1.3 GB of zram
+holds 3.2 GB of swapped pages: kube-3 has only 770 MB of its RAM resident, the rest
+is in the host's swap. The "after" columns are filled 7 days after the cutover, with the
+same queries plus:
+
+```
+max_over_time((node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)[7d:10m])
+quantile_over_time(0.95, (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)[7d:10m])
+```
+
+## Host services on nuc1 (2026-11-05)
+
+Read over SSH as root, read-only. PSS (`smaps_rollup` of the unit's processes) is memory
+actually held by the unit; cgroup is `memory.current` (includes page cache); peak is
+`MemoryPeak` since boot (11 days).
+
+| Unit | PSS | cgroup | Peak |
+|---|---|---|---|
+| victoriametrics | 319 | 344 | 945 |
+| victorialogs | 123 | 156 | 447 |
+| garage | 34 | 63 | 89 |
+| alertmanager | 27 | 41 | 56 |
+| tailscaled | 26 | 52 | 65 |
+| vmalert-homelab | 22 | 31 | 39 |
+| crowdsec-firewall-bouncer | 19 | 27 | |
+| prometheus-node-exporter | 16 | 21 | |
+| prometheus-smartctl-exporter | 13 | 26 | |
+| systemd-journal-upload | 9 | 2 | |
+| postgresql | 4 | 18 | 128 |
+| prometheus-wireguard-exporter | 1 | 3 | |
+| trivy-scan (daily, 04:42) | not running | | 1368 |
+| btrbk-data (hourly) | not running | | 17 |
+
+Per VM, QEMU itself holds 1 to 4 MB of anonymous memory beyond the guest's RAM
+(`RssAnon`); the guest RAM is shared memory, split in `smaps` between `qemu` and
+`virtiofsd`, so the PSS of `microvm@*` and `microvm-virtiofsd@*` must not be read as the
+VM's footprint. All non-VM processes together hold 588 MB of anonymous memory; the kernel's
+slab is 378 MB.
+
+## Sizing of kube-0 (approved by the owner, 2026-11-05)
+
+Reserves on nuc1 (input to the derived-memory rule): base 1024, QEMU 128 per VM,
+victoriametrics 768, victorialogs 384, garage 128, trivy 1280, other host services 384;
+total 4096. Ceiling of the rule on a 16 384 MB host: 12 288.
+
+| | MB |
+|---|---|
+| Containers today (sum of the namespaces above) | 4432 |
+| Removed by v3: tetragon, two cilium-agents, two alloy instances, replicas at 1 | about -1260 |
+| k3s server, kubelet, containerd, kernel and swapped-out pages | about 2300 |
+| Need today | about 5400 |
+| Phase 4: SeaweedFS (design cap 1500) and the music stack (estimate, not measured) | about 2300 |
+| Need after phase 4 | about 7700 |
+
+Decision: `kube-0` gets **9216 MB** and 12 vCPU (nuc1's cores), about 20% above the need
+after phase 4, which leaves 3 GB on the host after the reserves. Floor for the assertion:
+**6912** (9216 minus 25%). Larger is worse: without a balloon a guest's page cache fills
+its RAM and the host cannot take it back, which is how kube-3 ended up in the host's swap.
+Going up means restarting `kube-0`, which stops the only node: each size change needs the
+owner's approval.
+
+Estimated, not measured: the share of alloy in the 989 MB of `monitoring`, the OpenTelemetry
+Collector's footprint, the music stack's memory, and the 2300 line: 1300 for the node
+itself (the VMs' p95 "used" minus the namespaces' working sets is 3261 over three nodes,
+about 1090 each, a bit more for the server) plus 1000 for pages that are swapped out in
+the VMs now.

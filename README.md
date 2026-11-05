@@ -135,7 +135,7 @@ its self-initialization, in `infrastructure/configs/secrets/openbao.yaml`
 
 **sops + age.** Write the Secret in plaintext as `<path>/<name>.sops.yaml`, then
 `sops --encrypt --in-place <file>`; edit with `sops <file>`. Recipients (`.sops.yaml`): the
-admin's age key and YubiKey, and Flux's age key, generated on kube-1 and published by the
+admin's age key and YubiKey, and Flux's age key, generated on kube-0 and published by the
 base as `flux-system/sops-age`. If that key changes: update `.sops.yaml`, then
 `sops updatekeys` on each file.
 

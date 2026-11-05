@@ -35,9 +35,6 @@ spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -48,6 +45,8 @@ spec:
                 name: lidarr-db
           env:
             - { name: TZ, value: Europe/Paris }
+            - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
+            - { name: PGID, value: "1000" }
             - { name: Lidarr__Postgres__Host, value: main-rw.postgres.svc.cluster.local }
             - { name: Lidarr__Postgres__Port, value: "5432" }
             - { name: Lidarr__Postgres__MainDb, value: lidarr }
@@ -71,6 +70,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]   # s6-overlay setup
           volumeMounts:
             - { name: config, mountPath: /config }
             - { name: music, mountPath: /data }

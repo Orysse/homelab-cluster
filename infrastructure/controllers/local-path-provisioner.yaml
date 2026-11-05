@@ -1,6 +1,6 @@
 # local-path-provisioner: StorageClass "local", a directory per volume on the node's own
 # disk (/var/lib/local-volumes, a block volume per VM: homelab-nix k3s/node.nix). For data
-# that must not sit on NFS: PostgreSQL. A volume is tied to its node; the data survives a
+# that needs a local disk: PostgreSQL, SQLite. A volume is tied to its node; the data survives a
 # VM restart and is kept after its PVC is deleted (Retain, cleaned up by hand).
 # The chart is not published in a Helm repository: Flux reads it from the git tag.
 ---
@@ -44,6 +44,7 @@ spec:
       tag: "1.37.0"
     storageClass:
       name: local
+      defaultClass: true        # a PVC without a class lands here
       reclaimPolicy: Retain
       volumeBindingMode: WaitForFirstConsumer
     nodePathMap:

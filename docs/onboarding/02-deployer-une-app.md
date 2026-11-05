@@ -154,7 +154,7 @@ depuis `apps/headscale/secrets.yaml` (la clé `noise`) en changeant les noms.
 
 ### Une base de données
 
-Pas de SQLite ni de PostgreSQL sur un volume NFS : le NFS gère mal les verrous, et la base
+Pas de SQLite ni de PostgreSQL sur un volume réseau (SeaweedFS) : les verrous y sont mal gérés, et la base
 finit corrompue. Il y a un PostgreSQL dans le cluster (CloudNativePG), avec une base par app :
 
 1. Dans `infrastructure/configs/postgres/` : copie `databases/headscale.yaml` en
@@ -182,8 +182,8 @@ spec:
 ```
 
 Puis un volume `persistentVolumeClaim: { claimName: data }` monté dans le conteneur. Le
-stockage est sur le serveur (NFS), avec des snapshots toutes les heures, mais **sans
-sauvegarde hors site pour l'instant**.
+stockage par défaut est `local` (disque de la VM, `StorageClass` par défaut), **sans
+sauvegarde ni snapshot** : pour des fichiers volumineux, `seaweedfs` (ReadWriteMany).
 
 ### Un fichier de configuration
 

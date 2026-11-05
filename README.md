@@ -16,7 +16,7 @@ clusters/homelab/          Flux entry point (the FluxInstance in homelab-nix syn
 └─ apps.yaml               apps (after infra-configs)
 
 infrastructure/
-├─ controllers/            what installs CRDs: cert-manager, External Secrets, csi-driver-nfs,
+├─ controllers/            what installs CRDs: cert-manager, External Secrets,
 │                          local-path-provisioner, CloudNativePG, CrowdSec, Pocket-ID operator
 └─ configs/                what uses them, by concern:
    ├─ network/             IP pool, L2 policy, Gateways, certificates, platform policies
@@ -54,7 +54,6 @@ The network is defined **once**, in homelab-nix's topology, which publishes the
 | `${INTERNAL_ADDRESS}` | `192.168.1.241` | internal entry point (LAN and VPN only) |
 | `${INGRESS_POOL_START}`, `${INGRESS_POOL_STOP}` | `192.168.1.240`, `192.168.1.254` | LoadBalancer IPs Cilium may assign |
 | `${CLUSTER_NAME}` | `homelab` | `cluster` label on metrics and logs |
-| `${NFS_SERVER}`, `${NFS_SHARE}` | `192.168.1.200`, `/srv/data` | StorageClass `nfs` |
 | `${MONITORING_ADDRESS}` | `192.168.1.200` | VictoriaMetrics/VictoriaLogs/Alertmanager |
 | `${BACKUP_ADDRESS}` | `192.168.1.200` | S3 (Garage) for PostgreSQL backups |
 
@@ -93,7 +92,7 @@ the app, visible. Every request is written to the Gateways' access log, in nginx
 A `CiliumNetworkPolicy` per namespace (`network-policy.yaml` next to each app,
 `infrastructure/configs/network/policies/` for the platform): **deny by default in both
 directions**, then what each component needs. Pods on the host network (Cilium,
-node-exporter, NFS CSI) are not policed.
+node-exporter) are not policed.
 
 | Building block | Rule |
 |---|---|
@@ -143,8 +142,9 @@ base as `flux-system/sops-age`. If that key changes: update `.sops.yaml`, then
 
 | What | Where | Backup |
 |---|---|---|
-| Databases (Pocket-ID, Headscale, Open WebUI) | CloudNativePG `main`, local volume on its node | nightly base backup + WAL to Garage (S3) on nuc1, 30 days |
-| OpenBao, Open WebUI uploads | NFS from nuc1 (StorageClass `nfs`) | btrbk snapshots on nuc1 |
+| Databases (Pocket-ID, Headscale, Lidarr, SeaweedFS) | CloudNativePG `main`, local volume on its node | nightly base backup + WAL to Garage (S3) on nuc1, 30 days |
+| OpenBao | host subvolume `@openbao` of nuc1, shared with the VM | hourly btrbk snapshots, daily copy to R2 (encrypted) |
+| Music library | SeaweedFS (StorageClass `seaweedfs`), host subvolume `@seaweed` | none: re-fetched by Lidarr |
 | Metrics, logs | VictoriaMetrics, VictoriaLogs on nuc1 | none (90 and 30 days kept) |
 
 ## Access

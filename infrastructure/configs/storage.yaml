@@ -23,3 +23,36 @@ allowVolumeExpansion: true
 mountOptions:
   - nfsvers=4.2
   - hard
+---
+# OpenBao's data: the host subvolume @openbao (homelab-nix snapshots.nix), shared with the
+# k3s VM at /var/lib/openbao, so that btrbk snapshots it hourly and the offsite copy takes
+# the latest one. A fixed local volume bound to OpenBao's claim: the data stays on the host
+# that holds the control plane.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: openbao-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openbao-data
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: openbao-local
+  claimRef:
+    namespace: openbao
+    name: data-openbao-0
+  local:
+    path: /var/lib/openbao
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - { key: node-role.kubernetes.io/control-plane, operator: Exists }

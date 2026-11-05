@@ -68,11 +68,14 @@ spec:
               drop: ["ALL"]
           volumeMounts:
             - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }          # SQLite temporary files; the root is read-only
             - { name: music, mountPath: /music, subPath: library, readOnly: true }
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: navidrome-data
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }
         - name: music
           persistentVolumeClaim:
             claimName: music

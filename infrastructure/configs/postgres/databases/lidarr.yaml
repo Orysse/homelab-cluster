@@ -1,6 +1,7 @@
 # lidarr: Lidarr keeps two databases (main and log), both owned by the role lidarr
-# (cluster.yaml). The password: generated once, kept in OpenBao at kv/apps/lidarr/db, read back
-# from there (credentials.yaml); the app reads the same entry (apps/music/secrets.yaml).
+# (cluster.yaml). The password: generated once, kept in OpenBao at kv/apps/music/db, read back
+# from there (credentials.yaml); the app reads the same entry (apps/music/secrets.yaml). The
+# path starts with the app's namespace: the cluster secret store only reads kv/apps/<namespace>/*.
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -36,7 +37,7 @@ spec:
     secret: { name: lidarr-db-generated }
   data:
     - match:
-        remoteRef: { remoteKey: lidarr/db }
+        remoteRef: { remoteKey: music/db }
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -51,7 +52,7 @@ spec:
     template:
       type: kubernetes.io/basic-auth
   dataFrom:
-    - extract: { key: lidarr/db }
+    - extract: { key: music/db }
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Database

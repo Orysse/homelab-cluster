@@ -56,6 +56,9 @@ spec:
             - { name: PAPERCLIP_PUBLIC_URL, value: "https://paperclip.int.${DOMAIN}" }
             - { name: PAPERCLIP_ALLOWED_HOSTNAMES, value: "paperclip.int.${DOMAIN}" }
             - { name: PAPERCLIP_TELEMETRY_DISABLED, value: "1" }
+            # Agents and the GitHub broker must call Paperclip inside the pod: its public address goes
+            # through the Gateway and the SSO proxy, which answer 403 to an agent. An explicit value wins.
+            - { name: PAPERCLIP_API_URL, value: "http://localhost:3100" }
           ports:
             - { name: http, containerPort: 3100 }
           startupProbe:

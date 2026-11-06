@@ -73,7 +73,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: headscale
-          image: docker.io/headscale/headscale:v0.29.5
+          image: docker.io/headscale/headscale:v0.29.7
           args: [serve]
           env:   # Headscale reads any setting from HEADSCALE_<SECTION>_<KEY>
             - name: HEADSCALE_DATABASE_POSTGRES_USER

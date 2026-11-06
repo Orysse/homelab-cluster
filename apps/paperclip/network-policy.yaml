@@ -1,5 +1,5 @@
-# Paperclip: from its oauth2-proxy only; to DNS, PostgreSQL and Anthropic (Claude sign-in and API,
-# 443). Another agent adapter means another toFQDNs entry here and its key in kv/apps/paperclip/.
+# Paperclip: from its oauth2-proxy only; to DNS, PostgreSQL and the public Internet (443, 80):
+# its agents need the web. Private ranges are excluded below.
 # oauth2-proxy: from the Gateway; to DNS, Pocket-ID (through the public Gateway) and Paperclip.
 ---
 apiVersion: cilium.io/v2
@@ -24,14 +24,14 @@ spec:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
-    # Claude: subscription sign-in (OAuth) and API. Hostnames from Anthropic's login flow,
-    # to confirm in Hubble if a sign-in step still fails. Each further adapter: its own entry.
-    - toFQDNs:
-        - matchName: claude.ai
-        - matchName: platform.claude.com
-        - matchName: console.anthropic.com
-        - matchName: api.anthropic.com
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    # Agents run code and need the web (Anthropic sign-in and API, packages, git over HTTPS):
+    # 443 and 80 to any public address. Private ranges stay closed (LAN, VPN, pods, services,
+    # cloud metadata): agent code must not reach the homelab.
+    # shortcut: any public host, no per-adapter list; narrow to toFQDNs if the agents misbehave.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

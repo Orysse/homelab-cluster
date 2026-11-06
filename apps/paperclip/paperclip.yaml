@@ -58,13 +58,13 @@ spec:
           ports:
             - { name: http, containerPort: 3100 }
           startupProbe:
-            httpGet: { path: /api/health, port: http }
+            httpGet: { path: /api/health, port: http, httpHeaders: [{ name: Host, value: "paperclip.int.${DOMAIN}" }] }
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
-            httpGet: { path: /api/health, port: http }
+            httpGet: { path: /api/health, port: http, httpHeaders: [{ name: Host, value: "paperclip.int.${DOMAIN}" }] }
           livenessProbe:
-            httpGet: { path: /api/health, port: http }
+            httpGet: { path: /api/health, port: http, httpHeaders: [{ name: Host, value: "paperclip.int.${DOMAIN}" }] }
             periodSeconds: 30
             failureThreshold: 5
           resources:

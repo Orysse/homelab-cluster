@@ -48,6 +48,7 @@ spec:
           envFrom:
             - secretRef: { name: paperclip-db }
             - secretRef: { name: keys }
+            - secretRef: { name: agent-jwt }
           env:
             - { name: TZ, value: Europe/Paris }
             - { name: PAPERCLIP_DEPLOYMENT_MODE, value: authenticated }

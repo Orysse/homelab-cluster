@@ -1,6 +1,6 @@
 # The library and the downloads: library/ and downloads/ in one PVC (a hardlink cannot cross
-# two mounts). The size is not enforced by SeaweedFS; the guard is the volume server's
-# minimum free space (infrastructure/storage).
+# two mounts). The size is enforced: the CSI mount refuses writes past it (ENOSPC, seen
+# 2026-11-07 at 200Gi). The volume server's minimum free space guards the host disk.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -12,7 +12,7 @@ spec:
   storageClassName: seaweedfs
   resources:
     requests:
-      storage: 200Gi
+      storage: 300Gi
 ---
 # Creates library/ and downloads/ (a subPath mount of a missing directory fails). Owned by
 # uid 1000, the user of Lidarr and qBittorrent.

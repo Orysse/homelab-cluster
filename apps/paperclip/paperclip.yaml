@@ -57,15 +57,14 @@ spec:
             - { name: PAPERCLIP_TELEMETRY_DISABLED, value: "1" }
           ports:
             - { name: http, containerPort: 3100 }
-          # No health path is documented: a TCP check until one is confirmed.
           startupProbe:
-            tcpSocket: { port: http }
+            httpGet: { path: /api/health, port: http }
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
-            tcpSocket: { port: http }
+            httpGet: { path: /api/health, port: http }
           livenessProbe:
-            tcpSocket: { port: http }
+            httpGet: { path: /api/health, port: http }
             periodSeconds: 30
             failureThreshold: 5
           resources:

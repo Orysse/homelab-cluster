@@ -1,6 +1,5 @@
-# Paperclip: from its oauth2-proxy only; to DNS and PostgreSQL. No Internet: no agent
-# adapter is configured yet. Adding one means opening its API here (toFQDNs, 443) and
-# putting its key in kv/apps/paperclip/.
+# Paperclip: from its oauth2-proxy only; to DNS, PostgreSQL and Anthropic (Claude sign-in and API,
+# 443). Another agent adapter means another toFQDNs entry here and its key in kv/apps/paperclip/.
 # oauth2-proxy: from the Gateway; to DNS, Pocket-ID (through the public Gateway) and Paperclip.
 ---
 apiVersion: cilium.io/v2
@@ -25,6 +24,14 @@ spec:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
+    # Claude: subscription sign-in (OAuth) and API. Hostnames from Anthropic's login flow,
+    # to confirm in Hubble if a sign-in step still fails. Each further adapter: its own entry.
+    - toFQDNs:
+        - matchName: claude.ai
+        - matchName: platform.claude.com
+        - matchName: console.anthropic.com
+        - matchName: api.anthropic.com
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

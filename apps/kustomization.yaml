@@ -8,3 +8,4 @@ resources:
   - glance
   - headscale
   - music
+  - paperclip

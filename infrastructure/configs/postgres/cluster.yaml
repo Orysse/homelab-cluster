@@ -43,6 +43,7 @@ spec:
       - { name: headscale, login: true, passwordSecret: { name: headscale-db } }
       - { name: seaweedfs, login: true, passwordSecret: { name: seaweedfs-db } }
       - { name: lidarr, login: true, passwordSecret: { name: lidarr-db } }
+      - { name: paperclip, login: true, passwordSecret: { name: paperclip-db } }
   # Cutover only (v2 -> v3): copies the databases and roles from PostgreSQL on nuc1, then
   # never runs again. Removed after the cutover, with externalClusters.
   bootstrap:

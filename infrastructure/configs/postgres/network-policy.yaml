@@ -17,6 +17,7 @@ spec:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: headscale }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: seaweedfs }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: lidarr }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: paperclip, app.kubernetes.io/name: paperclip }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: cnpg-system, app.kubernetes.io/name: cloudnative-pg }

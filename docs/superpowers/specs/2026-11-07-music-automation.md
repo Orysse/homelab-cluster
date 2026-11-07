@@ -59,6 +59,9 @@ Layout of the `music` PVC (one volume, 300Gi quota):
 - Manual pass on leftovers ("skip" lines in `/config/import.log`): CronJob suspended, a Job
   created from it with `sleep`, `beet import -I --move <folder>` interactively (commands in
   `apps/music/beets.yaml`).
+- After a run that imported, beets asks Lidarr for a `RescanFolders` (API, key in
+  `kv/apps/music/lidarr`): without it Lidarr sees the album only on its own rescan, and
+  Soularr, which reads "missing" from Lidarr, would fetch it again.
 - Keeps the one-off pod's PVC `beets-config` (`library.db`, `state.pickle`) and config.
 - Image: `ghcr.io/linuxserver/beets:2.14.1-ls359`, command overridden (no s6, runs as
   1000, `/lsiopy/bin/beet`). Covers resized with ImageMagick (in the image; no Pillow).

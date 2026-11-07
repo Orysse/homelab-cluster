@@ -1,5 +1,5 @@
 # Music: each pod gets what it needs and nothing else.
-#   Lidarr       from its oauth2-proxy (auth.yaml) and Soularr; to PostgreSQL, qBittorrent, DNS, the Internet
+#   Lidarr       from its oauth2-proxy (auth.yaml), Soularr and beets; to PostgreSQL, qBittorrent, DNS, the Internet
 #                (metadata and indexers, 80/443)
 #   Navidrome    from its oauth2-proxy; DNS, 443 (cover art, artist info)
 #   qBittorrent  (and slskd, same pod) from the Gateway, Lidarr, Soularr (slskd API); the tunnel (any UDP: gluetun's
@@ -7,7 +7,7 @@
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   Soularr      to Lidarr and slskd, DNS
-#   beets        DNS, 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
+#   beets        DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
 # SeaweedFS is not listed: the FUSE mount lives in the CSI mount service, not in these pods.
 ---
 apiVersion: cilium.io/v2
@@ -25,6 +25,9 @@ spec:
       toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: soularr }
+      toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: beets }
       toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
   egress:
     - toEndpoints:
@@ -208,5 +211,8 @@ spec:
       toPorts:
         - ports: [{ port: "53", protocol: ANY }]
           rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: lidarr }
+      toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

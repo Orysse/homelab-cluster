@@ -1,5 +1,5 @@
 # Music: each pod gets what it needs and nothing else.
-#   Lidarr       from its oauth2-proxy (auth.yaml) and beets; to PostgreSQL, qBittorrent, DNS, the Internet
+#   Lidarr       from its oauth2-proxy (auth.yaml) and beets; to PostgreSQL, qBittorrent and slskd, DNS, the Internet
 #                (metadata and indexers, 80/443)
 #   Navidrome    from its oauth2-proxy; DNS, 443 (cover art, artist info)
 #   qBittorrent  (and slskd, same pod) from the Gateway and Lidarr; the tunnel (any UDP: gluetun's
@@ -36,7 +36,7 @@ spec:
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: qbittorrent }
-      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "5030", protocol: TCP }] }]   # qBittorrent, slskd (Tubifarry)
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
 ---
@@ -76,7 +76,7 @@ spec:
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "5030", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: lidarr }
-      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "5030", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }

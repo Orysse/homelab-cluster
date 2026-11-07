@@ -133,7 +133,7 @@ spec:
             - { name: SLSKD_INCOMPLETE_DIR, value: /data/downloads/.slskd-incomplete }   # outside what beets reads
           envFrom:
             - secretRef:
-                name: slskd      # SLSKD_SLSK_USERNAME, SLSKD_SLSK_PASSWORD, SLSKD_PASSWORD
+                name: slskd      # SLSKD_SLSK_USERNAME, SLSKD_SLSK_PASSWORD, SLSKD_PASSWORD, SLSKD_API_KEY
           ports:
             - { name: slskd, containerPort: 5030 }
           readinessProbe:

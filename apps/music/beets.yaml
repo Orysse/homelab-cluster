@@ -1,0 +1,147 @@
+# beets: the only writer into library/. Every 5 minutes it imports, without asking, the
+# albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
+# skipped and left in place for a manual pass. Sources, one folder per album:
+#   inbox/                          the owner (CD rips, purchases)       moved
+#   downloads/slskd/                slskd, via Soularr                   moved
+#   downloads/torrents/complete/    qBittorrent, category `music`        copied: a hardlink would
+#                                   share the file, and beets' tag writes would break the seed
+# A folder is imported once nothing in it changed for 10 minutes (a download or a copy still
+# in progress). The incremental state (/config/state.pickle) remembers every folder seen,
+# imported or skipped: a run with nothing new costs a directory listing.
+# Manual pass on what was skipped ("skip" lines in /config/import.log), the CronJob paused:
+#   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":true}}'
+#   kubectl -n music create job beets-manual --from=cronjob/beets --dry-run=client -o json \
+#     | jq '.spec.template.spec.containers[0].command = ["sleep", "3600"]' | kubectl apply -f -
+#   kubectl -n music exec -it job/beets-manual -- /lsiopy/bin/beet import -I --move "/data/inbox/<album>"
+#     (--copy for downloads/torrents/complete/)
+#   kubectl -n music delete job beets-manual
+#   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":false}}'
+# The library database is on a `local` PVC: SQLite does not belong on the SeaweedFS FUSE mount.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: beets-config
+  namespace: music
+data:
+  config.yaml: |
+    directory: /data/library
+    library: /config/library.db
+    plugins: musicbrainz fetchart embedart lyrics mbsync
+    import:
+      write: yes
+      incremental: yes
+      quiet: yes             # never ask: certain matches only...
+      quiet_fallback: skip   # ...the rest stays where it is
+      log: /config/import.log
+      duplicate_action: skip
+      # no `languages`: with fr, beets took MusicBrainz's fr alias ("Le Wanski" -> his legal name)
+    # Left behind by a moved album: deleted with its folder.
+    clutter: ["*.jpg", "*.jpeg", "*.png", "*.nfo", "*.cue", "*.log", "*.m3u", "*.m3u8", "*.txt", "*.sfv", "Thumbs.db", ".DS_Store"]
+    paths:
+      default: $albumartist/($year) $album%aunique{}/$track $title
+      # compilations by label, not one "Various Artists" heap; no label -> Compilations/
+      comp: "%if{$label,Labels/$label,Compilations}/($year) $album%aunique{}/$track $title"
+      singleton: Singles/$artist/$title
+    fetchart:
+      auto: yes
+      sources: [filesystem, coverart, itunes]
+      maxwidth: 1200         # Cover Art Archive scans can exceed 16 MB, the FLAC block limit
+    embedart:
+      maxwidth: 1200
+      auto: yes
+    lyrics:
+      auto: yes
+      synced: yes            # LRCLIB timed lyrics when they exist
+      sources: [lrclib]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: beets-config
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: beets
+  namespace: music
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 10800   # a first run on a big drop takes a while (MusicBrainz: 1 req/s)
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: beets
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: beets
+              image: ghcr.io/linuxserver/beets:2.14.1-ls359
+              # The image's s6 init is skipped: beets runs directly as 1000.
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  # $1: copy|move, then the source trees; imports their settled album folders.
+                  import_settled() {
+                    mode=$1; shift
+                    srcs=$*
+                    set --
+                    for src in $srcs; do
+                      mkdir -p "$src"
+                      for d in "$src"/*/; do
+                        [ -d "$d" ] || continue
+                        [ -z "$(find "$d" -mmin -10 | head -n 1)" ] || continue
+                        set -- "$@" "${d%/}"
+                      done
+                    done
+                    [ $# -eq 0 ] || /lsiopy/bin/beet import --"$mode" "$@"
+                  }
+                  import_settled move /data/inbox /data/downloads/slskd
+                  import_settled copy /data/downloads/torrents/complete
+              env:
+                - { name: BEETSDIR, value: /config }
+                - { name: HOME, value: /config }
+              resources:
+                requests: { cpu: 100m, memory: 192Mi }
+                limits: { memory: 768Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - { name: music, mountPath: /data }
+                - { name: config, mountPath: /config }
+                - { name: beets-config, mountPath: /config/config.yaml, subPath: config.yaml }
+          volumes:
+            - name: music
+              persistentVolumeClaim:
+                claimName: music
+            - name: config
+              persistentVolumeClaim:
+                claimName: beets-config
+            - name: beets-config
+              configMap:
+                name: beets-config

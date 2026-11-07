@@ -1,15 +1,28 @@
-# qBittorrent behind gluetun: both containers share the pod's network, and gluetun's firewall
-# drops everything that is not the WireGuard tunnel (kill switch). Downloads go to
-# downloads/ in the `music` volume. Not wired to Lidarr yet: Lidarr would import straight
-# into library/, and beets is meant to be the only writer there (music spec, to come).
-# qbittorrent.int.${DOMAIN}, internal only.
+# qBittorrent and slskd (Soulseek) behind one gluetun: the containers share the pod's network,
+# and gluetun's firewall drops everything that is not the WireGuard tunnel (kill switch). One
+# pod, one tunnel: a second tunnel would need a second AirVPN key. Both download into
+# downloads/ of the `music` volume; beets (beets.yaml) is the only writer into library/.
 # VPN: AirVPN, WireGuard keys in OpenBao kv/apps/music/vpn (ExternalSecret qbittorrent-vpn).
-# 2417 (TCP+UDP) is the port AirVPN forwards to us; the same on every AirVPN server.
+# Ports AirVPN forwards to us (the same on every AirVPN server): 2417 TCP+UDP qBittorrent,
+# 54429 TCP slskd. UIs internal only, each with its own login: qbittorrent.int.${DOMAIN},
+# slskd.int.${DOMAIN} (slskd: account and keys in kv/apps/music/slskd).
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: qbittorrent-config
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: slskd-config
   namespace: music
 spec:
   accessModes: [ReadWriteOnce]
@@ -45,9 +58,9 @@ spec:
             - { name: VPN_SERVICE_PROVIDER, value: airvpn }
             - { name: VPN_TYPE, value: wireguard }
             - { name: SERVER_COUNTRIES, value: Netherlands }   # gluetun picks a server, fails over
-            - { name: FIREWALL_VPN_INPUT_PORTS, value: "2417" }   # the forwarded port, through the tunnel only
-            # The WebUI, and the cluster's pod and service ranges (DNS, Lidarr), stay reachable.
-            - { name: FIREWALL_INPUT_PORTS, value: "8080" }
+            - { name: FIREWALL_VPN_INPUT_PORTS, value: "2417,54429" }   # the forwarded ports, through the tunnel only
+            # The UIs, and the cluster's pod and service ranges (DNS, Lidarr, Soularr), stay reachable.
+            - { name: FIREWALL_INPUT_PORTS, value: "8080,5030" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16" }
           envFrom:
             - secretRef:
@@ -88,7 +101,44 @@ spec:
           volumeMounts:
             - { name: config, mountPath: /config }
             - { name: music, mountPath: /data }
+        - name: slskd
+          image: ghcr.io/slskd/slskd:0.26.2
+          env:
+            - { name: SLSKD_SLSK_LISTEN_PORT, value: "54429" }
+            - { name: SLSKD_HTTP_PORT, value: "5030" }
+            - { name: SLSKD_NO_HTTPS, value: "true" }         # TLS ends at the gateway
+            - { name: SLSKD_NO_VERSION_CHECK, value: "true" }
+            - { name: SLSKD_USERNAME, value: admin }          # web UI; password from the secret
+            - { name: SLSKD_SHARED_DIR, value: /data/library }   # sharing is the norm on Soulseek
+            - { name: SLSKD_DOWNLOADS_DIR, value: /data/downloads/slskd }
+            - { name: SLSKD_INCOMPLETE_DIR, value: /data/downloads/.slskd-incomplete }   # outside what beets reads
+          envFrom:
+            - secretRef:
+                name: slskd      # SLSKD_SLSK_USERNAME, SLSKD_SLSK_PASSWORD, SLSKD_PASSWORD, SLSKD_API_KEY
+          ports:
+            - { name: slskd, containerPort: 5030 }
+          readinessProbe:
+            tcpSocket: { port: slskd }
+          resources:
+            requests: { cpu: 20m, memory: 160Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: slskd-config, mountPath: /app }
+            - { name: music, mountPath: /data/library, subPath: library, readOnly: true }
+            - { name: music, mountPath: /data/downloads, subPath: downloads }
       volumes:
+        - name: slskd-config
+          persistentVolumeClaim:
+            claimName: slskd-config
         - name: gluetun-tmp
           emptyDir: {}
         - name: tun
@@ -137,3 +187,39 @@ spec:
       backendRefs:
         - name: qbittorrent
           port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slskd
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: qbittorrent
+  ports:
+    - { name: http, port: 5030, targetPort: slskd }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: slskd
+  namespace: music
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - slskd.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: slskd
+          port: 5030

@@ -1,0 +1,60 @@
+# Soularr: reads Lidarr's wanted list (missing albums) every 5 minutes, searches and downloads
+# them through slskd's API, then renames the finished folder "Artist - Album (Year)" in
+# downloads/slskd/. It does not ask Lidarr to import (disable_sync): beets does (beets.yaml).
+# Config: ExternalSecret soularr-config (secrets.yaml). Its state (search page, failed-import
+# denylist) is in an emptyDir.
+# shortcut: the state is lost on restart, so searches start over; a small PVC if it re-grabs junk.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soularr
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: soularr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: soularr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: soularr
+          image: ghcr.io/mrusse/soularr:1.2.3
+          args: ["--config-dir", "/config", "--var-dir", "/var/lib/soularr"]
+          env:
+            - { name: SCRIPT_INTERVAL, value: "300" }
+            - { name: WEBUI_ENABLED, value: "false" }   # its failed-imports page: not needed with sync off
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+            - { name: state, mountPath: /var/lib/soularr }
+            - { name: music, mountPath: /data/downloads, subPath: downloads }
+      volumes:
+        - name: config
+          secret:
+            secretName: soularr-config
+        - name: state
+          emptyDir: {}
+        - name: music
+          persistentVolumeClaim:
+            claimName: music

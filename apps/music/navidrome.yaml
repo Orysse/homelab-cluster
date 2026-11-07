@@ -50,6 +50,9 @@ spec:
             - { name: ND_LOGLEVEL, value: info }
             - { name: ND_ENABLEGRAVATAR, value: "false" }
             - { name: ND_ENABLEINSIGHTSCOLLECTOR, value: "false" }
+          envFrom:
+            - secretRef:
+                name: navidrome-lastfm   # ND_LASTFM_APIKEY, ND_LASTFM_SECRET: bios, similar artists (no scrobbling unless a user links an account)
           ports:
             - { name: http, containerPort: 4533 }
           readinessProbe:

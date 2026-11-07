@@ -11,7 +11,7 @@ metadata:
   name: soularr
   namespace: music
 spec:
-  replicas: 0   # with qbittorrent (slskd); it fetches whatever Lidarr reports missing: check Wanted (monitored) first
+  replicas: 1   # it fetches whatever Lidarr reports missing: check Wanted (monitored) before monitoring a whole discography
   revisionHistoryLimit: 3
   strategy:
     type: Recreate

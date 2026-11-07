@@ -62,8 +62,8 @@ spec:
             periodSeconds: 30
             failureThreshold: 5
           resources:
-            requests: { cpu: 20m, memory: 96Mi }
-            limits: { memory: 384Mi }
+            requests: { cpu: 20m, memory: 128Mi }
+            limits: { memory: 768Mi }   # 384Mi: OOMKilled during scans of the full library (2026-11-07)
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

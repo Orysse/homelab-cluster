@@ -12,8 +12,9 @@
 #   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":true}}'
 #   kubectl -n music create job beets-manual --from=cronjob/beets --dry-run=client -o json \
 #     | jq '.spec.template.spec.containers[0].command = ["sleep", "3600"]' | kubectl apply -f -
-#   kubectl -n music exec -it job/beets-manual -- /lsiopy/bin/beet import -I --move "/data/inbox/<album>"
-#     (--copy for downloads/torrents/complete/)
+#   kubectl -n music exec job/beets-manual -- sh -c 'printf "import:\n  quiet: no\n" > /config/manual.yaml'
+#   kubectl -n music exec -it job/beets-manual -- /lsiopy/bin/beet -c /config/manual.yaml import -I --move "/data/inbox/<album>"
+#     (--copy for downloads/torrents/complete/; without -c manual.yaml it stays quiet and skips silently)
 #   kubectl -n music delete job beets-manual
 #   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":false}}'
 # The library database is on a `local` PVC: SQLite does not belong on the SeaweedFS FUSE mount.

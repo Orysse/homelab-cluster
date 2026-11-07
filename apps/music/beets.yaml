@@ -6,8 +6,9 @@
 #   downloads/torrents/complete/    qBittorrent, category `music`        copied: a hardlink would
 #                                   share the file, and beets' tag writes would break the seed
 # A folder is imported once nothing in it changed for 10 minutes (a download or a copy still
-# in progress). The incremental state (/config/state.pickle) remembers every folder seen,
-# imported or skipped: a run with nothing new costs a directory listing.
+# in progress). The incremental state (/config/state.pickle) remembers every folder imported;
+# a skipped one is retried every run (one MusicBrainz lookup each).
+# shortcut: retried skips cost a lookup per run, move them to a skipped/ folder if they pile up.
 # Manual pass on what was skipped ("skip" lines in /config/import.log), the CronJob paused:
 #   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":true}}'
 #   kubectl -n music create job beets-manual --from=cronjob/beets --dry-run=client -o json \
@@ -37,7 +38,8 @@ data:
       quiet: yes             # never ask: certain matches only...
       quiet_fallback: skip   # ...the rest stays where it is
       log: /config/import.log
-      duplicate_action: skip
+      incremental_skip_later: yes   # retry skipped folders: Soularr re-grabs whatever stays missing in Lidarr
+      duplicate_action: remove      # a complete download replaces the partial album (btrbk snapshots keep the old one 14 days)
       # no `languages`: with fr, beets took MusicBrainz's fr alias ("Le Wanski" -> his legal name)
     # Left behind by a moved album: deleted with its folder.
     clutter: ["*.jpg", "*.jpeg", "*.png", "*.nfo", "*.cue", "*.log", "*.m3u", "*.m3u8", "*.txt", "*.sfv", "Thumbs.db", ".DS_Store"]

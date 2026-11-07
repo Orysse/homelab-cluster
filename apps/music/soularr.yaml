@@ -11,7 +11,7 @@ metadata:
   name: soularr
   namespace: music
 spec:
-  replicas: 1
+  replicas: 0   # until Lidarr's wanted list is checked (2026-11-07: it must list only monitored albums)
   revisionHistoryLimit: 3
   strategy:
     type: Recreate
@@ -34,7 +34,8 @@ spec:
       containers:
         - name: soularr
           image: ghcr.io/mrusse/soularr:1.2.3
-          args: ["--config-dir", "/config", "--var-dir", "/var/lib/soularr"]
+          # args replace the image CMD: run.sh (the 5-minute loop) passes the rest to soularr.py
+          args: ["/app/run.sh", "--config-dir", "/config", "--var-dir", "/var/lib/soularr"]
           env:
             - { name: SCRIPT_INTERVAL, value: "300" }
             - { name: WEBUI_ENABLED, value: "false" }   # its failed-imports page: not needed with sync off

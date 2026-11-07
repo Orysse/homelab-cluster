@@ -51,6 +51,25 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
+      initContainers:
+        # slskd refuses to start on a missing directory; qBittorrent's category paths too.
+        - name: dirs
+          image: docker.io/library/busybox:1.37
+          command: [sh, -ec, "mkdir -p /data/downloads/slskd /data/downloads/.slskd-incomplete /data/downloads/torrents/complete /data/downloads/torrents/incomplete"]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: music, mountPath: /data/downloads, subPath: downloads }
       containers:
         - name: gluetun
           image: ghcr.io/qdm12/gluetun:v3.41.3

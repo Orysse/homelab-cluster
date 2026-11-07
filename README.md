@@ -11,27 +11,32 @@ then deploying an app from a ready-made template. Day-to-day commands:
 ## Layout = application order
 
 ```
-clusters/homelab/          Flux entry point (homelab-nix points here)
+clusters/homelab/          Flux entry point (the FluxInstance in homelab-nix syncs it)
 ├─ infrastructure.yaml     infra-controllers -> infra-configs
 └─ apps.yaml               apps (after infra-configs)
 
 infrastructure/
-├─ controllers/            what installs CRDs: MetalLB, cert-manager, csi-driver-nfs,
-│                          External Secrets, vault-config-operator, Tetragon
-└─ configs/                what uses them: MetalLB pool, Traefik, Gateways, certificates,
-                           storage class, network policies, monitoring (Alloy, Grafana and
-                           its dashboards), OpenBao, Pocket-ID, Headlamp, OIDC RBAC,
-                           CrowdSec, Tetragon policies
+├─ controllers/            what installs CRDs: cert-manager, External Secrets,
+│                          local-path-provisioner, CloudNativePG, CrowdSec, Pocket-ID operator
+└─ configs/                what uses them, by concern:
+   ├─ network/             IP pool, L2 policy, Gateways, certificates, platform policies
+   ├─ secrets/             OpenBao, the cluster secret store
+   ├─ postgres/            the shared PostgreSQL cluster, its backups, one file per database
+   ├─ identity/            Pocket-ID, oauth2-proxy, OIDC RBAC, Headlamp
+   ├─ security/            CrowdSec (detection; bans are enforced on the hosts)
+   └─ monitoring/          OpenTelemetry Collector, exporters, Grafana and its dashboards
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page at the domain apex
 ├─ vitrine/                showcase site (image built in its own repository)
 ├─ holive/                 www.holive.fr, a portfolio (own certificate; holive.fr redirects)
-├─ umami/                  web analytics collector for vitrine and holive (stats in Grafana)
 ├─ gatus/                  status page, status.${DOMAIN}
+├─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
-└─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
+├─ music/                  Lidarr, qBittorrent behind a VPN, Navidrome, Syncthing (SeaweedFS volume)
+└─ paperclip/              AI agent control plane, paperclip.int.${DOMAIN} (Pocket-ID, admins)
 
+docs/adr/                  architecture decisions
 docs/onboarding/           access, deploying an app, visitor tour (French); modele/ = app template
 ```
 
@@ -46,13 +51,12 @@ The network is defined **once**, in homelab-nix's topology, which publishes the
 | Variable | Value | Used for |
 |---|---|---|
 | `${DOMAIN}` | `abe.lc` | hostnames, certificates |
-| `${INGRESS_ADDRESS}` | `192.168.1.240` | public entry point (Traefik) |
+| `${INGRESS_ADDRESS}` | `192.168.1.240` | public entry point (Gateway `public`) |
 | `${INTERNAL_ADDRESS}` | `192.168.1.241` | internal entry point (LAN and VPN only) |
-| `${INGRESS_POOL}` | `192.168.1.240-192.168.1.254` | IPs MetalLB may assign |
+| `${INGRESS_POOL_START}`, `${INGRESS_POOL_STOP}` | `192.168.1.240`, `192.168.1.254` | LoadBalancer IPs Cilium may assign |
 | `${CLUSTER_NAME}` | `homelab` | `cluster` label on metrics and logs |
-| `${NFS_SERVER}`, `${NFS_SHARE}` | `192.168.1.200`, `/srv/data` | StorageClass `nfs` |
 | `${MONITORING_ADDRESS}` | `192.168.1.200` | VictoriaMetrics/VictoriaLogs/Alertmanager |
-| `${DATABASE_ADDRESS}` | `192.168.1.200` | PostgreSQL for the apps |
+| `${BACKUP_ADDRESS}` | `192.168.1.200` | S3 (Garage) for PostgreSQL backups |
 
 Flux also rewrites `$${X}` to `${X}`, for software that does its own substitution. An
 object full of `$` (a Grafana dashboard, a script) gets the annotation
@@ -64,8 +68,10 @@ Adding an app: [docs/onboarding/02-deployer-une-app.md](docs/onboarding/02-deplo
 from `docs/onboarding/modele/`. In short: a directory under `apps/` with the Namespace,
 Deployment, Service, HTTPRoute and network policy, one line in `apps/kustomization.yaml`.
 
-Two Gateways (`infrastructure/configs/gateway.yaml`); a namespace label says which one its
-routes may use:
+Cilium serves the Gateways with the Envoy it already runs on each node (no ingress
+controller) and announces their addresses on the LAN ([ADR 0002](docs/adr/0002-cilium-data-plane.md)).
+Two Gateways in the namespace `gateway` (`infrastructure/configs/network/gateways.yaml`);
+a namespace label says which one its routes may use:
 
 | Gateway | Namespace label | Hostnames | Reachable from |
 |---|---|---|---|
@@ -77,24 +83,27 @@ an admin interface goes on `internal`. One exception: Headlamp (`k8s.${DOMAIN}`)
 so that people can use it without the VPN; it has no rights of its own and acts with the
 logged-in user's token.
 
-TLS, the HTTP to HTTPS redirect, the security headers and the CrowdSec bouncer are applied by
-Traefik's entry points (`infrastructure/configs/traefik.yaml`): apps need nothing for them.
+TLS and the HTTP to HTTPS redirect are the Gateways' job. Security headers are set by each
+route (`ResponseHeaderModifier`): Gateway API has no gateway-wide filter, so they sit next to
+the app, visible. Every request is written to the Gateways' access log, in nginx's format
+(CrowdSec reads it, so does VictoriaLogs).
 
 ## Network policies
 
 A `CiliumNetworkPolicy` per namespace (`network-policy.yaml` next to each app,
-`infrastructure/configs/network-policies/` for the platform): **deny by default in both
-directions**, then what each component needs. Pods on the host network (Cilium, MetalLB
-speakers, node-exporter, NFS CSI, Tetragon) are not policed.
+`infrastructure/configs/network/policies/` for the platform): **deny by default in both
+directions**, then what each component needs. Pods on the host network (Cilium,
+node-exporter) are not policed.
 
 | Building block | Rule |
 |---|---|
-| Reached through Traefik | `fromEndpoints` kube-system / `app.kubernetes.io/name: traefik`, on the container port |
+| Reached through a Gateway | `fromEntities: [ingress]` (Cilium's Envoy), on the container port |
 | Cluster DNS | `toEndpoints` kube-system / `k8s-app: kube-dns`, port 53, with the `dns` rule (names in Hubble) |
-| PostgreSQL, VictoriaMetrics on nuc1 | `toCIDR: ["${DATABASE_ADDRESS}/32"]` + port (outside the cluster: "world") |
+| Its PostgreSQL | `toEndpoints` postgres / `cnpg.io/cluster: main`, port 5432 |
+| The monitoring host | `toCIDR: ["${MONITORING_ADDRESS}/32"]` + port (outside the cluster: "world") |
 | Kubernetes API | `toEntities: [kube-apiserver]`, port 6443 |
 | One external name | `toFQDNs` + port, with the DNS rule above |
-| Pocket-ID, any HTTPS | `toEntities: [world]`, port 443 (`auth.${DOMAIN}` goes out through the public address) |
+| Pocket-ID | `toFQDNs: auth.${DOMAIN}` and `toEntities: [ingress]`, port 443 (through the public Gateway) |
 | Nothing at all | `egress: [{}]`: without any egress rule, Cilium would not deny egress |
 
 Kubelet probes are always allowed. To write or debug one, watch the real traffic in Hubble
@@ -106,25 +115,38 @@ Kubelet probes are always allowed. To write or debug one, watch the real traffic
 | Where | For | How |
 |---|---|---|
 | **OpenBao** (`bao.int.${DOMAIN}`) | application secrets | `kv/apps/<namespace>/<name>`, read through External Secrets |
-| **sops** (in git) | bootstrap only: OpenBao's unseal key and initial PostgreSQL password | `*.sops.yaml`, below |
+| **Pocket-ID operator** | OIDC clients | a `PocketIDOIDCClient` next to the app writes its credentials Secret |
+| **sops** (in git) | bootstrap only: OpenBao's unseal key | `*.sops.yaml`, below |
 
-A namespace reads only `kv/apps/<its namespace>/*` and its own PostgreSQL credentials
-(`database/postgres/static-creds/<namespace>`): templated policy, nothing to configure per
-namespace. Secrets nobody needs to see (encryption keys) are generated by
-vault-config-operator (`RandomSecret`); app databases get a static role in
-`infrastructure/configs/openbao/database.yaml`, whose password OpenBao sets and rotates.
-Examples: `apps/umami/secrets.yaml`, and the onboarding guide.
+A namespace reads and writes only `kv/apps/<its namespace>/*`: one templated policy, nothing
+to configure per namespace. OpenBao's whole configuration (mounts, auth, policies, roles) is
+its self-initialization, in `infrastructure/configs/secrets/openbao.yaml`
+([ADR 0005](docs/adr/0005-secrets.md)). Three kinds of secrets:
 
-OpenBao's own configuration (engines, policies, roles) is in
-`infrastructure/configs/openbao/config.yaml`, applied by vault-config-operator. Each object
-has two conditions (`ReconcileFailed` from an earlier attempt can linger next to
-`ReconcileSuccessful: True`): read both.
+- **Written by a person** (API keys, the SMTP password): in OpenBao's UI, then an
+  `ExternalSecret` reads them.
+- **Generated, nobody sees them** (encryption keys): an `ExternalSecret` with the
+  `password` ClusterGenerator makes a candidate once, a `PushSecret` (`IfNotExists`) keeps
+  it in OpenBao, an `ExternalSecret` reads it back. OpenBao holds the value, so recreating
+  the objects never changes it. Example: `apps/headscale/secrets.yaml`.
+- **Database credentials**: the same flow in `infrastructure/configs/postgres/databases/<app>.yaml`
+  writes `kv/apps/<app>/db` (`username`, `password`); CloudNativePG sets the role's password
+  from it, the app reads it like any other secret ([ADR 0006](docs/adr/0006-postgresql.md)).
 
 **sops + age.** Write the Secret in plaintext as `<path>/<name>.sops.yaml`, then
 `sops --encrypt --in-place <file>`; edit with `sops <file>`. Recipients (`.sops.yaml`): the
-admin's age key and YubiKey, and Flux's age key, generated on kube-1 and published by the
+admin's age key and YubiKey, and Flux's age key, generated on kube-0 and published by the
 base as `flux-system/sops-age`. If that key changes: update `.sops.yaml`, then
 `sops updatekeys` on each file.
+
+## Data
+
+| What | Where | Backup |
+|---|---|---|
+| Databases (Pocket-ID, Headscale, Lidarr, SeaweedFS) | CloudNativePG `main`, local volume on its node | nightly base backup + WAL to Garage (S3) on nuc1, 30 days |
+| OpenBao | host subvolume `@openbao` of nuc1, shared with the VM | hourly btrbk snapshots, daily copy to R2 (encrypted) |
+| Music library | SeaweedFS (StorageClass `seaweedfs`), host subvolume `@seaweed` | none: re-fetched by Lidarr |
+| Metrics, logs | VictoriaMetrics, VictoriaLogs on nuc1 | none (90 and 30 days kept) |
 
 ## Access
 
@@ -136,33 +158,45 @@ rights:
 | `admins` | cluster-admin | Admin | admin | the homelab (users listed in `apps/headscale/policy.json`) |
 | `visitors` | `view` (no Secrets, no exec), plus the network CRDs | Viewer | none | internal gateway and Kubernetes API only |
 
-The internal network is reached through **Tailscale**, with our own control server
-(Headscale, `hs.${DOMAIN}`, Pocket-ID login); nuc1 routes the homelab subnet. WireGuard on
-nuc1 stays as break-glass for the owner's laptop. OIDC clients are created in Pocket-ID's
-admin UI; their secrets go to OpenBao (`kv/apps/<namespace>/oidc`, keys `client_id`,
-`client_secret`).
+Pocket-ID is run by its operator; the groups are `PocketIDUserGroup`s, each app declares
+its OIDC client ([ADR 0004](docs/adr/0004-oidc-clients.md)). The internal network is
+reached through **Tailscale**, with our own control server (Headscale, `hs.${DOMAIN}`,
+Pocket-ID login); nuc1 routes the homelab subnet. WireGuard on nuc1 stays as break-glass
+for the owner's laptop.
 
 Break-glass when Pocket-ID is down: the base's admin kubeconfig (client certificate,
-`homelab-nix` context); OpenBao with the operator's identity (see `openbao/config.yaml`);
-Grafana with the chart's admin password (`kubectl -n monitoring get secret grafana`).
+`homelab-nix` context); OpenBao through the `break-glass` role (header of
+`secrets/openbao.yaml`); Grafana with the chart's admin password
+(`kubectl -n monitoring get secret grafana`).
 
-## Runtime security
+## Observability
 
-| What | Sees | Where to look |
-|---|---|---|
-| **CrowdSec** (`configs/crowdsec/`) | Traefik's access logs (scans, brute force, CVE probes) and the community blocklist; the Traefik bouncer answers 403 to banned IPs on the public entry point | `kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list` |
-| **Tetragon** (`configs/tetragon.yaml`) | every process started in a pod, credential reads, writes under `/etc` | VictoriaLogs (namespace `kube-system`, container `export-stdout`); alerts `SuspiciousExecInPod`, `SensitiveFileAccessInPod` |
+One OpenTelemetry Collector per node sends metrics and logs to VictoriaMetrics and
+VictoriaLogs on nuc1, below the cluster: alerts (vmalert, on nuc1) still fire when the
+cluster is down ([ADR 0007](docs/adr/0007-observability.md)). Grafana
+(`grafana.int.${DOMAIN}`) keeps nothing: datasources and dashboards are provisioned. Our
+dashboards: overview, network, vulnerabilities, electricity (a software estimate from RAPL).
 
-Unban an IP: `cscli decisions delete --ip <ip>`. LAN, VPN and pods are never checked by the
-bouncer, and it fails open if CrowdSec is down.
+## Scanner blocking
+
+CrowdSec reads the Gateways' access log and the community blocklist. CrowdSec's own
+firewall bouncer, on the physical hosts (homelab-nix), pulls the bans from the LAPI into
+nftables and drops those addresses before they reach a VM; if CrowdSec is down, the bans
+stay until they expire ([ADR 0003](docs/adr/0003-scanner-blocking.md)).
+`kubectl -n crowdsec exec deploy/crowdsec-lapi -- cscli decisions list`; unban:
+`cscli decisions delete --ip <ip>`. LAN, VPN and pods are whitelisted.
+
+## Decisions
+
+[docs/adr/](docs/adr/): one page each, context, decision, what was rejected.
 
 ## Rules
 
 - Images and charts are **pinned** (tag / version), never `:latest`. Renovate opens pull
   requests to update them: read the release notes before merging, then follow with
-  `flux get hr -A` and `flux get ks`. k3s and the Traefik it bundles are updated from
-  homelab-nix.
+  `flux get hr -A` and `flux get ks`. k3s and Cilium are updated from homelab-nix.
 - **No plaintext secrets**: the repository is public.
 - Config files mounted from a ConfigMap go through `configMapGenerator` (hash-suffixed name:
   pods restart when the content changes).
-- Before pushing: `kubectl kustomize apps > /dev/null` (and `infrastructure/configs`).
+- Every pull request runs `scripts/validate.sh`: what Flux would apply builds, and matches
+  the Kubernetes and CRD schemas. Run it before pushing.

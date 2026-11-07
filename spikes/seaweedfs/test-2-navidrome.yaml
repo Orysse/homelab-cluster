@@ -1,0 +1,42 @@
+# Criterion 2: Navidrome scans 10 000 files on the mount without errors.
+# One real mp3 (made by ffmpeg) copied into 1 000 directories x 10 names: the point is the
+# file count and the directory walk through FUSE, not the tags.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: test-2-sample, namespace: seaweedfs-spike }
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: t
+          image: lscr.io/linuxserver/ffmpeg:latest
+          command:
+            - sh
+            - -ec
+            - |
+              ffmpeg -loglevel error -f lavfi -i "sine=frequency=440:duration=2" \
+                -metadata title=t -metadata artist=a -metadata album=al /tmp/s.mp3
+              for d in $(seq 1000); do
+                mkdir -p /data/sample/artist$((d % 50))/album$d
+                for t in $(seq 10); do cp /tmp/s.mp3 /data/sample/artist$((d % 50))/album$d/track$t.mp3; done
+              done
+              find /data/sample -type f | wc -l
+          volumeMounts: [{ name: d, mountPath: /data }]
+      volumes: [{ name: d, persistentVolumeClaim: { claimName: music } }]
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: navidrome, namespace: seaweedfs-spike }
+spec:
+  containers:
+    - name: navidrome
+      image: deluan/navidrome:0.55.2
+      env:
+        - { name: ND_MUSICFOLDER, value: /data/sample }
+        - { name: ND_DATAFOLDER, value: /tmp/nd }
+        - { name: ND_SCANSCHEDULE, value: "0" }
+        - { name: ND_LOGLEVEL, value: info }
+      volumeMounts: [{ name: d, mountPath: /data, readOnly: true }]
+  volumes: [{ name: d, persistentVolumeClaim: { claimName: music } }]

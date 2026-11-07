@@ -8,7 +8,6 @@ configMapGenerator:
     namespace: site
     files:
       - index.txt
-      - nginx.conf
     options:
       annotations:
         # Free text: Flux must not substitute ${variables} in it.
@@ -18,7 +17,7 @@ replacements:
   - source:
       kind: Deployment
       name: site
-      fieldPath: spec.template.spec.containers.[name=nginx].image
+      fieldPath: spec.template.spec.containers.[name=site].image
       options: { delimiter: ":", index: 1 }
     targets:
       - select: { kind: Deployment, name: site }

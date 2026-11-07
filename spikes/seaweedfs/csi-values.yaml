@@ -1,0 +1,3 @@
+# helm install seaweedfs-csi seaweedfs-csi/seaweedfs-csi-driver --version 0.2.44 -n seaweedfs-spike -f csi-values.yaml
+seaweedfsFiler: "seaweedfs-filer.seaweedfs-spike:8888"
+storageClassName: seaweedfs-spike

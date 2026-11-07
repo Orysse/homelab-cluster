@@ -1,0 +1,38 @@
+# CrowdSec: the agents and the registration job talk to the LAPI, and so do the hosts'
+# firewall bouncers, from outside the cluster (LAN address, not port-forwarded; the bouncer
+# key is required). The LAPI and the agents download the hub (parsers, scenarios) and the
+# LAPI talks to CrowdSec's central API (community blocklist), all over HTTPS. The
+# registration job also talks to the API server. The collector scrapes 6060.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: crowdsec }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEntities: [world]          # the physical hosts' bouncers
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring }
+      toPorts:
+        - ports:
+            - { port: "6060", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: crowdsec, type: lapi }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [kube-apiserver]
+      toPorts: [{ ports: [{ port: "6443", protocol: TCP }] }]

@@ -80,11 +80,20 @@ metadata:
 spec:
   parentRefs:
     - name: public              # ou internal (avec le label du namespace)
-      namespace: kube-system
+      namespace: gateway
       sectionName: https
   hostnames:
     - monapp.${DOMAIN}          # ou monapp.int.${DOMAIN} sur internal
   rules:
-    - backendRefs:
+    # En-têtes de sécurité : chaque route pose les siens (pas de filtre global en Gateway API).
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: monapp
           port: 80

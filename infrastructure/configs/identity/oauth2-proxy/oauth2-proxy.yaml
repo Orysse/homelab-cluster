@@ -1,0 +1,153 @@
+# oauth2-proxy: Pocket-ID login in front of Hubble UI (hubble.int.${DOMAIN}), the one
+# internal UI without login of its own. A reverse proxy: every request goes through it,
+# and only a Pocket-ID "admins" session gets through to hubble-ui (flows include visitors'
+# public IPs). Apps with native OIDC (Grafana, OpenBao, Headlamp) do not use it.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oauth2-proxy
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: oauth2-proxy
+automountServiceAccountToken: false
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  callbackUrls: ["https://hubble.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://hubble.int.${DOMAIN}
+---
+# Signs the session cookie: generated here once. Not kept in OpenBao: losing it only means
+# logging in again.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cookie
+  namespace: oauth2-proxy
+spec:
+  refreshInterval: "0"
+  target:
+    name: cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            # Pocket-ID marks emails unverified; access is decided by the group, not the email.
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://hubble-ui.kube-system.svc.cluster.local
+            - --redirect-url=https://hubble.int.${DOMAIN}/oauth2/callback
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-oidc-credentials }
+        - name: cookie
+          secret: { secretName: cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hubble
+  namespace: oauth2-proxy
+spec:
+  parentRefs:
+    - { name: internal, namespace: gateway, sectionName: https }
+  hostnames:
+    - hubble.int.${DOMAIN}
+  rules:
+    - backendRefs:
+        - name: oauth2-proxy
+          port: 80

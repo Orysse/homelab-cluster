@@ -1,0 +1,91 @@
+# Pocket-ID at auth.${DOMAIN}: the homelab's identity provider (passkeys, OIDC). Run by the
+# Pocket-ID operator from the PocketIDInstance below (ADR 0004): settings are here, the
+# admin UI manages users and passkeys only. OIDC clients are PocketIDOIDCClient objects in
+# each app's namespace; groups are below. Users get an invitation email from
+# homelab@${DOMAIN}. Stateless pod: everything, uploads included, lives in PostgreSQL
+# (CloudNativePG, database pocket-id).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pocket-id
+  labels:
+    gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDInstance
+metadata:
+  name: pocket-id
+  namespace: pocket-id
+spec:
+  image: ghcr.io/pocket-id/pocket-id:v2.18.0-distroless
+  appUrl: https://auth.${DOMAIN}
+  encryptionKey:
+    valueFrom:
+      secretKeyRef: { name: pocket-id, key: ENCRYPTION_KEY }
+  databaseUrl:
+    valueFrom:
+      secretKeyRef: { name: pocket-id-db, key: url }
+  fileBackend: database
+  persistence:
+    enabled: false
+  trustedProxies:
+    enabled: true
+    cidrs: ["10.42.0.0/16"]       # Cilium's Envoy reaches the pod from the pod network
+  route:
+    enabled: true
+    hostnames: ["auth.${DOMAIN}"]
+    parentRefs:
+      - { name: public, namespace: gateway, sectionName: auth }
+  ui:
+    appName: ${DOMAIN}
+    sessionDuration: 480          # minutes
+  userManagement:
+    allowUserSignups: disabled    # admins create users and invite them
+  smtp:
+    host: smtp-relay.brevo.com
+    port: 587
+    tls: starttls
+    user: bfaade001@smtp-brevo.com      # Brevo SMTP login
+    from: homelab@${DOMAIN}
+    password:
+      valueFrom:
+        secretKeyRef: { name: pocket-id, key: SMTP_PASSWORD }
+  emailNotifications:
+    oneTimeAccessAsAdmin: true    # invitations and login links sent by an admin
+    # Fallback for people without a usable passkey: a code by email. Their account is
+    # then only as safe as their mailbox.
+    oneTimeAccessAsUnauthenticated: true
+    loginNotification: true
+  analyticsDisabled: true
+  versionCheckDisabled: true      # Renovate handles updates
+  metrics:
+    enabled: true
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    seccompProfile: { type: RuntimeDefault }
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities: { drop: [ALL] }
+---
+# Groups. Membership is managed in Pocket-ID's UI (people, not git).
+#   admins    cluster-admin (oidc-rbac.yaml), OpenBao admin, Grafana admin, Headscale exit node
+#   visitors  read-only on the cluster
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDUserGroup
+metadata:
+  name: admins
+  namespace: pocket-id
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDUserGroup
+metadata:
+  name: visitors
+  namespace: pocket-id

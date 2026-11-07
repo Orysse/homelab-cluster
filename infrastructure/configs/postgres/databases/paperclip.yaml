@@ -1,0 +1,65 @@
+# paperclip: one database owned by the role paperclip (cluster.yaml). The password: generated
+# once, kept in OpenBao at kv/apps/paperclip/db, read back from there (credentials.yaml); the app
+# reads the same entry (apps/paperclip/secrets.yaml). The path starts with the app's namespace:
+# the cluster secret store only reads kv/apps/<namespace>/*.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: paperclip-db-generated
+  namespace: postgres
+spec:
+  refreshInterval: "0"            # generated once
+  target:
+    name: paperclip-db-generated
+    template:
+      data:
+        username: paperclip
+        password: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: paperclip-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  updatePolicy: IfNotExists       # never replaces what OpenBao holds
+  secretStoreRefs:
+    - { kind: SecretStore, name: openbao-writer }
+  selector:
+    secret: { name: paperclip-db-generated }
+  data:
+    - match:
+        remoteRef: { remoteKey: paperclip/db }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: paperclip-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: SecretStore, name: openbao-writer }
+  target:
+    name: paperclip-db
+    template:
+      type: kubernetes.io/basic-auth
+  dataFrom:
+    - extract: { key: paperclip/db }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: paperclip
+  namespace: postgres
+spec:
+  cluster: { name: main }
+  name: paperclip
+  owner: paperclip

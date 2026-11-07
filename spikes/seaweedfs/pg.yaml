@@ -1,0 +1,19 @@
+# Scratch PostgreSQL for the filer metadata: the real setup uses a database in the main CNPG
+# cluster (design item 28); the spike must not touch it.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg
+  namespace: seaweedfs-spike
+spec:
+  instances: 1
+  storage:
+    size: 2Gi
+    storageClass: local
+  bootstrap:
+    initdb:
+      database: seaweedfs
+      owner: seaweedfs
+  resources:
+    requests: { memory: 256Mi }
+    limits: { memory: 512Mi }

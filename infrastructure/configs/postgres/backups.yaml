@@ -1,0 +1,15 @@
+# A base backup every night at 03:00 (WAL is archived continuously in between), and one
+# right after the cluster is created.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: main-daily
+  namespace: postgres
+spec:
+  cluster: { name: main }
+  schedule: "0 0 3 * * *"         # seconds first
+  immediate: true
+  backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

@@ -1,7 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - crowdsec.yaml
-  - network-policy.yaml
-  - bouncer-key.yaml
-  - middleware.yaml

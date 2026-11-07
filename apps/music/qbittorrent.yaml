@@ -1,0 +1,125 @@
+# qBittorrent behind gluetun: both containers share the pod's network, and gluetun's firewall
+# drops everything that is not the WireGuard tunnel (kill switch). Downloads go to
+# downloads/ in the `music` volume; Lidarr hardlinks finished albums into library/.
+# qbittorrent.int.${DOMAIN}, internal only.
+# Deployed switched off (replicas: 0) until the VPN's WireGuard configuration exists:
+#   1. OpenBao kv/apps/music/vpn: private_key, addresses (from the provider's WireGuard file)
+#   2. add the ExternalSecret `qbittorrent-vpn` to secrets.yaml (keys WIREGUARD_PRIVATE_KEY,
+#      WIREGUARD_ADDRESSES)
+#   3. replicas: 1, and the PVC qbittorrent-config (class local, 1Gi, the "config" volume below):
+#      not created now, a PVC of class local stays Pending until a pod uses it, which would
+#      keep `apps` from being Ready
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+  namespace: music
+spec:
+  replicas: 0
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qbittorrent
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: gluetun
+          image: ghcr.io/qdm12/gluetun:v3.41.3
+          env:
+            - { name: VPN_SERVICE_PROVIDER, value: mullvad }
+            - { name: VPN_TYPE, value: wireguard }
+            # The WebUI, and the cluster's pod and service ranges (DNS, Lidarr), stay reachable.
+            - { name: FIREWALL_INPUT_PORTS, value: "8080" }
+            - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16" }
+          envFrom:
+            - secretRef:
+                name: qbittorrent-vpn      # WIREGUARD_PRIVATE_KEY, WIREGUARD_ADDRESSES
+          resources:
+            requests: { cpu: 10m, memory: 48Mi }
+            limits: { memory: 192Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - { name: tun, mountPath: /dev/net/tun }
+        - name: qbittorrent
+          image: ghcr.io/linuxserver/qbittorrent:version-5.1.4-r3
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: WEBUI_PORT, value: "8080" }
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+          resources:
+            requests: { cpu: 20m, memory: 128Mi }
+            limits: { memory: 768Mi }
+          securityContext:      # starts as root (s6-overlay), then drops to PUID
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: music, mountPath: /data }
+      volumes:
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - name: music
+          persistentVolumeClaim:
+            claimName: music
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: qbittorrent
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: qbittorrent
+  namespace: music
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - qbittorrent.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: qbittorrent
+          port: 80

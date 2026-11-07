@@ -1,0 +1,117 @@
+# Navidrome: listening at home, on the library (read-only). Its database (users, play
+# counts, playlists) is on a `local` volume: lost, a rescan rebuilds the library, not the
+# users. navidrome.int.${DOMAIN}. It rescans hourly (new albums arrive from Lidarr).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: navidrome-data
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navidrome
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: navidrome
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: navidrome
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: navidrome
+          image: ghcr.io/navidrome/navidrome:0.64.2
+          env:
+            - { name: ND_MUSICFOLDER, value: /music }
+            - { name: ND_DATAFOLDER, value: /data }
+            - { name: ND_SCANSCHEDULE, value: "@every 1h" }
+            - { name: ND_LOGLEVEL, value: info }
+            - { name: ND_ENABLEGRAVATAR, value: "false" }
+            - { name: ND_ENABLEINSIGHTSCOLLECTOR, value: "false" }
+          ports:
+            - { name: http, containerPort: 4533 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }          # SQLite temporary files; the root is read-only
+            - { name: music, mountPath: /music, subPath: library, readOnly: true }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: navidrome-data
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }
+        - name: music
+          persistentVolumeClaim:
+            claimName: music
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: navidrome
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: navidrome
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: navidrome
+  namespace: music
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - navidrome.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: oauth2-proxy-navidrome
+          port: 80

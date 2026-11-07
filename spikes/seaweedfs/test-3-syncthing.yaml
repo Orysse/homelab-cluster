@@ -1,0 +1,12 @@
+# Criterion 3: does Syncthing's filesystem watcher see a file written by ANOTHER pod on the
+# mount? (inotify through FUSE only sees writes that go through the same mount.)
+apiVersion: v1
+kind: Pod
+metadata: { name: syncthing, namespace: seaweedfs-spike }
+spec:
+  containers:
+    - name: syncthing
+      image: syncthing/syncthing:1.29
+      env: [{ name: STGUIADDRESS, value: "127.0.0.1:8384" }]
+      volumeMounts: [{ name: d, mountPath: /data }]
+  volumes: [{ name: d, persistentVolumeClaim: { claimName: music } }]

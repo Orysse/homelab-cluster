@@ -1,0 +1,64 @@
+# seaweedfs: the filer metadata database (SeaweedFS, infrastructure/storage), owned by the role seaweedfs (cluster.yaml).
+# The password: generated once, kept in OpenBao at kv/apps/seaweedfs/db, read back from there
+# (credentials.yaml). The app reads the same entry: username, password.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: seaweedfs-db-generated
+  namespace: postgres
+spec:
+  refreshInterval: "0"            # generated once
+  target:
+    name: seaweedfs-db-generated
+    template:
+      data:
+        username: seaweedfs
+        password: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: seaweedfs-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  updatePolicy: IfNotExists       # never replaces what OpenBao holds
+  secretStoreRefs:
+    - { kind: SecretStore, name: openbao-writer }
+  selector:
+    secret: { name: seaweedfs-db-generated }
+  data:
+    - match:
+        remoteRef: { remoteKey: seaweedfs/db }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: seaweedfs-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: SecretStore, name: openbao-writer }
+  target:
+    name: seaweedfs-db
+    template:
+      type: kubernetes.io/basic-auth
+  dataFrom:
+    - extract: { key: seaweedfs/db }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: seaweedfs
+  namespace: postgres
+spec:
+  cluster: { name: main }
+  name: seaweedfs
+  owner: seaweedfs

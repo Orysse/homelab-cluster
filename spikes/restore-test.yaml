@@ -1,0 +1,36 @@
+# Item 24 restore test: recover a scratch cluster from the offsite copy (R2, decrypted by
+# rclone into a scratch Garage bucket `restore-test`), then SELECT from it.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata: { name: restore-store, namespace: restore-test }
+spec:
+  configuration:
+    destinationPath: s3://restore-test/
+    endpointURL: http://192.168.1.200:3900
+    s3Credentials:
+      accessKeyId: { name: garage-s3, key: access_key_id }
+      secretAccessKey: { name: garage-s3, key: secret_access_key }
+    wal: { compression: gzip }
+    data: { compression: gzip }
+  instanceSidecarConfiguration:
+    env:
+      - { name: AWS_DEFAULT_REGION, value: garage }
+      - { name: AWS_REQUEST_CHECKSUM_CALCULATION, value: when_required }
+      - { name: AWS_RESPONSE_CHECKSUM_VALIDATION, value: when_required }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata: { name: restored, namespace: restore-test }
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
+  storage: { storageClass: local, size: 2Gi }
+  resources: { limits: { memory: 512Mi } }
+  bootstrap:
+    recovery:
+      source: origin
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters: { barmanObjectName: restore-store, serverName: main-2 }

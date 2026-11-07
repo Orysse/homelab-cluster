@@ -1,0 +1,95 @@
+# Syncthing: the library to the DAP. The index is on a `local` volume (a rescan rebuilds it).
+# The folder `library/` is "send only" (set in the GUI: the server never applies remote
+# changes); it is mounted read-write only because Syncthing keeps its marker, .stfolder, in
+# the folder. On the DAP the folder is receive-only with staggered versioning.
+# The GUI (8384) has no route and no password: reach it with `kubectl -n music port-forward
+# deploy/syncthing 8384`. The sync port (22000, TCP and UDP) has a LAN address of its own,
+# never forwarded by the router; away from home the DAP syncs over Tailscale.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: syncthing-config
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syncthing
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: syncthing
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: syncthing
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: syncthing
+          image: docker.io/syncthing/syncthing:2.1.7
+          env:
+            - { name: STGUIADDRESS, value: "0.0.0.0:8384" }
+            - { name: STNOUPGRADE, value: "1" }
+          ports:
+            - { name: gui, containerPort: 8384 }
+            - { name: sync-tcp, containerPort: 22000, protocol: TCP }
+            - { name: sync-udp, containerPort: 22000, protocol: UDP }
+          readinessProbe:
+            httpGet: { path: /rest/noauth/health, port: gui }
+          livenessProbe:
+            httpGet: { path: /rest/noauth/health, port: gui }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /var/syncthing }
+            - { name: music, mountPath: /var/syncthing/library, subPath: library }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: syncthing-config
+        - name: music
+          persistentVolumeClaim:
+            claimName: music
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  namespace: music
+  annotations:
+    lbipam.cilium.io/ips: 192.168.1.243     # next free in the LB pool (homelab-nix docs/facts.md)
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: syncthing
+  ports:
+    - { name: sync-tcp, port: 22000, targetPort: sync-tcp, protocol: TCP }
+    - { name: sync-udp, port: 22000, targetPort: sync-udp, protocol: UDP }

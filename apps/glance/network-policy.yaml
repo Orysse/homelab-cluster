@@ -1,4 +1,4 @@
-# Glance: reached by Traefik only; reaches DNS, Gatus (the state of every service) and the news
+# Glance: reached through the internal Gateway only; reaches DNS, Gatus (the state of every service) and the news
 # feeds (HTTPS). It never calls the services itself.
 ---
 apiVersion: cilium.io/v2
@@ -10,8 +10,10 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]          # the Gateway (Cilium's Envoy)
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:   # Gatus's health check, through the Gateway: Envoy checks the original client
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: gatus, app.kubernetes.io/name: gatus }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     - toEndpoints:

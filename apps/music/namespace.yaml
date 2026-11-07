@@ -1,0 +1,21 @@
+# Music: Lidarr (what to get), qBittorrent behind a VPN (how), Navidrome (listening at home),
+# Syncthing (the library to the DAP). One shared volume, `music`, on SeaweedFS: Lidarr and
+# qBittorrent mount all of it, so a download is hardlinked into the library inside one mount.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: music
+  labels:
+    gateway-access: internal
+    # privileged: gluetun (qBittorrent's VPN) needs NET_ADMIN and /dev/net/tun. Every other
+    # container here keeps a restricted securityContext.
+    pod-security.kubernetes.io/enforce: privileged
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: music
+automountServiceAccountToken: false

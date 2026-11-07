@@ -24,7 +24,7 @@ metadata:
   name: vitrine
   namespace: vitrine
 spec:
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -66,13 +66,6 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 16Mi
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: vitrine
 ---
 apiVersion: v1
 kind: Service
@@ -95,11 +88,19 @@ metadata:
 spec:
   parentRefs:
     - name: public
-      namespace: kube-system
-      sectionName: https
+      namespace: gateway
+      sectionName: vitrine
   hostnames:
     - vitrine.${DOMAIN}
   rules:
-    - backendRefs:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
         - name: vitrine
           port: 80

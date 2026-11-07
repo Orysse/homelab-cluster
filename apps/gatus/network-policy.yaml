@@ -1,5 +1,6 @@
 # Gatus checks the sites from outside (public IP, through the box) and the internal ones
-# through Traefik; it is reached by Traefik, Glance (state) and Alloy (metrics).
+# through the internal Gateway; it is reached by the Gateway, Glance (state) and the
+# metrics collector.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,9 +11,10 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
+    - fromEntities: [ingress]          # the Gateway (status.${DOMAIN})
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: alloy }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }   # the front page reads the state
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
@@ -26,6 +28,20 @@ spec:
       toPorts:
         - ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }]
         - ports: [{ port: "53", protocol: UDP }]       # DNS check against 1.1.1.1
+    # The Gateways (status checks of every site): Cilium hands the connection to Envoy.
+    - toEntities: [ingress]
+      toPorts: [{ ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }] }]
+    # The internal tools' checks go through the internal Gateway, and Cilium evaluates the
+    # request from the original client (Gatus) to the backend too: the backends' ports.
     - toEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
-      toPorts: [{ ports: [{ port: "8443", protocol: TCP }, { port: "9443", protocol: TCP }] }]
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: grafana }
+      toPorts: [{ ports: [{ port: "3000", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: openbao, app.kubernetes.io/name: openbao }
+      toPorts: [{ ports: [{ port: "8200", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: oauth2-proxy, app.kubernetes.io/name: oauth2-proxy }
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]

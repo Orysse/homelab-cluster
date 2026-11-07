@@ -1,0 +1,20 @@
+# Every pull request (Renovate's included) and every push to main or v3: what Flux would
+# apply builds and matches the Kubernetes and CRD schemas (scripts/validate.sh).
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main, v3]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - name: kustomize build + kubeconform
+        run: nix shell nixpkgs#kustomize nixpkgs#kubeconform nixpkgs#fluxcd nixpkgs#yq-go -c ./scripts/validate.sh

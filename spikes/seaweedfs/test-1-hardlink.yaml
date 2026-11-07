@@ -1,0 +1,34 @@
+# Criterion 1: hardlink and atomic rename inside one mount (what Lidarr does on import).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: music, namespace: seaweedfs-spike }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: seaweedfs-spike
+  resources: { requests: { storage: 10Gi } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata: { name: test-1-hardlink, namespace: seaweedfs-spike }
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: t
+          image: busybox:1.37
+          command:
+            - sh
+            - -ec
+            - |
+              cd /data; mkdir -p downloads library
+              head -c 5242880 /dev/urandom > downloads/a.flac
+              ln downloads/a.flac library/a.flac
+              [ "$(stat -c %h library/a.flac)" = 2 ] && echo "hardlink ok"
+              cmp downloads/a.flac library/a.flac && echo "content ok"
+              echo x > library/new.tmp && mv library/new.tmp library/new.txt && echo "rename ok"
+              mv -f downloads/a.flac downloads/b.flac && echo "rename over data ok"
+              ls -la library downloads
+          volumeMounts: [{ name: d, mountPath: /data }]
+      volumes: [{ name: d, persistentVolumeClaim: { claimName: music } }]

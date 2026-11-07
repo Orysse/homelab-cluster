@@ -9,7 +9,7 @@ spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
-    name: homelab-cluster
+    name: flux-system       # created by the FluxInstance (homelab-nix: k3s/flux.nix)
   path: ./infrastructure/controllers
   prune: true
   wait: true
@@ -21,11 +21,11 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: infra-controllers   # CRDs: MetalLB, cert-manager, CSI driver
+    - name: infra-controllers   # their CRDs
   interval: 10m
   sourceRef:
     kind: GitRepository
-    name: homelab-cluster
+    name: flux-system       # created by the FluxInstance (homelab-nix: k3s/flux.nix)
   path: ./infrastructure/configs
   prune: true
   decryption:
@@ -36,3 +36,25 @@ spec:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-vars
+---
+# Bulk storage. After the configs: its filer database lives in the CNPG cluster there (a
+# HelmRelease dependsOn only accepts HelmReleases, so the cluster is a health check).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-storage
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-configs
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system       # created by the FluxInstance (homelab-nix: k3s/flux.nix)
+  path: ./infrastructure/storage
+  prune: true
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: main
+      namespace: postgres

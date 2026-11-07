@@ -1,0 +1,31 @@
+# oauth2-proxy: reached through the internal Gateway; reaches DNS, Pocket-ID (auth.${DOMAIN},
+# through the public Gateway) and Hubble UI.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+    - fromEndpoints:   # Gatus's health check, through the Gateway: Envoy checks the original client
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: gatus, app.kubernetes.io/name: gatus }
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # the same, once Cilium hands the connection to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: hubble-ui }
+      toPorts: [{ ports: [{ port: "8081", protocol: TCP }] }]

@@ -7,5 +7,12 @@
   },
   "kubernetes": {
     "managerFilePatterns": ["/^(apps|infrastructure)/.+\\.ya?ml$/"]
-  }
+  },
+  "packageRules": [
+    {
+      "description": "The Pocket-ID operator supports Pocket-ID >=2.14 <3.0 only (ADR 0004)",
+      "matchPackageNames": ["ghcr.io/pocket-id/pocket-id"],
+      "allowedVersions": "<3.0.0"
+    }
+  ]
 }

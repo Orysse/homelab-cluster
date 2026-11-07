@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: seaweedfs
+  labels:
+    # The CSI mount service and node plugin are privileged FUSE pods.
+    pod-security.kubernetes.io/enforce: privileged

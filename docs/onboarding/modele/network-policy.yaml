@@ -1,5 +1,5 @@
 # Qui parle à l'app, et à qui elle parle. Tout le reste est refusé.
-# Par défaut : seul Traefik l'atteint, et elle ne sort nulle part, pas même vers le DNS.
+# Par défaut : seule la Gateway l'atteint, et elle ne sort nulle part, pas même vers le DNS.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -10,8 +10,7 @@ spec:
   endpointSelector: {}
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, app.kubernetes.io/name: traefik }
+    - fromEntities: [ingress]   # la Gateway (l'Envoy de Cilium)
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]   # À CHANGER : le port du conteneur
   egress:
     - {}   # aucune sortie. Pour en ouvrir, remplace cette ligne par les blocs utiles ci-dessous.
@@ -21,8 +20,9 @@ spec:
     #   toPorts:
     #     - ports: [{ port: "53", protocol: ANY }]
     #       rules: { dns: [{ matchPattern: "*" }] }
-    # Sa base PostgreSQL sur le serveur :
-    # - toCIDR: ["${DATABASE_ADDRESS}/32"]
+    # Sa base PostgreSQL (CloudNativePG, infrastructure/configs/postgres/databases/) :
+    # - toEndpoints:
+    #     - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
     #   toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     # Une API externe précise, en HTTPS (garde aussi le bloc DNS) :
     # - toFQDNs: [{ matchName: api.exemple.com }]

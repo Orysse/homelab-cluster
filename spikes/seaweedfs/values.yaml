@@ -1,0 +1,37 @@
+# helm install seaweedfs seaweedfs/seaweedfs --version 4.52.0 -n seaweedfs-spike -f values.yaml
+global:
+  seaweedfs:
+    createClusterRole: false
+master:
+  replicas: 1
+  # Raft state and max volume id: on the host subvolume, like the volume data; logs are disposable.
+  data: { type: hostPath, hostPathPrefix: /var/lib/seaweed }
+  logs: { type: emptyDir }
+  defaultReplication: "000"
+  resources: { limits: { memory: 256Mi } }
+filer:
+  replicas: 1
+  data: { type: emptyDir }   # metadata is in PostgreSQL
+  logs: { type: emptyDir }
+  defaultReplicaPlacement: "000"
+  # Metadata in PostgreSQL (store "postgres2"), not leveldb2 on a PVC.
+  extraEnvironmentVars:
+    WEED_LEVELDB2_ENABLED: "false"
+    WEED_POSTGRES2_ENABLED: "true"
+    WEED_POSTGRES2_CREATETABLE: "CREATE TABLE IF NOT EXISTS \"%s\" (dirhash BIGINT, name VARCHAR(65535), directory VARCHAR(65535), meta bytea, PRIMARY KEY (dirhash, name))"
+    WEED_POSTGRES2_HOSTNAME: pg-rw
+    WEED_POSTGRES2_PORT: "5432"
+    WEED_POSTGRES2_DATABASE: seaweedfs
+    WEED_POSTGRES2_SSLMODE: require
+  secretExtraEnvironmentVars:
+    WEED_POSTGRES2_USERNAME: { secretKeyRef: { name: pg-app, key: username } }
+    WEED_POSTGRES2_PASSWORD: { secretKeyRef: { name: pg-app, key: password } }
+  resources: { limits: { memory: 512Mi } }
+volume:
+  replicas: 1
+  dataDirs:
+    - name: data
+      type: hostPath
+      hostPathPrefix: /var/lib/seaweed
+      maxVolumes: 0
+  resources: { limits: { memory: 512Mi } }

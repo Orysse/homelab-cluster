@@ -1,14 +1,22 @@
 # qBittorrent behind gluetun: both containers share the pod's network, and gluetun's firewall
 # drops everything that is not the WireGuard tunnel (kill switch). Downloads go to
-# downloads/ in the `music` volume; Lidarr hardlinks finished albums into library/.
+# downloads/ in the `music` volume. Not wired to Lidarr yet: Lidarr would import straight
+# into library/, and beets is meant to be the only writer there (music spec, to come).
 # qbittorrent.int.${DOMAIN}, internal only.
-# Deployed switched off (replicas: 0) until the VPN's WireGuard configuration exists:
-#   1. OpenBao kv/apps/music/vpn: private_key, addresses (from the provider's WireGuard file)
-#   2. add the ExternalSecret `qbittorrent-vpn` to secrets.yaml (keys WIREGUARD_PRIVATE_KEY,
-#      WIREGUARD_ADDRESSES)
-#   3. replicas: 1, and the PVC qbittorrent-config (class local, 1Gi, the "config" volume below):
-#      not created now, a PVC of class local stays Pending until a pod uses it, which would
-#      keep `apps` from being Ready
+# VPN: AirVPN, WireGuard keys in OpenBao kv/apps/music/vpn (ExternalSecret qbittorrent-vpn).
+# 2417 (TCP+UDP) is the port AirVPN forwards to us; the same on every AirVPN server.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -16,7 +24,7 @@ metadata:
   name: qbittorrent
   namespace: music
 spec:
-  replicas: 0
+  replicas: 1
   revisionHistoryLimit: 3
   strategy:
     type: Recreate
@@ -34,14 +42,16 @@ spec:
         - name: gluetun
           image: ghcr.io/qdm12/gluetun:v3.41.3
           env:
-            - { name: VPN_SERVICE_PROVIDER, value: mullvad }
+            - { name: VPN_SERVICE_PROVIDER, value: airvpn }
             - { name: VPN_TYPE, value: wireguard }
+            - { name: SERVER_COUNTRIES, value: Netherlands }   # gluetun picks a server, fails over
+            - { name: FIREWALL_VPN_INPUT_PORTS, value: "2417" }   # the forwarded port, through the tunnel only
             # The WebUI, and the cluster's pod and service ranges (DNS, Lidarr), stay reachable.
             - { name: FIREWALL_INPUT_PORTS, value: "8080" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16" }
           envFrom:
             - secretRef:
-                name: qbittorrent-vpn      # WIREGUARD_PRIVATE_KEY, WIREGUARD_ADDRESSES
+                name: qbittorrent-vpn      # WIREGUARD_PRIVATE_KEY, _PRESHARED_KEY, _ADDRESSES
           resources:
             requests: { cpu: 10m, memory: 48Mi }
             limits: { memory: 192Mi }
@@ -57,6 +67,7 @@ spec:
           env:
             - { name: TZ, value: Europe/Paris }
             - { name: WEBUI_PORT, value: "8080" }
+            - { name: TORRENTING_PORT, value: "2417" }   # first start only; then the WebUI setting
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
           ports:

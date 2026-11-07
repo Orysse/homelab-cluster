@@ -62,6 +62,7 @@ spec:
               add: ["NET_ADMIN"]
           volumeMounts:
             - { name: tun, mountPath: /dev/net/tun }
+            - { name: gluetun-tmp, mountPath: /tmp/gluetun }   # its state files (public IP); the image dir is not writable without DAC_OVERRIDE
         - name: qbittorrent
           image: ghcr.io/linuxserver/qbittorrent:version-5.1.4-r3
           env:
@@ -88,6 +89,8 @@ spec:
             - { name: config, mountPath: /config }
             - { name: music, mountPath: /data }
       volumes:
+        - name: gluetun-tmp
+          emptyDir: {}
         - name: tun
           hostPath:
             path: /dev/net/tun

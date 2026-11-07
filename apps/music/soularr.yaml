@@ -11,7 +11,7 @@ metadata:
   name: soularr
   namespace: music
 spec:
-  replicas: 0   # until Lidarr's wanted list is checked (2026-11-07: it must list only monitored albums)
+  replicas: 1   # it fetches whatever Lidarr reports missing: check Wanted (monitored) before monitoring a whole discography
   revisionHistoryLimit: 3
   strategy:
     type: Recreate

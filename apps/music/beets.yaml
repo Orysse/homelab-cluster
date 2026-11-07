@@ -23,6 +23,8 @@ kind: ConfigMap
 metadata:
   name: beets-config
   namespace: music
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled   # beets path templates ($albumartist)
 data:
   config.yaml: |
     directory: /data/library
@@ -72,6 +74,8 @@ kind: CronJob
 metadata:
   name: beets
   namespace: music
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled   # shell ${...} in the script
 spec:
   schedule: "*/5 * * * *"
   concurrencyPolicy: Forbid

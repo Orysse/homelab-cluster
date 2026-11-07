@@ -54,7 +54,7 @@ spec:
       initContainers:
         # slskd refuses to start on a missing directory; qBittorrent's category paths too.
         - name: dirs
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/busybox:1.38
           command: [sh, -ec, "mkdir -p /data/downloads/slskd /data/downloads/.slskd-incomplete /data/downloads/torrents/complete /data/downloads/torrents/incomplete"]
           resources:
             requests: { cpu: 5m, memory: 8Mi }

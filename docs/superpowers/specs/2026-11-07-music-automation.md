@@ -107,7 +107,7 @@ Layout of the `music` PVC (one volume, 300Gi quota):
 
 ### Soularr (new)
 
-- Deployment (it loops itself, `SCRIPT_INTERVAL=300`), image `mrusse08/soularr` pinned.
+- On-demand CronJob (suspended; one `soularr.py` pass per manual job: a loop re-grabbed albums beets had not imported yet, 2026-11-07), image `ghcr.io/mrusse/soularr` pinned.
 - Reads Lidarr's wanted list, searches and downloads through slskd's API.
 - **`disable_sync = True`**: Soularr does not ask Lidarr to import (beets does).
 - `config.ini` rendered by the ExternalSecret (Lidarr and slskd API keys,

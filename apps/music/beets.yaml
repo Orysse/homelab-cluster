@@ -38,9 +38,13 @@ data:
       quiet: yes             # never ask: certain matches only...
       quiet_fallback: skip   # ...the rest stays where it is
       log: /config/import.log
-      incremental_skip_later: yes   # retry skipped folders: Soularr re-grabs whatever stays missing in Lidarr
+      incremental_skip_later: yes   # retry skipped folders every run (after a config fix, or a better copy)
       duplicate_action: remove      # a complete download replaces the partial album (btrbk snapshots keep the old one 14 days)
       # no `languages`: with fr, beets took MusicBrainz's fr alias ("Le Wanski" -> his legal name)
+    match:
+      distance_weights:   # Soulseek rips often number tracks per disc or vinyl side: titles and lengths still match
+        track_index: 0.1
+        mediums: 0.1
     # Left behind by a moved album: deleted with its folder.
     clutter: ["*.jpg", "*.jpeg", "*.png", "*.nfo", "*.cue", "*.log", "*.m3u", "*.m3u8", "*.txt", "*.sfv", "Thumbs.db", ".DS_Store"]
     paths:

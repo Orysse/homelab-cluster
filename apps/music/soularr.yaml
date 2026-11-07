@@ -1,61 +1,64 @@
-# Soularr: reads Lidarr's wanted list (missing albums) every 30 minutes, searches and downloads
-# them through slskd's API, then renames the finished folder "Artist - Album (Year)" in
-# downloads/slskd/. It does not ask Lidarr to import (disable_sync): beets does (beets.yaml).
-# Config: ExternalSecret soularr-config (secrets.yaml). Its state (search page, failed-import
-# denylist) is in an emptyDir.
-# shortcut: the state is lost on restart, so searches start over; a small PVC if it re-grabs junk.
+# Soularr: one pass on demand. It reads Lidarr's wanted list (missing albums), searches and
+# downloads them through slskd's API, then renames each finished folder "Artist - Album (Year)"
+# in downloads/slskd/. It does not ask Lidarr to import (disable_sync): beets does (beets.yaml).
+# Config: ExternalSecret soularr-config (secrets.yaml).
+#
+# On demand, not on a schedule: it skips only albums in Lidarr's queue, not folders already in
+# downloads/slskd/, so a loop re-grabbed every album beets had not imported yet (85 GB for
+# Massive Attack, 2026-11-07). Run it after monitoring albums (check Wanted first):
+#   kubectl -n music create job soularr-$(date +%s) --from=cronjob/soularr
+#   kubectl -n music logs -f job/soularr-<id>
+# Run it again only once beets has imported (or you have removed) what the last pass fetched.
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: CronJob
 metadata:
   name: soularr
   namespace: music
 spec:
-  replicas: 1   # it fetches whatever Lidarr reports missing: check Wanted (monitored) before monitoring a whole discography
-  revisionHistoryLimit: 3
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: soularr
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: soularr
+  schedule: "@yearly"   # never fires: suspended, jobs are created by hand
+  suspend: true
+  jobTemplate:
     spec:
-      automountServiceAccountToken: false
-      enableServiceLinks: false
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: soularr
-          image: ghcr.io/mrusse/soularr:1.2.3
-          # args replace the image CMD: run.sh (the 5-minute loop) passes the rest to soularr.py
-          args: ["/app/run.sh", "--config-dir", "/config", "--var-dir", "/var/lib/soularr"]
-          env:
-            - { name: SCRIPT_INTERVAL, value: "1800" }   # it skips only what Lidarr queues, not what sits in downloads/slskd: leave beets (10 min settle + 5 min cron) time to import first
-            - { name: WEBUI_ENABLED, value: "false" }   # its failed-imports page: not needed with sync off
-          resources:
-            requests: { cpu: 10m, memory: 64Mi }
-            limits: { memory: 256Mi }
+      backoffLimit: 0                 # a retry would grab the same albums again
+      activeDeadlineSeconds: 21600    # 6 h: a pass waits for its downloads
+      ttlSecondsAfterFinished: 86400  # keep the logs a day
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: soularr
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          volumeMounts:
-            - { name: config, mountPath: /config, readOnly: true }
-            - { name: state, mountPath: /var/lib/soularr }
-            - { name: music, mountPath: /data/downloads, subPath: downloads }
-      volumes:
-        - name: config
-          secret:
-            secretName: soularr-config
-        - name: state
-          emptyDir: {}
-        - name: music
-          persistentVolumeClaim:
-            claimName: music
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: soularr
+              image: ghcr.io/mrusse/soularr:1.2.3
+              # args replace the image CMD (run.sh, a loop): one pass of soularr.py, under tini
+              args: ["python", "-u", "/app/soularr.py", "--config-dir", "/config", "--var-dir", "/var/lib/soularr"]
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - { name: config, mountPath: /config, readOnly: true }
+                - { name: state, mountPath: /var/lib/soularr }
+                - { name: music, mountPath: /data/downloads, subPath: downloads }
+          volumes:
+            - name: config
+              secret:
+                secretName: soularr-config
+            - name: state
+              emptyDir: {}
+            - name: music
+              persistentVolumeClaim:
+                claimName: music

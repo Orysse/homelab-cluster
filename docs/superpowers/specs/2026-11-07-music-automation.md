@@ -19,7 +19,7 @@ there. Everything else follows from this rule.
 ```
 Lidarr (wanted: artists, albums)                     owner: CD rips, purchases
   ├─ qBittorrent ── downloads/torrents/complete/          │
-  └─ Soularr ─ slskd ── downloads/slskd/                   inbox/
+  └─ you ── slskd UI ── downloads/slskd/                   inbox/
                              │                             │
                beets CronJob (quiet, certain matches only) ┘
                              │
@@ -105,7 +105,9 @@ Layout of the `music` PVC (one volume, 300Gi quota):
   own login (as qBittorrent): slskd cannot trust a proxy header, and an oauth2-proxy would
   mean one more Pocket-ID client. API key limited to pod addresses (`cidr=10.42.0.0/16`).
 
-### Soularr (new)
+### Soularr (dropped 2026-11-07)
+
+**Dropped**: it skips only albums in Lidarr's queue, so it re-grabbed every album beets had not imported yet (85 GB for Massive Attack in one evening). slskd is used by hand from its UI; the notes below are kept for history.
 
 - On-demand CronJob (suspended; one `soularr.py` pass per manual job: a loop re-grabbed albums beets had not imported yet, 2026-11-07), image `ghcr.io/mrusse/soularr` pinned.
 - Reads Lidarr's wanted list, searches and downloads through slskd's API.

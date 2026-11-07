@@ -78,7 +78,7 @@ spec:
             - { name: VPN_TYPE, value: wireguard }
             - { name: SERVER_COUNTRIES, value: Netherlands }   # gluetun picks a server, fails over
             - { name: FIREWALL_VPN_INPUT_PORTS, value: "2417,54429" }   # the forwarded ports, through the tunnel only
-            # The UIs, and the cluster's pod and service ranges (DNS, Lidarr, Soularr), stay reachable.
+            # The UIs, and the cluster's pod and service ranges (DNS, Lidarr), stay reachable.
             - { name: FIREWALL_INPUT_PORTS, value: "8080,5030" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16" }
           envFrom:
@@ -133,7 +133,7 @@ spec:
             - { name: SLSKD_INCOMPLETE_DIR, value: /data/downloads/.slskd-incomplete }   # outside what beets reads
           envFrom:
             - secretRef:
-                name: slskd      # SLSKD_SLSK_USERNAME, SLSKD_SLSK_PASSWORD, SLSKD_PASSWORD, SLSKD_API_KEY
+                name: slskd      # SLSKD_SLSK_USERNAME, SLSKD_SLSK_PASSWORD, SLSKD_PASSWORD
           ports:
             - { name: slskd, containerPort: 5030 }
           readinessProbe:

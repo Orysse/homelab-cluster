@@ -2,7 +2,7 @@
 # albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
 # skipped and left in place for a manual pass. Sources, one folder per album:
 #   inbox/                          the owner (CD rips, purchases)       moved
-#   downloads/slskd/                slskd, via Soularr                   moved
+#   downloads/slskd/                slskd, downloads made in its UI     moved
 #   downloads/torrents/complete/    qBittorrent, category `music`        copied: a hardlink would
 #                                   share the file, and beets' tag writes would break the seed
 # A folder is imported once nothing in it changed for 10 minutes (a download or a copy still
@@ -133,7 +133,7 @@ spec:
                   import_settled move /data/inbox /data/downloads/slskd
                   import_settled copy /data/downloads/torrents/complete
                   # Lidarr sees an arrival only on a rescan (no inotify on FUSE); until then the
-                  # album stays "missing" and Soularr would fetch it again.
+                  # album stays "missing" in Lidarr.
                   [ -z "${ran:-}" ] || curl -fsS -o /dev/null -X POST -H "X-Api-Key: $LIDARR_API_KEY" \
                     -H "Content-Type: application/json" -d '{"name":"RescanFolders"}' \
                     http://lidarr.music.svc.cluster.local/api/v1/command || echo "Lidarr rescan request failed"

@@ -1,4 +1,4 @@
-# Soularr: reads Lidarr's wanted list (missing albums) every 5 minutes, searches and downloads
+# Soularr: reads Lidarr's wanted list (missing albums) every 30 minutes, searches and downloads
 # them through slskd's API, then renames the finished folder "Artist - Album (Year)" in
 # downloads/slskd/. It does not ask Lidarr to import (disable_sync): beets does (beets.yaml).
 # Config: ExternalSecret soularr-config (secrets.yaml). Its state (search page, failed-import
@@ -37,7 +37,7 @@ spec:
           # args replace the image CMD: run.sh (the 5-minute loop) passes the rest to soularr.py
           args: ["/app/run.sh", "--config-dir", "/config", "--var-dir", "/var/lib/soularr"]
           env:
-            - { name: SCRIPT_INTERVAL, value: "300" }
+            - { name: SCRIPT_INTERVAL, value: "1800" }   # it skips only what Lidarr queues, not what sits in downloads/slskd: leave beets (10 min settle + 5 min cron) time to import first
             - { name: WEBUI_ENABLED, value: "false" }   # its failed-imports page: not needed with sync off
           resources:
             requests: { cpu: 10m, memory: 64Mi }

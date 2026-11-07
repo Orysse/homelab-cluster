@@ -37,7 +37,7 @@ metadata:
   name: qbittorrent
   namespace: music
 spec:
-  replicas: 1
+  replicas: 0   # 2026-11-07: slskd's first share scan + Syncthing + Navidrome over FUSE took k3s down; back to 1 once Syncthing's initial sync is done
   revisionHistoryLimit: 3
   strategy:
     type: Recreate

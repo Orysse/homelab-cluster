@@ -36,6 +36,7 @@ Layout of the `music` PVC (one volume, 300Gi quota):
 | `downloads/torrents/{incomplete,complete}/` | qBittorrent | seeding source, deleted by qBittorrent after the share limit |
 | `downloads/slskd/` | slskd | emptied by beets (move) |
 | `inbox/` | the owner | emptied by beets (move) |
+| `inbox/asis/`, `inbox/singles/` | the owner | not on MusicBrainz: emptied by beets (move, `-A` tags as they are, `-s` singletons) |
 
 ## Components
 

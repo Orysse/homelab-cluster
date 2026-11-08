@@ -2,6 +2,8 @@
 # albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
 # skipped and left in place for a manual pass. Sources, one folder per album:
 #   inbox/                          the owner (CD rips, purchases)       moved
+#   inbox/asis/                     the owner, albums not on MusicBrainz  moved, tags kept as they are
+#   inbox/singles/                  the owner, loose tracks (remixes...)  moved as singletons, tags kept
 #   downloads/slskd/                slskd, downloads made in its UI     moved
 #   downloads/torrents/complete/    qBittorrent, category `music`        copied: a hardlink would
 #                                   share the file, and beets' tag writes would break the seed
@@ -9,6 +11,8 @@
 # in progress). The incremental state (/config/state.pickle) remembers every folder imported;
 # a skipped one is retried every run (one MusicBrainz lookup each).
 # shortcut: retried skips cost a lookup per run, move them to a skipped/ folder if they pile up.
+# A skipped folder MusicBrainz will never know: fix its tags (artist, album, title), then move
+# it into inbox/asis/ (an album) or inbox/singles/ (loose tracks, still inside a folder).
 # Manual pass on what was skipped ("skip" lines in /config/import.log), the CronJob paused:
 #   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":true}}'
 #   kubectl -n music create job beets-manual --from=cronjob/beets --dry-run=client -o json \
@@ -115,23 +119,26 @@ spec:
                 - /bin/sh
                 - -ec
                 - |
-                  # $1: copy|move, then the source trees; imports their settled album folders.
+                  # $1: beet import flags, then the source trees; imports their settled album folders.
                   import_settled() {
-                    mode=$1; shift
+                    flags=$1; shift
                     srcs=$*
                     set --
                     for src in $srcs; do
                       mkdir -p "$src"
                       for d in "$src"/*/; do
                         [ -d "$d" ] || continue
+                        case "$d" in /data/inbox/asis/|/data/inbox/singles/) continue ;; esac
                         [ -z "$(find "$d" -mmin -10 | head -n 1)" ] || continue
                         set -- "$@" "${d%/}"
                       done
                     done
-                    [ $# -eq 0 ] || { /lsiopy/bin/beet import --"$mode" "$@"; ran=1; }
+                    [ $# -eq 0 ] || { /lsiopy/bin/beet import $flags "$@"; ran=1; }
                   }
-                  import_settled move /data/inbox /data/downloads/slskd
-                  import_settled copy /data/downloads/torrents/complete
+                  import_settled --move /data/inbox /data/downloads/slskd
+                  import_settled "--move -A" /data/inbox/asis
+                  import_settled "--move -A -s" /data/inbox/singles
+                  import_settled --copy /data/downloads/torrents/complete
                   # Lidarr sees an arrival only on a rescan (no inotify on FUSE); until then the
                   # album stays "missing" in Lidarr.
                   [ -z "${ran:-}" ] || curl -fsS -o /dev/null -X POST -H "X-Api-Key: $LIDARR_API_KEY" \

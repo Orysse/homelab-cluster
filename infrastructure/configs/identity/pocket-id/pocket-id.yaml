@@ -78,6 +78,7 @@ spec:
 # Groups. Membership is managed in Pocket-ID's UI (people, not git).
 #   admins    cluster-admin (oidc-rbac.yaml), OpenBao admin, Grafana admin, Headscale exit node
 #   visitors  read-only on the cluster
+#   family    the trip planner only (apps/trip)
 apiVersion: pocketid.internal/v1alpha1
 kind: PocketIDUserGroup
 metadata:
@@ -88,4 +89,11 @@ apiVersion: pocketid.internal/v1alpha1
 kind: PocketIDUserGroup
 metadata:
   name: visitors
+  namespace: pocket-id
+---
+# family: trip planner (apps/trip). No cluster access.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDUserGroup
+metadata:
+  name: family
   namespace: pocket-id

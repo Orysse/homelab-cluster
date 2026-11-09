@@ -1,0 +1,28 @@
+# TREK: from the Gateway only; to DNS, Pocket-ID (OIDC discovery and token exchange, through the
+# public Gateway) and the public Internet on 443 (maps, place search, weather: it calls them from
+# the server). Private ranges stay closed.
+# shortcut: any public host on 443, no per-service list; narrow to toFQDNs once the calls are known.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: trip
+  namespace: trip
+spec:
+  endpointSelector: {}
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "3000", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [ingress]             # Pocket-ID, once Cilium hands the connection to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

@@ -1,0 +1,17 @@
+# TREK (trip planner) at trip.${DOMAIN}. Public: the family is not on the VPN. Sign-in is OIDC
+# only, and Pocket-ID lets only the `family` group (and admins) reach the client (trip.yaml).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trip
+  labels:
+    gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: trip
+automountServiceAccountToken: false

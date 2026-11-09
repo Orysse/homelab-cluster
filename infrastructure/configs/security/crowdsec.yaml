@@ -50,6 +50,18 @@ spec:
               enabled: true
               token: "$${REGISTRATION_TOKEN}"   # for CrowdSec, not Flux ($$ -> $)
               allowed_ranges: ["10.42.0.0/16"]
+      # A 304 is never an attack: a scanner does not revalidate a cache. A single-page app
+      # (TREK) revalidates dozens of API resources at once on load, and
+      # http-crawl-non_statics (40 distinct names, 2/s leak) banned its users.
+      parsers:
+        s02-enrich:
+          not-modified.yaml: |
+            name: homelab/not-modified
+            description: "Ignore 304 Not Modified"
+            whitelist:
+              reason: "304 Not Modified"
+              expression:
+                - "evt.Meta.http_status == '304'"
     lapi:
       persistentVolume:
         data: { enabled: false }

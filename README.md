@@ -34,7 +34,9 @@ apps/                      one app = one directory, listed in apps/kustomization
 ├─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
 ├─ music/                  Lidarr, qBittorrent behind a VPN, Navidrome, Syncthing (SeaweedFS volume)
-└─ paperclip/              AI agent control plane, paperclip.int.${DOMAIN} (Pocket-ID, admins)
+├─ paperclip/              AI agent control plane, paperclip.int.${DOMAIN} (Pocket-ID, admins)
+├─ trip/                   TREK trip planner, trip.${DOMAIN} (Pocket-ID, family)
+└─ mealie/                 recipes and meal plans, mealie.int.${DOMAIN} (Pocket-ID, family)
 
 docs/adr/                  architecture decisions
 docs/onboarding/           access, deploying an app, visitor tour (French); modele/ = app template

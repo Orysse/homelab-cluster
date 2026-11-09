@@ -123,6 +123,20 @@ spec:
           selector:
             matchExpressions:
               - { key: gateway-access, operator: In, values: [public, both] }
+    - name: trip
+      protocol: HTTPS
+      port: 443
+      hostname: trip.${DOMAIN}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - { key: gateway-access, operator: In, values: [public, both] }
     # holive.fr: its own certificate, chosen by SNI (the wildcard covers only ${DOMAIN}).
     - name: holive
       protocol: HTTPS

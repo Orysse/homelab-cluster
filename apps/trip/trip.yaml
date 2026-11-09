@@ -127,7 +127,7 @@ spec:
   parentRefs:
     - name: public
       namespace: gateway
-      sectionName: https
+      sectionName: trip
   hostnames:
     - trip.${DOMAIN}
   rules:

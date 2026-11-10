@@ -33,7 +33,7 @@ data:
     six==1.17.0 \
         --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
   analyze.py: |
-    import json, os, sys, time
+    import fcntl, json, os, sys, time
     import essentia
     import essentia.standard as es
 
@@ -45,6 +45,13 @@ data:
     SEG = int(os.environ.get("SEGMENT_SECONDS", "120"))
     EXT = {".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav"}
     t0 = time.time()
+
+    # one batch at a time: a manual run overlapping the nightly one would write the same tracks twice
+    lock = open("/work/.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit("another batch is running")
 
     done = set()
     if os.path.exists(OUT):

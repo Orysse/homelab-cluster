@@ -35,19 +35,7 @@ data:
   config.yaml: |
     directory: /data/library
     library: /config/library.db
-    plugins: musicbrainz fetchart embedart lyrics mbsync smartplaylist
-    # .m3u8 files under library/: Syncthing carries them to the DAP, Navidrome may list them.
-    # relative_to = playlist_dir: entries read ../Artist/(Year) Album/..., valid from where the file sits.
-    smartplaylist:
-      playlist_dir: /data/library/Playlists
-      relative_to: /data/library/Playlists
-      forward_slash: yes
-      auto: yes
-      playlists:
-        - name: recent.m3u8
-          query: 'added:-30d..'
-        - name: hires.m3u8
-          query: 'bitdepth:24..'
+    plugins: musicbrainz fetchart embedart lyrics mbsync
     import:
       write: yes
       incremental: yes

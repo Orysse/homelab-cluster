@@ -7,7 +7,8 @@
 # the FUSE mount hard is what took the node down on 2026-11-07.
 # Dependencies: the PyPI wheels below, pinned with hashes, installed once into /work/site
 # (re-installed when requirements.txt changes). Python 3.14: the essentia wheel exists only
-# for cp314, so this is its own image, not beets'.
+# for cp314, so this is its own image, not beets'. The full image, not -slim: the wheel needs
+# libatomic.so.1, which -slim lacks.
 # shortcut: a track is analyzed once, by path; an audio file replaced by a better copy keeps
 # its old numbers, delete its line in results.jsonl. A file that always fails is retried nightly.
 # Manual run, 3 tracks, to a scratch file:
@@ -141,7 +142,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: essentia
-              image: docker.io/library/python:3.14-slim-bookworm@sha256:3fe1a0b6c2d6b2ebb572906cdabeca75aeb558c0c17db5ffefbcf8094871c32b
+              image: docker.io/library/python:3.14-bookworm@sha256:3fe825da0a80fa8e2cd79baadeb76b03c0ddf3d6cdbc8346778a0208b9d6038c
               command:
                 - /bin/sh
                 - -ec

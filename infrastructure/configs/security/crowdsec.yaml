@@ -62,6 +62,16 @@ spec:
               reason: "304 Not Modified"
               expression:
                 - "evt.Meta.http_status == '304'"
+          # TREK loads dozens of place photos at once when a trip opens: each a distinct URL, all
+          # 200, which http-crawl-non_statics counted as a crawl (2026-11-10: 41 in a second
+          # banned the owner's school address). Only successful GETs under this TREK path.
+          trek-place-photo.yaml: |
+            name: homelab/trek-place-photo
+            description: "Ignore TREK place photos"
+            whitelist:
+              reason: "TREK place photos"
+              expression:
+                - "evt.Meta.http_verb == 'GET' && evt.Meta.http_status == '200' && evt.Meta.http_path startsWith '/api/maps/place-photo/'"
     lapi:
       persistentVolume:
         data: { enabled: false }

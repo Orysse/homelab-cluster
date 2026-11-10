@@ -118,7 +118,6 @@ metadata:
     kustomize.toolkit.fluxcd.io/substitute: disabled   # shell $h in the script
 spec:
   schedule: "0 3 * * *"
-  suspend: true   # until a 3-track run has been checked by hand
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 1

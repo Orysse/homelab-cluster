@@ -7,6 +7,7 @@
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   beets        DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
+#   essentia     DNS and 443, only to pypi.org and files.pythonhosted.org (its wheels, installed once)
 # SeaweedFS is not listed: the FUSE mount lives in the CSI mount service, not in these pods.
 ---
 apiVersion: cilium.io/v2
@@ -186,4 +187,22 @@ spec:
         - matchLabels: { app.kubernetes.io/name: lidarr }
       toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
     - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: essentia
+  namespace: music
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: essentia }
+  enableDefaultDeny: { ingress: true, egress: true }
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }] }
+    - toFQDNs: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

@@ -1,0 +1,185 @@
+# Essentia: BPM, key, danceability and loudness of every track, one JSON line each in
+# /work/results.jsonl (own local PVC). It cannot touch the library or its tags: library/ is
+# mounted read-only, and the beets database is not opened. Using the results (a smart
+# playlist, `beet modify -W`) is a separate, manual step.
+# One batch per night, for at most MAX_SECONDS, resuming where the last one stopped; a
+# 120 s slice from the middle of each track keeps a run cheap. One thread at nice 19: reading
+# the FUSE mount hard is what took the node down on 2026-11-07.
+# Dependencies: the PyPI wheels below, pinned with hashes, installed once into /work/site
+# (re-installed when requirements.txt changes). Python 3.14: the essentia wheel exists only
+# for cp314, so this is its own image, not beets'.
+# shortcut: a track is analyzed once, by path; an audio file replaced by a better copy keeps
+# its old numbers, delete its line in results.jsonl. A file that always fails is retried nightly.
+# Manual run, 3 tracks, to a scratch file:
+#   kubectl -n music create job essentia-test --from=cronjob/essentia
+#   (then edit the env: MAX_TRACKS=3, OUT=/tmp/test.jsonl) or use `kubectl set env` on a dry-run copy.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: essentia
+  namespace: music
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+data:
+  requirements.txt: |
+    essentia==2.1b6.dev1438 \
+        --hash=sha256:1ee6107fe63fb3b50f8aa68466951f6ca1e162a700d8deffd46ab0506dab9acb
+    numpy==2.5.4 \
+        --hash=sha256:d549420b8858885cea8838a727842249218b9c1da24dd517e25c9c7a948310a3
+    pyyaml==6.0.3 \
+        --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
+    six==1.17.0 \
+        --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
+  analyze.py: |
+    import json, os, sys, time
+    import essentia
+    import essentia.standard as es
+
+    essentia.log.infoActive = False
+    LIB = "/data"
+    OUT = os.environ.get("OUT", "/work/results.jsonl")
+    MAX_S = int(os.environ.get("MAX_SECONDS", "12600"))
+    MAX_N = int(os.environ.get("MAX_TRACKS", "0")) or None
+    SEG = int(os.environ.get("SEGMENT_SECONDS", "120"))
+    EXT = {".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav"}
+    t0 = time.time()
+
+    done = set()
+    if os.path.exists(OUT):
+        for line in open(OUT):
+            try:
+                done.add(json.loads(line)["path"])
+            except (ValueError, KeyError):
+                pass  # a line cut short by a kill
+
+    todo = []
+    for root, dirs, files in os.walk(LIB):
+        dirs.sort()
+        for f in sorted(files):
+            if os.path.splitext(f)[1].lower() in EXT:
+                p = os.path.join(root, f)
+                rel = os.path.relpath(p, LIB)
+                if rel not in done:
+                    todo.append((rel, p))
+    print(f"{len(done)} done, {len(todo)} to do", flush=True)
+
+    n = 0
+    with open(OUT, "a") as out:
+        for rel, p in todo:
+            if time.time() - t0 > MAX_S or (MAX_N and n >= MAX_N):
+                break
+            try:
+                dur = es.MetadataReader(filename=p, filterMetadata=True)()[7]
+                start = max(0.0, dur / 2 - SEG / 2) if dur > SEG else 0.0
+                feats, _ = es.MusicExtractor(
+                    lowlevelStats=["mean"], rhythmStats=["mean"], tonalStats=["mean"],
+                    startTime=start, endTime=start + SEG,
+                )(p)
+                rec = {
+                    "path": rel, "size": os.path.getsize(p), "duration": float(dur),
+                    "bpm": float(feats["rhythm.bpm"]),
+                    "danceability": float(feats["rhythm.danceability"]),
+                    "key": feats["tonal.key_edma.key"], "scale": feats["tonal.key_edma.scale"],
+                    "key_strength": float(feats["tonal.key_edma.strength"]),
+                    "loudness": float(feats["lowlevel.average_loudness"]),
+                }
+            except Exception as e:  # one bad file must not stop the batch
+                print(f"FAIL {rel}: {e}", file=sys.stderr, flush=True)
+                continue
+            out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            out.flush()
+            os.fsync(out.fileno())
+            n += 1
+            if n % 25 == 0:
+                print(f"{n} tracks, {time.time() - t0:.0f}s", flush=True)
+    print(f"batch done: {n} tracks in {time.time() - t0:.0f}s", flush=True)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: essentia
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: essentia
+  namespace: music
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled   # shell $h in the script
+spec:
+  schedule: "0 3 * * *"
+  suspend: true   # until a 3-track run has been checked by hand
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 14400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: essentia
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: essentia
+              image: docker.io/library/python:3.14-slim-bookworm@sha256:3fe1a0b6c2d6b2ebb572906cdabeca75aeb558c0c17db5ffefbcf8094871c32b
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  h=$(sha256sum /req/requirements.txt | cut -c1-16)
+                  if [ ! -e "/work/site/.ok-$h" ]; then
+                    rm -rf /work/site
+                    python -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
+                      --no-deps --target /work/site -r /req/requirements.txt
+                    touch "/work/site/.ok-$h"
+                  fi
+                  PYTHONPATH=/work/site exec nice -n 19 python /req/analyze.py
+              env:
+                - { name: HOME, value: /work }
+                - { name: PIP_DISABLE_PIP_VERSION_CHECK, value: "1" }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+              resources:
+                requests: { cpu: 200m, memory: 384Mi }
+                limits: { cpu: "1", memory: 1Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - { name: music, mountPath: /data, subPath: library, readOnly: true }
+                - { name: work, mountPath: /work }
+                - { name: req, mountPath: /req }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: music
+              persistentVolumeClaim:
+                claimName: music
+            - name: work
+              persistentVolumeClaim:
+                claimName: essentia
+            - name: req
+              configMap:
+                name: essentia
+            - name: tmp
+              emptyDir: {}

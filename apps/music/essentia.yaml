@@ -65,13 +65,14 @@ data:
                     todo.append((rel, p))
     print(f"{len(done)} done, {len(todo)} to do", flush=True)
 
-    n = 0
+    n = tried = 0
     with open(OUT, "a") as out:
         for rel, p in todo:
-            if time.time() - t0 > MAX_S or (MAX_N and n >= MAX_N):
+            if time.time() - t0 > MAX_S or (MAX_N and tried >= MAX_N):
                 break
+            tried += 1
             try:
-                dur = es.MetadataReader(filename=p, filterMetadata=True)()[7]
+                dur = es.MetadataReader(filename=p, filterMetadata=True)()[8]
                 start = max(0.0, dur / 2 - SEG / 2) if dur > SEG else 0.0
                 feats, _ = es.MusicExtractor(
                     lowlevelStats=["mean"], rhythmStats=["mean"], tonalStats=["mean"],

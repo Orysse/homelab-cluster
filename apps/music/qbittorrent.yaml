@@ -4,8 +4,13 @@
 # downloads/ of the `music` volume; beets (beets.yaml) is the only writer into library/.
 # VPN: AirVPN, WireGuard keys in OpenBao kv/apps/music/vpn (ExternalSecret qbittorrent-vpn).
 # Ports AirVPN forwards to us (the same on every AirVPN server): 2417 TCP+UDP qBittorrent,
-# 54429 TCP slskd. UIs internal only, each with its own login: qbittorrent.int.${DOMAIN},
-# slskd.int.${DOMAIN} (slskd: account and keys in kv/apps/music/slskd).
+# 54429 TCP slskd. UIs internal only, behind Pocket-ID (auth.yaml): qbittorrent.int.${DOMAIN},
+# slskd.int.${DOMAIN} (slskd: account and keys in kv/apps/music/slskd). Only their proxies and
+# Lidarr may connect (network-policy.yaml), so neither asks for its own password:
+# - qBittorrent: WebUI > Authentication > "Bypass authentication for clients in whitelisted IP
+#   subnets" = 10.42.0.0/16, set by hand once (its config file is its own). Keep its "reverse
+#   proxy support" off: the bypass must check the proxy's address, not X-Forwarded-For.
+# - slskd: SLSKD_NO_AUTH. Lidarr's API key (Tubifarry) is then not checked either.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -127,7 +132,7 @@ spec:
             - { name: SLSKD_HTTP_PORT, value: "5030" }
             - { name: SLSKD_NO_HTTPS, value: "true" }         # TLS ends at the gateway
             - { name: SLSKD_NO_VERSION_CHECK, value: "true" }
-            - { name: SLSKD_USERNAME, value: admin }          # web UI; password from the secret
+            - { name: SLSKD_NO_AUTH, value: "true" }          # the login is Pocket-ID's (header)
             - { name: SLSKD_SHARED_DIR, value: /data/library }   # sharing is the norm on Soulseek
             - { name: SLSKD_DOWNLOADS_DIR, value: /data/downloads/slskd }
             - { name: SLSKD_INCOMPLETE_DIR, value: /data/downloads/.slskd-incomplete }   # outside what beets reads
@@ -204,7 +209,7 @@ spec:
               - { name: X-Frame-Options, value: DENY }
               - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
       backendRefs:
-        - name: qbittorrent
+        - name: oauth2-proxy-qbittorrent
           port: 80
 ---
 apiVersion: v1
@@ -240,5 +245,5 @@ spec:
               - { name: X-Frame-Options, value: DENY }
               - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
       backendRefs:
-        - name: slskd
-          port: 5030
+        - name: oauth2-proxy-slskd
+          port: 80

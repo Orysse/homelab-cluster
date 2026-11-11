@@ -1,8 +1,10 @@
-# Pocket-ID in front of Lidarr and Navidrome: one oauth2-proxy each (same image and settings as
-# the Hubble one, infrastructure/configs/identity/oauth2-proxy), its own Pocket-ID client, admins
-# only. The Gateway routes to the proxy; the proxy is the only thing allowed to reach the app
-# (network-policy.yaml). One login, Pocket-ID's: Lidarr trusts the proxy (Auth Method External),
-# Navidrome takes the user from X-Forwarded-Preferred-Username (navidrome.yaml, ExtAuth).
+# Pocket-ID in front of Lidarr, Navidrome, qBittorrent and slskd: one oauth2-proxy each (same
+# image and settings as the Hubble one, infrastructure/configs/identity/oauth2-proxy), its own
+# Pocket-ID client, admins only. The Gateway routes to the proxy; the proxy (and, for the
+# downloaders, Lidarr) is the only thing allowed to reach the app (network-policy.yaml). One
+# login, Pocket-ID's: Lidarr trusts the proxy (Auth Method External), Navidrome takes the user
+# from X-Forwarded-Preferred-Username (navidrome.yaml, ExtAuth), qBittorrent skips its login
+# for pod addresses (WebUI setting, qbittorrent.yaml), slskd runs without one (SLSKD_NO_AUTH).
 # Skipped by the proxy: Lidarr's /api/ (API key) and Navidrome's /rest/ (Subsonic apps, which
 # log in with their own credentials). On every route the proxy first strips the X-Forwarded-*
 # user headers a client sends (skip-auth-strip-headers, on by default): nobody can claim a user.
@@ -237,5 +239,235 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/name: oauth2-proxy-navidrome
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-qbittorrent-cookie
+  namespace: music
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-qbittorrent-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-slskd-cookie
+  namespace: music
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-slskd-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-qbittorrent
+  namespace: music
+spec:
+  callbackUrls: ["https://qbittorrent.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://qbittorrent.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-qbittorrent
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-qbittorrent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-qbittorrent
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://qbittorrent.music.svc.cluster.local
+            - --redirect-url=https://qbittorrent.int.${DOMAIN}/oauth2/callback
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-qbittorrent-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-qbittorrent-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-qbittorrent-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-qbittorrent
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-qbittorrent
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-slskd
+  namespace: music
+spec:
+  callbackUrls: ["https://slskd.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://slskd.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-slskd
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-slskd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-slskd
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://slskd.music.svc.cluster.local:5030
+            - --redirect-url=https://slskd.int.${DOMAIN}/oauth2/callback
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-slskd-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-slskd-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-slskd-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-slskd
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-slskd
   ports:
     - { name: http, port: 80, targetPort: http }

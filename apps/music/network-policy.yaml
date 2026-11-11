@@ -2,7 +2,7 @@
 #   Lidarr       from its oauth2-proxy (auth.yaml) and beets; to PostgreSQL, qBittorrent and slskd, DNS, the Internet
 #                (metadata and indexers, 80/443)
 #   Navidrome    from its oauth2-proxy; DNS, 443 (cover art, artist info)
-#   qBittorrent  (and slskd, same pod) from the Gateway and Lidarr; the tunnel (any UDP: gluetun's
+#   qBittorrent  (and slskd, same pod) from their oauth2-proxies and Lidarr; the tunnel (any UDP: gluetun's
 #                firewall already drops all else), DNS
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
@@ -73,8 +73,12 @@ spec:
     matchLabels: { app.kubernetes.io/name: qbittorrent }
   enableDefaultDeny: { ingress: true, egress: true }
   ingress:
-    - fromEntities: [ingress]
-      toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "5030", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-qbittorrent }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-slskd }
+      toPorts: [{ ports: [{ port: "5030", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: lidarr }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "5030", protocol: TCP }] }]
@@ -206,3 +210,57 @@ spec:
           rules: { dns: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }] }
     - toFQDNs: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-qbittorrent
+  namespace: music
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-qbittorrent }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: qbittorrent }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-slskd
+  namespace: music
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-slskd }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: qbittorrent }   # slskd shares its pod
+      toPorts: [{ ports: [{ port: "5030", protocol: TCP }] }]

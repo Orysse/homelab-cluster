@@ -95,20 +95,6 @@ spec:
           selector:
             matchExpressions:
               - { key: gateway-access, operator: In, values: [public, both] }
-    - name: k8s
-      protocol: HTTPS
-      port: 443
-      hostname: k8s.${DOMAIN}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: wildcard-tls
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchExpressions:
-              - { key: gateway-access, operator: In, values: [public, both] }
     - name: vitrine
       protocol: HTTPS
       port: 443

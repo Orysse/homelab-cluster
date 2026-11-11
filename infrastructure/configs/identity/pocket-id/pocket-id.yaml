@@ -54,9 +54,9 @@ spec:
         secretKeyRef: { name: pocket-id, key: SMTP_PASSWORD }
   emailNotifications:
     oneTimeAccessAsAdmin: true    # invitations and login links sent by an admin
-    # Fallback for people without a usable passkey: a code by email. Their account is
-    # then only as safe as their mailbox.
-    oneTimeAccessAsUnauthenticated: true
+    # No login code by email for anyone who asks: it made an admin account only as safe as its
+    # mailbox (passkeys only; a lost passkey is replaced through an admin's login link).
+    oneTimeAccessAsUnauthenticated: false
     loginNotification: true
   analyticsDisabled: true
   versionCheckDisabled: true      # Renovate handles updates

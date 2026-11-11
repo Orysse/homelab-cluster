@@ -1,5 +1,6 @@
-# Headlamp at k8s.${DOMAIN}: Kubernetes web console. People log in through Pocket-ID and
-# Headlamp calls the API with THEIR token, so their RBAC applies (oidc-rbac.yaml).
+# Headlamp at k8s.int.${DOMAIN} (internal Gateway: LAN and VPN only): Kubernetes web console.
+# People log in through Pocket-ID and Headlamp calls the API with THEIR token, so their RBAC
+# applies (oidc-rbac.yaml).
 # Headlamp itself has no rights. Its OIDC client is adopted from v2 by id: the API server
 # trusts that id (homelab-nix topology oidc.audiences).
 ---
@@ -8,7 +9,7 @@ kind: Namespace
 metadata:
   name: headlamp
   labels:
-    gateway-access: public
+    gateway-access: internal
     pod-security.kubernetes.io/enforce: restricted
 ---
 # The namespace's default account: pods that do not name one get no API token.
@@ -28,11 +29,11 @@ metadata:
 spec:
   clientID: da937e7f-357b-4310-831e-d09dfe89aa8c
   pkceEnabled: true
-  callbackUrls: ["https://k8s.${DOMAIN}/oidc-callback"]
+  callbackUrls: ["https://k8s.int.${DOMAIN}/oidc-callback"]
   allowedUserGroups:
     - { name: admins, namespace: pocket-id }
     - { name: visitors, namespace: pocket-id }
-  launchUrl: https://k8s.${DOMAIN}
+  launchUrl: https://k8s.int.${DOMAIN}
   secret:
     name: headlamp-oidc
     keys:
@@ -74,7 +75,7 @@ spec:
     # Not passed by the chart in this mode: Headlamp's own environment settings.
     env:
       - { name: HEADLAMP_CONFIG_OIDC_SCOPES, value: "profile,email,groups" }
-      - { name: HEADLAMP_CONFIG_OIDC_CALLBACK_URL, value: "https://k8s.${DOMAIN}/oidc-callback" }
+      - { name: HEADLAMP_CONFIG_OIDC_CALLBACK_URL, value: "https://k8s.int.${DOMAIN}/oidc-callback" }
       - { name: HEADLAMP_CONFIG_OIDC_USE_PKCE, value: "true" }
     clusterRoleBinding:
       create: false           # no rights of its own: users' tokens are used
@@ -97,9 +98,9 @@ metadata:
   namespace: headlamp
 spec:
   parentRefs:
-    - { name: public, namespace: gateway, sectionName: k8s }
+    - { name: internal, namespace: gateway, sectionName: https }
   hostnames:
-    - k8s.${DOMAIN}
+    - k8s.int.${DOMAIN}
   rules:
     - backendRefs:
         - name: headlamp

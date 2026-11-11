@@ -49,7 +49,7 @@ Toutes se connectent avec Pocket-ID.
 | Quoi | Où | Réseau |
 |---|---|---|
 | Page d'accueil, état des services | https://home.int.abe.lc | VPN |
-| Console Kubernetes (Headlamp) | https://k8s.abe.lc | Internet |
+| Console Kubernetes (Headlamp) | https://k8s.int.abe.lc | VPN |
 | Page de statut | https://status.abe.lc | Internet |
 | Dashboards, logs, électricité (Grafana) | https://grafana.int.abe.lc | VPN |
 | Secrets (OpenBao), admins | https://bao.int.abe.lc, méthode *OIDC*, mount path `sso` | VPN |

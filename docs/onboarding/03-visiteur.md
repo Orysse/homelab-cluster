@@ -13,7 +13,7 @@ pas de mot de passe.
 
 | Quoi | Où |
 |---|---|
-| Console Kubernetes (Headlamp) | https://k8s.abe.lc |
+| Console Kubernetes (Headlamp) | https://k8s.int.abe.lc |
 | Page de statut | https://status.abe.lc |
 
 ## 3. Avec le VPN

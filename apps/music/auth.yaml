@@ -5,16 +5,56 @@
 # "Disabled for Local Addresses" once the proxy works, the proxy is a cluster address).
 # Skipped by the proxy: Lidarr's /api/ (API key) and Navidrome's /rest/ (Subsonic apps, which
 # log in with their own credentials).
+# One cookie key per proxy: a session cookie stolen from one app (Music Assistant gets it in
+# clear on the LAN) must not open the others.
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: oauth2-proxy-cookie
+  name: oauth2-proxy-lidarr-cookie
   namespace: music
 spec:
   refreshInterval: "0"
   target:
-    name: oauth2-proxy-cookie
+    name: oauth2-proxy-lidarr-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-navidrome-cookie
+  namespace: music
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-navidrome-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-music-assistant-cookie
+  namespace: music
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-music-assistant-cookie
     template:
       data:
         secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
@@ -109,7 +149,7 @@ spec:
         - name: oidc
           secret: { secretName: oauth2-proxy-lidarr-oidc-credentials }
         - name: cookie
-          secret: { secretName: oauth2-proxy-cookie }
+          secret: { secretName: oauth2-proxy-lidarr-cookie }
 ---
 apiVersion: v1
 kind: Service
@@ -206,7 +246,7 @@ spec:
         - name: oidc
           secret: { secretName: oauth2-proxy-navidrome-oidc-credentials }
         - name: cookie
-          secret: { secretName: oauth2-proxy-cookie }
+          secret: { secretName: oauth2-proxy-navidrome-cookie }
 ---
 apiVersion: v1
 kind: Service
@@ -303,7 +343,7 @@ spec:
         - name: oidc
           secret: { secretName: oauth2-proxy-music-assistant-oidc-credentials }
         - name: cookie
-          secret: { secretName: oauth2-proxy-cookie }
+          secret: { secretName: oauth2-proxy-music-assistant-cookie }
 ---
 apiVersion: v1
 kind: Service

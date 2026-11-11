@@ -182,9 +182,9 @@ data:
         for t in seq:
             lines += [f"#EXTINF:{round(t['length'])},{t['artist']} - {t['title']}",
                       os.path.relpath(t["path"], OUT)]
-        with open(path + ".tmp", "w") as f:
+        # written in place: a rename on the SeaweedFS mount can leave the source behind
+        with open(path, "w") as f:
             f.write("\n".join(lines) + "\n")
-        os.replace(path + ".tmp", path)
         return os.path.basename(path)
 
     ts = tracks()
@@ -198,7 +198,7 @@ data:
         written.add(write(g.title(), seq))
         print(f"{g}: {len(pool)} tracks, mix of {len(seq)}", flush=True)
     for f in os.listdir(OUT):
-        if f.startswith(PREFIX) and f.endswith(".m3u8") and f not in written:
+        if f.startswith(PREFIX) and f not in written:   # also .tmp leftovers of older runs
             os.remove(os.path.join(OUT, f))
     print(f"{len(ts)} tracks with genre and audio, {len(written)} mixes", flush=True)
 ---

@@ -8,5 +8,6 @@ resources:
   - glance
   - headscale
   - music
+  - home-assistant
   - paperclip
   - trip

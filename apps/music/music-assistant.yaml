@@ -1,7 +1,8 @@
 # Music Assistant's UI at music.int.${DOMAIN}. Music Assistant itself is not in the cluster:
 # it is a LAN guest of nuc1 (homelab-nix D34, container `music`, 192.168.1.220) because it
 # needs mDNS and AirPlay's random ports. Only the route is here: a Service without selector,
-# its endpoint written by hand. No oauth2-proxy: Music Assistant has its own login.
+# its endpoint written by hand. The route goes through oauth2-proxy (auth.yaml, admins), then
+# Music Assistant's own login (it speaks no OIDC; its session is long-lived).
 ---
 apiVersion: v1
 kind: Service
@@ -47,5 +48,5 @@ spec:
               - { name: X-Frame-Options, value: DENY }
               - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
       backendRefs:
-        - name: music-assistant
+        - name: oauth2-proxy-music-assistant   # Pocket-ID (admins) first, auth.yaml
           port: 80

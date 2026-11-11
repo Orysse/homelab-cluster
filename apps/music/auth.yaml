@@ -1,4 +1,4 @@
-# Pocket-ID in front of Lidarr and Navidrome: one oauth2-proxy each (same image and settings
+# Pocket-ID in front of Lidarr, Navidrome and Music Assistant: one oauth2-proxy each (same image and settings
 # as the Hubble one, infrastructure/configs/identity/oauth2-proxy), its own Pocket-ID client,
 # admins only. The Gateway routes to the proxy; the proxy is the only thing allowed to reach
 # the app (network-policy.yaml). Both apps keep their own login behind it (Lidarr: set it to
@@ -216,5 +216,102 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/name: oauth2-proxy-navidrome
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+# Music Assistant (a LAN guest of nuc1, music-assistant.yaml): the same proxy, no skipped route.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-music-assistant
+  namespace: music
+spec:
+  callbackUrls: ["https://music.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://music.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-music-assistant
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-music-assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-music-assistant
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://music-assistant.music.svc.cluster.local
+            - --redirect-url=https://music.int.${DOMAIN}/oauth2/callback
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-music-assistant-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-music-assistant-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-music-assistant
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-music-assistant
   ports:
     - { name: http, port: 80, targetPort: http }

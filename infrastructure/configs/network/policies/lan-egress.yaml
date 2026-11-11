@@ -1,0 +1,29 @@
+# Pods may not reach the home network (192.168.1.0/24, homelab-nix topology `network`): the
+# router's admin page, nuc1, the LAN guests (Home Assistant, Music Assistant), the family's
+# devices. A compromised app would otherwise have the whole LAN; `toEntities: [world]` in an
+# app's own policy includes it. A deny wins over every allow, in any policy.
+# Exempt, each with its own default-deny policy naming the one LAN address it needs:
+#   kube-system  CoreDNS forwards to the router (and the rest of it talks to the node only)
+#   monitoring   otel-collector and Grafana to VictoriaMetrics/VictoriaLogs on nuc1
+#   postgres     backups to Garage on nuc1
+#   syncthing    the DAP, on the LAN (its policy: 443 and 22000 only)
+# Not affected: the node's own addresses (API server, kubelet): CIDR rules do not select nodes
+# (Cilium's default policy-cidr-match-mode), and the LoadBalancer IPs, translated to pods first.
+# Host-network pods are not endpoints. Envoy (reserved:ingress) is not selected: it must reach
+# the LAN guests behind the internal Gateway.
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: no-lan-egress
+spec:
+  endpointSelector:
+    matchExpressions:
+      - { key: k8s:io.kubernetes.pod.namespace, operator: Exists }   # pods only, not reserved identities
+      - { key: k8s:io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, monitoring, postgres] }
+      - { key: k8s:app.kubernetes.io/name, operator: NotIn, values: [syncthing] }
+  # Only a deny: a pod with no other policy keeps everything else.
+  enableDefaultDeny: { ingress: false, egress: false }
+  egressDeny:
+    - toCIDRSet:
+        - cidr: 192.168.1.0/24

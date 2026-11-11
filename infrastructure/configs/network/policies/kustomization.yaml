@@ -8,3 +8,4 @@ resources:
   - cert-manager.yaml
   - external-secrets.yaml
   - kube-system.yaml
+  - lan-egress.yaml

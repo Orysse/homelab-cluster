@@ -1,0 +1,262 @@
+# Mixes: every morning, one playlist per genre ("Mix - Trip Hop.m3u8" in library/Playlists/),
+# ~40 tracks chained like a DJ would: close tempo (half/double counts), compatible keys
+# (Camelot wheel), energy rising then falling, similar artists next to each other, never the
+# same artist twice in a row. A new selection every day. Navidrome imports them on its hourly
+# scan, Syncthing takes them to the DAP (relative paths).
+# Inputs, all read-only except the cache:
+#   genres    beets' library.db (lastgenre: Last.fm genres, the first is the main one); a
+#             genre too small for its own mix joins its parent in lastgenre's genre tree
+#   audio     Essentia's results.jsonl (essentia.yaml): bpm, key, danceability, loudness
+#   similar   Last.fm artist.getSimilar (Navidrome's API key), cached in /work/similar.json, 30 days
+# Tracks without a genre or without Essentia numbers are left out.
+# It writes only library/Playlists/Mix - *.m3u8 (beets stays the only writer of the albums);
+# a genre that no longer has a mix loses its file.
+# Manual run: kubectl -n music create job mixes-now --from=cronjob/mixes
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mixes
+  namespace: music
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+data:
+  mixes.py: |
+    import datetime, importlib.util, json, math, os, random, sqlite3, time, urllib.parse, urllib.request
+    import yaml
+
+    LIB = "/data/library"
+    OUT = os.environ.get("OUT", os.path.join(LIB, "Playlists"))   # OUT=/tmp/x: a dry run
+    PREFIX = "Mix - "
+    N = int(os.environ.get("MIX_TRACKS", "40"))
+    MIN_GENRE = 60      # tracks a genre needs for its own mix; fewer: they go to the parent genre
+    CACHE = "/work/similar.json"
+    SEP = "\\␀"    # beets' separator for multi-valued fields
+
+    # Camelot wheel: C major = 8B, its relative minor (A minor) = 8A
+    PC = {"C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3, "E": 4, "F": 5, "F#": 6, "Gb": 6,
+          "G": 7, "G#": 8, "Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11}
+
+    def camelot(key, scale):
+        pc = PC[key] + (3 if scale == "minor" else 0)
+        return (7 * pc + 7) % 12 + 1, scale == "minor"
+
+    def key_dist(a, b):  # 0 same key, 1 a neighbour or the relative, more is a clash
+        d = min((a[0] - b[0]) % 12, (b[0] - a[0]) % 12)
+        return min(3.0, d + (a[1] != b[1]) * (1.0 if d == 0 else 1.5))
+
+    def bpm_dist(a, b):  # 1 per 6 % apart; half and double time count as the same tempo
+        return min(abs(math.log(a * m / b)) for m in (1, 2, 0.5)) / 0.06
+
+    assert camelot("C", "major") == (8, False) and camelot("A", "minor") == (8, True)
+    assert camelot("G", "major") == (9, False) and camelot("F#", "minor") == (11, True)
+    assert key_dist(camelot("C", "major"), camelot("A", "minor")) == 1
+    assert key_dist(camelot("C", "major"), camelot("G", "major")) == 1
+    assert key_dist((12, False), (1, False)) == 1
+    assert bpm_dist(170, 85) < 0.01 and 0.9 < bpm_dist(128, 136) < 1.1
+
+    def genre_parents():
+        # located, not imported: importing a beets plugin loads beets' config
+        pkg = importlib.util.find_spec("beetsplug.lastgenre").submodule_search_locations[0]
+        path = os.path.join(pkg, "genres-tree.yaml")
+        parent = {}
+        def walk(nodes, up):
+            for n in nodes or []:
+                if isinstance(n, dict):
+                    for name, kids in n.items():
+                        parent.setdefault(name.lower(), up)
+                        walk(kids, name.lower())
+                else:
+                    parent.setdefault(str(n).lower(), up)
+        walk(yaml.safe_load(open(path)), None)
+        return parent
+
+    def tracks():
+        audio = {}
+        for line in open("/work/results.jsonl"):
+            try:
+                r = json.loads(line)
+                audio[r["path"]] = r
+            except (ValueError, KeyError):
+                pass
+        db = sqlite3.connect("file:/config/library.db?mode=ro", uri=True)
+        out = []
+        for path, artist, albumartist, album_id, title, length, genres in db.execute(
+                "select path, artist, albumartist, album_id, title, length, genres from items"):
+            path = path.decode() if isinstance(path, bytes) else path
+            rel = os.path.relpath(path, LIB) if os.path.isabs(path) else path   # beets 2: relative to LIB
+            path = os.path.join(LIB, rel)
+            a = audio.get(rel)
+            if not genres or not a or a["key"] not in PC:
+                continue
+            out.append({
+                "path": path, "title": title, "length": length or 0, "album": album_id,
+                "artist": artist or albumartist,   # the track's: label compilations have one album artist
+                "genre": genres.split(SEP)[0].strip().lower(),
+                "bpm": a["bpm"], "key": camelot(a["key"], a["scale"]),
+                "dance": a["danceability"], "loud": a["loudness"],
+            })
+        return out
+
+    def similar(artists, api_key):
+        cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
+        now = time.time()
+        for name in sorted(artists):
+            if name in cache and now - cache[name]["t"] < 30 * 86400:
+                continue
+            q = urllib.parse.urlencode({"method": "artist.getsimilar", "artist": name, "limit": 100,
+                                        "autocorrect": 1, "api_key": api_key, "format": "json"})
+            try:
+                with urllib.request.urlopen("https://ws.audioscrobbler.com/2.0/?" + q, timeout=20) as r:
+                    sim = json.load(r).get("similarartists", {}).get("artist", [])
+                cache[name] = {"t": now, "sim": {s["name"].lower(): float(s["match"]) for s in sim}}
+            except Exception as e:  # keep the old entry; tomorrow's run retries
+                print(f"similar {name}: {e}", flush=True)
+            time.sleep(0.25)
+        tmp = CACHE + ".tmp"
+        json.dump(cache, open(tmp, "w"))
+        os.replace(tmp, CACHE)
+        return {a.lower(): v["sim"] for a, v in cache.items()}
+
+    def buckets(ts, parent):
+        def up(g):
+            chain = [g]
+            while parent.get(chain[-1]) and len(chain) < 20:
+                chain.append(parent[chain[-1]])
+            return chain
+        count = {}
+        for t in ts:
+            for g in up(t["genre"]):
+                count[g] = count.get(g, 0) + 1
+        out = {}
+        for t in ts:
+            g = next((g for g in up(t["genre"]) if count[g] >= MIN_GENRE), None)
+            if g:
+                out.setdefault(g, []).append(t)
+        return {g: v for g, v in out.items() if len(v) >= MIN_GENRE // 2}
+
+    def mix(pool, sim, rng):
+        # energy: danceability as a rank in this genre, 0..1; the target rises, then falls
+        for i, t in enumerate(sorted(pool, key=lambda t: t["dance"])):
+            t["energy"] = i / max(1, len(pool) - 1)
+        target = lambda i: 0.3 + 0.5 * math.sin(math.pi * i / max(1, N - 1))
+        def s(a, b):
+            a, b = a.lower(), b.lower()
+            return max(sim.get(a, {}).get(b, 0.0), sim.get(b, {}).get(a, 0.0))
+        start = sorted(pool, key=lambda t: abs(t["energy"] - target(0)))[:max(1, len(pool) // 5)]
+        seq = [rng.choice(start)]
+        used, per_artist, per_album = {id(seq[0])}, {seq[0]["artist"]: 1}, {seq[0]["album"]: 1}
+        while len(seq) < min(N, len(pool)):
+            prev, recent = seq[-1], {t["artist"] for t in seq[-3:]}
+            # the rules, loosened when nothing passes (a genre with few artists):
+            # 0: not in the last 3 artists, 3 per artist, 2 per album; 1: not the previous artist; 2: any
+            rules = [lambda c: (c["artist"] not in recent and per_artist.get(c["artist"], 0) < 3
+                                and per_album.get(c["album"], 0) < 2),
+                     lambda c: c["artist"] != prev["artist"],
+                     lambda c: True]
+            best = None
+            for ok in rules:
+                best_cost = None
+                for c in pool:
+                    if id(c) in used or not ok(c):
+                        continue
+                    cost = (bpm_dist(prev["bpm"], c["bpm"]) + 0.8 * key_dist(prev["key"], c["key"])
+                            + 3 * abs(c["energy"] - target(len(seq))) + 2 * abs(c["loud"] - prev["loud"])
+                            - 1.5 * s(prev["artist"], c["artist"]) + rng.uniform(0, 0.6))
+                    if best_cost is None or cost < best_cost:
+                        best, best_cost = c, cost
+                if best is not None:
+                    break
+            if best is None:
+                break
+            seq.append(best)
+            used.add(id(best))
+            per_artist[best["artist"]] = per_artist.get(best["artist"], 0) + 1
+            per_album[best["album"]] = per_album.get(best["album"], 0) + 1
+        return seq
+
+    def write(name, seq):
+        safe = name.replace("/", "-").lstrip(".")
+        path = os.path.join(OUT, f"{PREFIX}{safe}.m3u8")
+        lines = ["#EXTM3U", f"#PLAYLIST:{PREFIX}{name}"]
+        for t in seq:
+            lines += [f"#EXTINF:{round(t['length'])},{t['artist']} - {t['title']}",
+                      os.path.relpath(t["path"], OUT)]
+        with open(path + ".tmp", "w") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(path + ".tmp", path)
+        return os.path.basename(path)
+
+    ts = tracks()
+    bs = buckets(ts, genre_parents())
+    sim = similar({t["artist"] for b in bs.values() for t in b}, os.environ["LASTFM_API_KEY"])
+    os.makedirs(OUT, exist_ok=True)
+    today = datetime.date.today().isoformat()
+    written = set()
+    for g, pool in sorted(bs.items()):
+        seq = mix(pool, sim, random.Random(f"{today}/{g}"))
+        written.add(write(g.title(), seq))
+        print(f"{g}: {len(pool)} tracks, mix of {len(seq)}", flush=True)
+    for f in os.listdir(OUT):
+        if f.startswith(PREFIX) and f.endswith(".m3u8") and f not in written:
+            os.remove(os.path.join(OUT, f))
+    print(f"{len(ts)} tracks with genre and audio, {len(written)} mixes", flush=True)
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mixes
+  namespace: music
+spec:
+  schedule: "0 7 * * *"   # after Essentia's night (03:00, 3.5 h at most)
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mixes
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: mixes
+              image: ghcr.io/linuxserver/beets:2.14.1-ls359   # beets' Python, PyYAML and the genre tree
+              command: [/lsiopy/bin/python, /app/mixes.py]
+              env:
+                - name: LASTFM_API_KEY
+                  valueFrom: { secretKeyRef: { name: navidrome-lastfm, key: ND_LASTFM_APIKEY } }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - { name: script, mountPath: /app, readOnly: true }
+                - { name: beets, mountPath: /config, readOnly: true }
+                - { name: essentia, mountPath: /work }
+                - { name: music, mountPath: /data/library, subPath: library }
+          volumes:
+            - name: script
+              configMap: { name: mixes }
+            - name: beets
+              persistentVolumeClaim: { claimName: beets-config, readOnly: true }
+            - name: essentia
+              persistentVolumeClaim: { claimName: essentia }
+            - name: music
+              persistentVolumeClaim: { claimName: music }

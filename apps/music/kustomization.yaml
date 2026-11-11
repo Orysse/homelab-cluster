@@ -11,5 +11,6 @@ resources:
   - syncthing.yaml
   - beets.yaml
   - essentia.yaml
+  - mixes.yaml
   - music-assistant.yaml
   - auth.yaml

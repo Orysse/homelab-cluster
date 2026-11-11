@@ -8,6 +8,7 @@
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   beets        DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
 #   essentia     DNS and 443, only to pypi.org and files.pythonhosted.org (its wheels, installed once)
+#   mixes        DNS and 443, only to ws.audioscrobbler.com (Last.fm similar artists)
 # SeaweedFS is not listed: the FUSE mount lives in the CSI mount service, not in these pods.
 ---
 apiVersion: cilium.io/v2
@@ -264,3 +265,21 @@ spec:
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: qbittorrent }   # slskd shares its pod
       toPorts: [{ ports: [{ port: "5030", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mixes
+  namespace: music
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: mixes }
+  enableDefaultDeny: { ingress: true, egress: true }
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchName: ws.audioscrobbler.com }] }
+    - toFQDNs: [{ matchName: ws.audioscrobbler.com }]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]

@@ -35,7 +35,7 @@ data:
   config.yaml: |
     directory: /data/library
     library: /config/library.db
-    plugins: musicbrainz fetchart embedart lyrics mbsync
+    plugins: musicbrainz fetchart embedart lyrics mbsync lastgenre
     import:
       write: yes
       incremental: yes
@@ -63,6 +63,9 @@ data:
     embedart:
       maxwidth: 1200
       auto: yes
+    lastgenre:             # Last.fm genres (the first is the main one): Navidrome, the DAP, the mixes (mixes.yaml)
+      count: 3
+      force: yes           # replaces the files' own genres: one vocabulary for the whole library
     lyrics:
       auto: yes
       synced: yes            # LRCLIB timed lyrics when they exist

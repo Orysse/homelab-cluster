@@ -44,7 +44,8 @@ data:
     MAX_N = int(os.environ.get("MAX_TRACKS", "0")) or None
     SEG = int(os.environ.get("SEGMENT_SECONDS", "120"))
     EXT = {".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav"}
-    t0 = time.time()
+    CHUNK = 100  # Essentia leaks ~4 MB a track (OOMKilled at 1 Gi after ~430): restart the process often
+    t0 = float(os.environ.setdefault("T0", str(time.time())))  # survives the re-exec below
 
     # one batch at a time: a manual run overlapping the nightly one would write the same tracks twice
     lock = open("/work/.lock", "w")
@@ -102,6 +103,8 @@ data:
             n += 1
             if n % 25 == 0:
                 print(f"{n} tracks, {time.time() - t0:.0f}s", flush=True)
+            if n == CHUNK and not MAX_N:
+                os.execv(sys.executable, [sys.executable, sys.argv[0]])  # resumes from OUT
     print(f"batch done: {n} tracks in {time.time() - t0:.0f}s", flush=True)
 ---
 apiVersion: v1

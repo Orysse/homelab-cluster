@@ -46,6 +46,7 @@ data:
     EXT = {".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav"}
     CHUNK = 100  # Essentia leaks ~4 MB a track (OOMKilled at 1 Gi after ~430): restart the process often
     t0 = float(os.environ.setdefault("T0", str(time.time())))  # survives the re-exec below
+    failed = set(filter(None, os.environ.get("FAILED", "").split("\n")))  # this run's, also across re-execs
 
     # one batch at a time: a manual run overlapping the nightly one would write the same tracks twice
     lock = open("/work/.lock", "w")
@@ -69,7 +70,7 @@ data:
             if os.path.splitext(f)[1].lower() in EXT:
                 p = os.path.join(root, f)
                 rel = os.path.relpath(p, LIB)
-                if rel not in done:
+                if rel not in done and rel not in failed:
                     todo.append((rel, p))
     print(f"{len(done)} done, {len(todo)} to do", flush=True)
 
@@ -82,10 +83,14 @@ data:
             try:
                 dur = es.MetadataReader(filename=p, filterMetadata=True)()[8]
                 start = max(0.0, dur / 2 - SEG / 2) if dur > SEG else 0.0
-                feats, _ = es.MusicExtractor(
-                    lowlevelStats=["mean"], rhythmStats=["mean"], tonalStats=["mean"],
-                    startTime=start, endTime=start + SEG,
-                )(p)
+                stats = dict(lowlevelStats=["mean"], rhythmStats=["mean"], tonalStats=["mean"])
+                try:
+                    feats, _ = es.MusicExtractor(**stats, startTime=start, endTime=start + SEG)(p)
+                except RuntimeError as e:
+                    if "silent" not in str(e):
+                        raise
+                    # a mostly silent track (hidden track after a long gap): the whole of it
+                    feats, _ = es.MusicExtractor(**stats)(p)
                 rec = {
                     "path": rel, "size": os.path.getsize(p), "duration": float(dur),
                     "bpm": float(feats["rhythm.bpm"]),
@@ -96,6 +101,7 @@ data:
                 }
             except Exception as e:  # one bad file must not stop the batch
                 print(f"FAIL {rel}: {e}", file=sys.stderr, flush=True)
+                failed.add(rel)
                 continue
             out.write(json.dumps(rec, ensure_ascii=False) + "\n")
             out.flush()
@@ -104,6 +110,7 @@ data:
             if n % 25 == 0:
                 print(f"{n} tracks, {time.time() - t0:.0f}s", flush=True)
             if n == CHUNK and not MAX_N:
+                os.environ["FAILED"] = "\n".join(failed)
                 os.execv(sys.executable, [sys.executable, sys.argv[0]])  # resumes from OUT
     print(f"batch done: {n} tracks in {time.time() - t0:.0f}s", flush=True)
 ---

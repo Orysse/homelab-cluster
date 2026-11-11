@@ -50,6 +50,11 @@ spec:
             - { name: ND_LOGLEVEL, value: info }
             - { name: ND_ENABLEGRAVATAR, value: "false" }
             - { name: ND_ENABLEINSIGHTSCOLLECTOR, value: "false" }
+            # Logged in by its oauth2-proxy (auth.yaml): the Pocket-ID username, which must match a
+            # Navidrome user. Any pod address is trusted because only that proxy may connect
+            # (network-policy.yaml), and it strips this header from what clients send.
+            - { name: ND_EXTAUTH_TRUSTEDSOURCES, value: "10.42.0.0/16" }
+            - { name: ND_EXTAUTH_USERHEADER, value: X-Forwarded-Preferred-Username }
           envFrom:
             - secretRef:
                 name: navidrome-lastfm   # ND_LASTFM_APIKEY, ND_LASTFM_SECRET: bios, similar artists (no scrobbling unless a user links an account)

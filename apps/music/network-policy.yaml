@@ -7,7 +7,6 @@
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   beets        DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
-#   oauth2-proxy-music-assistant  from the Gateway; Pocket-ID, Music Assistant on nuc1 (192.168.1.220:8095)
 #   essentia     DNS and 443, only to pypi.org and files.pythonhosted.org (its wheels, installed once)
 # SeaweedFS is not listed: the FUSE mount lives in the CSI mount service, not in these pods.
 ---
@@ -207,29 +206,3 @@ spec:
           rules: { dns: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }] }
     - toFQDNs: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
----
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: oauth2-proxy-music-assistant
-  namespace: music
-spec:
-  endpointSelector:
-    matchLabels: { app.kubernetes.io/name: oauth2-proxy-music-assistant }
-  enableDefaultDeny: { ingress: true, egress: true }
-  ingress:
-    - fromEntities: [ingress]
-      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
-  egress:
-    - toEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
-      toPorts:
-        - ports: [{ port: "53", protocol: ANY }]
-          rules: { dns: [{ matchPattern: "*" }] }
-    - toFQDNs:
-        - matchName: auth.${DOMAIN}
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
-    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
-    - toCIDR: ["192.168.1.220/32"]      # Music Assistant, homelab-nix guests.music
-      toPorts: [{ ports: [{ port: "8095", protocol: TCP }] }]

@@ -66,10 +66,66 @@ data:
     lastgenre:             # Last.fm genres (the first is the main one): Navidrome, the DAP, the mixes (mixes.yaml)
       count: 3
       force: yes           # replaces the files' own genres: one vocabulary for the whole library
+      whitelist: /config/genres.txt   # beets' list + genres-extra.yaml, written by the CronJob each run
     lyrics:
       auto: yes
       synced: yes            # LRCLIB timed lyrics when they exist
       sources: [lrclib]
+  # Genres beets' whitelist lacks (Last.fm tags of this library, 2026-11-12), each with the genre
+  # of lastgenre's tree it belongs to: the mixes (mixes.yaml) group a small genre with its parent.
+  # `~`: a top-level genre. A genre added here applies to an album on its next lastgenre run.
+  genres-extra.yaml: |
+    hardcore: hardcore techno        # here always Angerfist & co, never the punk one
+    j-core: hardcore techno
+    jcore: hardcore techno
+    artcore: hardcore techno
+    uptempo: hardcore techno
+    uptempo hardcore: hardcore techno
+    frapcore: hardcore techno
+    mainstream hardcore: hardcore techno
+    early hardcore: hardcore techno
+    dutch hardcore: gabber
+    nu gabber: gabber
+    nu style gabber: gabber
+    uk hardcore: happy hardcore
+    acidcore: tekno
+    tribecore: tekno
+    tribe: tekno
+    melodic tekno: tekno
+    mentalcore: tekno
+    outre-acid: tekno
+    hardtek: tekno
+    hardtekk: tekno
+    harshcore: speedcore
+    noisecore: speedcore
+    melodic speedcore: speedcore
+    extratone: speedcore
+    rawstyle: hardstyle
+    early hardstyle: hardstyle
+    melodic hardstyle: hardstyle
+    hard techno: techno
+    hypertechno: techno
+    hard acid techno: techno
+    vocal trance: trance
+    future bass: electronic
+    kawaii future bass: electronic
+    jersey club: electronic
+    french house: house
+    euro house: house
+    jazz hop: hip hop
+    instrumental hip hop: hip hop
+    boom bap: hip hop
+    conscious hip hop: hip hop
+    french rap: hip hop
+    west coast rap: hip hop
+    drill: hip hop
+    chipmunk soul: hip hop
+    chanson francaise: chanson
+    soundtrack: ~
+    video game music: soundtrack
+    progressive metalcore: metalcore
+    drumstep: drum and bass
+    dancefloor drum n bass: drum and bass
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -122,6 +178,9 @@ spec:
                 - /bin/sh
                 - -ec
                 - |
+                  # lastgenre's whitelist: the image's list and ours (genres-extra.yaml keys)
+                  lg=$(/lsiopy/bin/python -c 'import importlib.util as u; print(u.find_spec("beetsplug.lastgenre").submodule_search_locations[0])')
+                  { cat "$lg/genres.txt"; sed -n 's/^\([^#: ][^:]*\):.*/\1/p' /config/genres-extra.yaml; } > /config/genres.txt
                   # $1: beet import flags, then the source trees; imports their settled album folders.
                   import_settled() {
                     flags=$1; shift
@@ -163,6 +222,7 @@ spec:
                 - { name: music, mountPath: /data }
                 - { name: config, mountPath: /config }
                 - { name: beets-config, mountPath: /config/config.yaml, subPath: config.yaml }
+                - { name: beets-config, mountPath: /config/genres-extra.yaml, subPath: genres-extra.yaml }
           volumes:
             - name: music
               persistentVolumeClaim:

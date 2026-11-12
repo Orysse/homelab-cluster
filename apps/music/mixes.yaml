@@ -69,6 +69,9 @@ data:
                 else:
                     parent.setdefault(str(n).lower(), up)
         walk(yaml.safe_load(open(path)), None)
+        # our genres beets' tree lacks (beets.yaml genres-extra.yaml): genre -> parent
+        extra = yaml.safe_load(open("/genres/genres-extra.yaml")) or {}
+        parent.update({str(g).lower(): p and str(p).lower() for g, p in extra.items()})
         return parent
 
     def tracks():
@@ -248,12 +251,15 @@ spec:
                   drop: ["ALL"]
               volumeMounts:
                 - { name: script, mountPath: /app, readOnly: true }
+                - { name: genres, mountPath: /genres/genres-extra.yaml, subPath: genres-extra.yaml }
                 - { name: beets, mountPath: /config, readOnly: true }
                 - { name: essentia, mountPath: /work }
                 - { name: music, mountPath: /data/library, subPath: library }
           volumes:
             - name: script
               configMap: { name: mixes }
+            - name: genres
+              configMap: { name: beets-config }
             - name: beets
               persistentVolumeClaim: { claimName: beets-config, readOnly: true }
             - name: essentia

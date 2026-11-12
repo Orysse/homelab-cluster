@@ -1,8 +1,8 @@
 # Pocket-ID in front of Lidarr, Navidrome, qBittorrent and slskd: one oauth2-proxy each (same
 # image and settings as the Hubble one, infrastructure/configs/identity/oauth2-proxy), its own
-# Pocket-ID client, admins only. The Gateway routes to the proxy; the proxy (and, for the
-# downloaders, Lidarr) is the only thing allowed to reach the app (network-policy.yaml). One
-# login, Pocket-ID's: Lidarr trusts the proxy (Auth Method External), Navidrome takes the user
+# Pocket-ID client, admins only except Navidrome (also users and family). The Gateway routes to
+# the proxy; the proxy (and, for the downloaders, Lidarr) is the only thing allowed to reach the
+# app (network-policy.yaml). One login, Pocket-ID's: Lidarr trusts the proxy (Auth Method External), Navidrome takes the user
 # from X-Forwarded-Preferred-Username (navidrome.yaml, ExtAuth), qBittorrent skips its login
 # for pod addresses (WebUI setting, qbittorrent.yaml), slskd runs without one (SLSKD_NO_AUTH).
 # Skipped by the proxy: Lidarr's /api/ (API key) and Navidrome's /rest/ (Subsonic apps, which
@@ -155,6 +155,8 @@ spec:
   pkceEnabled: true
   allowedUserGroups:
     - { name: admins, namespace: pocket-id }
+    - { name: users, namespace: pocket-id }
+    - { name: family, namespace: pocket-id }
   launchUrl: https://navidrome.${DOMAIN}
 ---
 apiVersion: apps/v1
@@ -190,6 +192,8 @@ spec:
             - --scope=openid email profile groups
             - --oidc-groups-claim=groups
             - --allowed-group=admins
+            - --allowed-group=users
+            - --allowed-group=family
             - --email-domain=*
             - --insecure-oidc-allow-unverified-email=true
             - --code-challenge-method=S256

@@ -151,11 +151,11 @@ metadata:
   name: oauth2-proxy-navidrome
   namespace: music
 spec:
-  callbackUrls: ["https://navidrome.int.${DOMAIN}/oauth2/callback"]
+  callbackUrls: ["https://navidrome.${DOMAIN}/oauth2/callback"]
   pkceEnabled: true
   allowedUserGroups:
     - { name: admins, namespace: pocket-id }
-  launchUrl: https://navidrome.int.${DOMAIN}
+  launchUrl: https://navidrome.${DOMAIN}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -197,7 +197,7 @@ spec:
             - --http-address=0.0.0.0:4180
             - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
             - --upstream=http://navidrome.music.svc.cluster.local
-            - --redirect-url=https://navidrome.int.${DOMAIN}/oauth2/callback
+            - --redirect-url=https://navidrome.${DOMAIN}/oauth2/callback   # the UI is public only: a login on .int would come back here
             - --skip-auth-route=^/rest/
             - --cookie-secure=true
             - --cookie-samesite=lax

@@ -7,7 +7,7 @@ kind: Namespace
 metadata:
   name: music
   labels:
-    gateway-access: internal
+    gateway-access: both   # Navidrome public (navidrome.${DOMAIN}), the rest *.int
     # privileged: gluetun (qBittorrent's VPN) needs NET_ADMIN and /dev/net/tun. Every other
     # container here keeps a restricted securityContext.
     pod-security.kubernetes.io/enforce: privileged

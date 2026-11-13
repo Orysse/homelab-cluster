@@ -47,6 +47,7 @@ spec:
         kind: HelmRepository
         name: grafana-community
   values:
+    replicas: 0   # down: RAM for ELK
     testFramework:
       enabled: false
     automountServiceAccountToken: false   # no sidecar talks to the API: dashboards come from ConfigMaps

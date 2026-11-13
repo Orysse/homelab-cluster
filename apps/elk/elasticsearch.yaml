@@ -55,7 +55,7 @@ spec:
           env:
             - { name: cluster.name, value: elk }
             - { name: discovery.type, value: single-node }
-            - { name: ES_JAVA_OPTS, value: "-Xms768m -Xmx768m" }
+            - { name: ES_JAVA_OPTS, value: "-Xms1280m -Xmx1280m" }
             - { name: xpack.security.enabled, value: "true" }
             - { name: xpack.security.http.ssl.enabled, value: "false" }
             - { name: xpack.security.transport.ssl.enabled, value: "false" }
@@ -73,8 +73,8 @@ spec:
             tcpSocket: { port: http }
             periodSeconds: 30
           resources:
-            requests: { cpu: 200m, memory: 1Gi }
-            limits: { cpu: "2", memory: 1536Mi }   # 768m heap + off-heap; the node has little room; a CPU cap, the node also runs k3s
+            requests: { cpu: 200m, memory: 1536Mi }
+            limits: { cpu: "3", memory: 2Gi }   # 1280m heap (under half the limit) + off-heap; the CPU cap protects k3s on the one node
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -143,6 +143,8 @@ spec:
               c -X PUT "$H/_security/user/kibana-users" -d "{\"password\":\"$KIBANA_USERS_PASSWORD\",\"roles\":[\"kibana_admin\",\"logs-reader\"]}"
               c -X POST "$H/_security/user/kibana_system/_password" -d "{\"password\":\"$KIBANA_SYSTEM_PASSWORD\"}"
               c -X PUT "$H/_cluster/settings" -d '{"persistent":{"data_streams.lifecycle.retention.default":"14d"}}'
+              # logs@custom is read by Elastic's built-in logs-*-* template: bulk-friendly (30 s refresh), no replica (one node)
+              c -X PUT "$H/_component_template/logs@custom" -d '{"template":{"settings":{"index.refresh_interval":"30s","index.number_of_replicas":0}}}'
           resources:
             requests: { cpu: 5m, memory: 16Mi }
             limits: { memory: 128Mi }

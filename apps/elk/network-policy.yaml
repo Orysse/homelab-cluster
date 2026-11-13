@@ -1,0 +1,98 @@
+# ELK: each pod gets what it needs and nothing else. No Internet anywhere.
+#   Elasticsearch  from Kibana, the setup Job and the Gateway (the ingest route, elk.yaml);
+#                  DNS only
+#   Kibana         from its oauth2-proxy; DNS, Elasticsearch
+#   elk-setup      DNS, Elasticsearch
+#   oauth2-proxy   from the Gateway; DNS, Pocket-ID (through the public Gateway), Kibana
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: elasticsearch
+  namespace: elk
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: elasticsearch }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: kibana }
+        - matchLabels: { app.kubernetes.io/name: elk-setup }
+      toPorts: [{ ports: [{ port: "9200", protocol: TCP }] }]
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "9200", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kibana
+  namespace: elk
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: kibana }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-kibana }
+      toPorts: [{ ports: [{ port: "5601", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: elasticsearch }
+      toPorts: [{ ports: [{ port: "9200", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: elk-setup
+  namespace: elk
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: elk-setup }
+  enableDefaultDeny: { ingress: true, egress: true }
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: elasticsearch }
+      toPorts: [{ ports: [{ port: "9200", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-kibana
+  namespace: elk
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-kibana }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # the same, once Cilium hands the connection to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: kibana }
+      toPorts: [{ ports: [{ port: "5601", protocol: TCP }] }]

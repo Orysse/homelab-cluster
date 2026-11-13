@@ -1,0 +1,69 @@
+# Kibana 9, same version as Elasticsearch. Config in kibana.yml (a generated ConfigMap: the pod
+# restarts when it changes); the passwords come in as environment variables.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: elk
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kibana
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kibana
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:9.5.6
+          envFrom:
+            - secretRef: { name: keys }
+          env:
+            - { name: NODE_OPTIONS, value: "--max-old-space-size=640" }
+          ports:
+            - { name: http, containerPort: 5601 }
+          startupProbe:
+            httpGet: { path: /api/status, port: http }
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /api/status, port: http }
+          livenessProbe:
+            httpGet: { path: /api/status, port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 100m, memory: 768Mi }
+            limits: { cpu: "1", memory: 1280Mi }   # its startup used every core and starved the k3s API: capped
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /usr/share/kibana/config/kibana.yml, subPath: kibana.yml, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: kibana }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: elk
+spec:
+  selector:
+    app.kubernetes.io/name: kibana
+  ports:
+    - { name: http, port: 5601, targetPort: http }

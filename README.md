@@ -34,7 +34,7 @@ apps/                      one app = one directory, listed in apps/kustomization
 ├─ glance/                 front page, home.int.${DOMAIN} (state read from Gatus, news feeds)
 ├─ headscale/              Tailscale control server, hs.${DOMAIN}
 ├─ music/                  Lidarr, qBittorrent behind a VPN, Navidrome, Syncthing (SeaweedFS volume)
-├─ paperclip/              AI agent control plane, paperclip.int.${DOMAIN} (Pocket-ID, admins)
+├─ elk/                    Elasticsearch + Kibana to ingest outside logs, kibana.${DOMAIN} and elk.${DOMAIN} (temporary)
 └─ trip/                   TREK trip planner, trip.${DOMAIN} (Pocket-ID, family)
 
 docs/adr/                  architecture decisions

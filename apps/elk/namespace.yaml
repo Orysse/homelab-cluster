@@ -1,0 +1,18 @@
+# ELK (Elasticsearch + Kibana) to receive logs from outside the cluster, not to read the cluster's
+# own (no Filebeat, no log mount; those are in VictoriaLogs). Temporary. Public, like Navidrome:
+# the `users` group is not on the VPN. Kibana: Pocket-ID (auth.yaml); ingest: basic auth (elk.yaml).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elk
+  labels:
+    gateway-access: public
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: elk
+automountServiceAccountToken: false

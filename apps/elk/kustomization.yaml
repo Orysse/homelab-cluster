@@ -4,5 +4,10 @@ resources:
   - namespace.yaml
   - network-policy.yaml
   - secrets.yaml
-  - paperclip.yaml
+  - elasticsearch.yaml
+  - kibana.yaml
   - auth.yaml
+configMapGenerator:
+  - name: kibana
+    namespace: elk
+    files: [kibana.yml]

@@ -9,5 +9,5 @@ resources:
   - headscale
   - music
   - home-assistant
-  - paperclip
   - trip
+  - elk

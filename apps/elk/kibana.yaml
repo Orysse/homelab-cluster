@@ -33,7 +33,7 @@ spec:
           envFrom:
             - secretRef: { name: keys }
           env:
-            - { name: NODE_OPTIONS, value: "--max-old-space-size=1024" }
+            - { name: NODE_OPTIONS, value: "--max-old-space-size=1536" }
           ports:
             - { name: http, containerPort: 5601 }
           startupProbe:
@@ -47,8 +47,8 @@ spec:
             periodSeconds: 30
             failureThreshold: 5
           resources:
-            requests: { cpu: 100m, memory: 1Gi }
-            limits: { cpu: "1", memory: 1536Mi }   # its startup used every core and starved the k3s API: capped
+            requests: { cpu: 100m, memory: 1280Mi }
+            limits: { cpu: "2", memory: 2Gi }   # its startup used every core and starved the k3s API: capped
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

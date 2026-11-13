@@ -17,6 +17,12 @@ once the tags and timestamps check out.
 
 ## Ingest
 
+`ES_URL` needs the port: `https://elk.<DOMAIN>:443` (without it the plugin adds `:9200`). The
+output sets `ilm_enabled => false` and `manage_template => false`: the plugin would otherwise
+call `/_license`, which the route does not pass (404, Logstash loops on "Could not connect to a
+compatible version"). Rootless Podman: add `--userns=keep-id:uid=1000,gid=1000`, the files
+extracted from the tar are 0640.
+
 Layout: `logs/<site>/*.log` on the workstation. Logstash 9.5.6 (same version as the stack).
 
 ```sh

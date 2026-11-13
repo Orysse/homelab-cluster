@@ -1,0 +1,24 @@
+# Kibana sits behind the Pocket-ID oauth2-proxy (auth.yaml, admins and users). Past it, every
+# visitor lands on the Elasticsearch user `kibana-users` through the anonymous provider: one
+# shared account (kibana_admin + read on logs-*), so Kibana itself cannot tell visitors apart.
+# The access trace is the proxy's and the Gateway's. `$${X}` is Kibana's own substitution
+# (Flux turns it into ${X}).
+# shortcut: no xpack.*.encryptionKey, Kibana draws random ones at each start (no alerting rules
+# worth keeping, sessions reset); set them if this stops being temporary.
+server.host: "0.0.0.0"
+server.shutdownTimeout: "5s"
+server.publicBaseUrl: "https://kibana.${DOMAIN}"
+elasticsearch.hosts: ["http://elasticsearch.elk.svc.cluster.local:9200"]
+elasticsearch.username: kibana_system
+elasticsearch.password: "$${KIBANA_SYSTEM_PASSWORD}"
+xpack.security.authc.selector.enabled: false
+xpack.security.authc.providers:
+  anonymous.anonymous1:
+    order: 0
+    credentials:
+      username: kibana-users
+      password: "$${KIBANA_USERS_PASSWORD}"
+telemetry.optIn: false
+telemetry.allowChangingOptInStatus: false
+newsfeed.enabled: false
+xpack.fleet.isAirGapped: true     # no Internet: do not look for the package registry

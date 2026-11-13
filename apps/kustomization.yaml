@@ -11,3 +11,4 @@ resources:
   - home-assistant
   - paperclip
   - trip
+  - elk

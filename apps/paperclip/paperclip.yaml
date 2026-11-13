@@ -21,7 +21,7 @@ metadata:
   name: paperclip
   namespace: paperclip
 spec:
-  replicas: 1
+  replicas: 0   # down while elk runs: the node has no room for both (set back to 1)
   revisionHistoryLimit: 3
   strategy:
     type: Recreate

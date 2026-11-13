@@ -65,6 +65,7 @@ spec:
         kind: HelmRepository
         name: headlamp
   values:
+    replicaCount: 0   # down for ELK's RAM (1 when running)
     config:
       oidc:
         secret:

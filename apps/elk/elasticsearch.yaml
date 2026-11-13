@@ -1,7 +1,8 @@
 # Elasticsearch 9, one node, Basic license (security, API and roles are free in it). Plain HTTP
 # inside the cluster: TLS ends at the Gateway. Image pinned to the release tag.
 # The route elk.${DOMAIN} is the ingest endpoint for outside shippers (Filebeat, Fluent Bit,
-# Vector, Logstash...): only `/` (their version check) and `/_bulk` pass; search, index and
+# Vector, Logstash...): only `/` (their version check), `GET /_license` (Logstash's license
+# check) and `/_bulk` pass; search, index and
 # security APIs are not routed. `ingest` has the cluster privilege `monitor` for that version
 # check (`GET /` is refused without it); the route keeps it to that one call.
 # They log in as `ingest` and write to `logs-*` (data streams or
@@ -171,6 +172,8 @@ spec:
     - matches:
         - path: { type: Exact, value: / }
         - path: { type: PathPrefix, value: /_bulk }
+        - path: { type: Exact, value: /_license }    # Logstash's license check; 404 makes it drop the connection
+          method: GET
       backendRefs:
         - name: elasticsearch
           port: 9200

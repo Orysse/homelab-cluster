@@ -9,6 +9,8 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 3
+  strategy:
+    type: Recreate        # two Kibanas starting together saturated the single node
   selector:
     matchLabels:
       app.kubernetes.io/name: kibana

@@ -2,7 +2,9 @@
 # inside the cluster: TLS ends at the Gateway. Image pinned to the release tag.
 # The route elk.${DOMAIN} is the ingest endpoint for outside shippers (Filebeat, Fluent Bit,
 # Vector, Logstash...): only `/` (their version check) and `/_bulk` pass; search, index and
-# security APIs are not routed. They log in as `ingest` and write to `logs-*` (data streams or
+# security APIs are not routed. `ingest` has the cluster privilege `monitor` for that version
+# check (`GET /` is refused without it); the route keeps it to that one call.
+# They log in as `ingest` and write to `logs-*` (data streams or
 # indices): a shipper must name its target, e.g. `logs-myhost-default`, and use `create` for a
 # data stream. Data streams are deleted after 14 days (elk-setup); plain indices are not.
 # shortcut: the container's root filesystem is writable (the image writes its keystore and logs
@@ -137,7 +139,7 @@ spec:
               H=http://elasticsearch.elk.svc.cluster.local:9200
               c() { curl -fsS -u "elastic:$ELASTIC_PASSWORD" -H 'Content-Type: application/json' "$@"; echo; }
               until c "$H/_cluster/health?wait_for_status=yellow&timeout=30s" >/dev/null 2>&1; do sleep 5; done
-              c -X PUT "$H/_security/role/logs-writer" -d '{"indices":[{"names":["logs-*"],"privileges":["create_doc","create_index","index","auto_configure"]}]}'
+              c -X PUT "$H/_security/role/logs-writer" -d '{"cluster":["monitor"],"indices":[{"names":["logs-*"],"privileges":["create_doc","create_index","index","auto_configure"]}]}'
               c -X PUT "$H/_security/role/logs-reader" -d '{"indices":[{"names":["logs-*"],"privileges":["read","view_index_metadata"]}]}'
               c -X PUT "$H/_security/user/ingest" -d "{\"password\":\"$INGEST_PASSWORD\",\"roles\":[\"logs-writer\"]}"
               c -X PUT "$H/_security/user/kibana-users" -d "{\"password\":\"$KIBANA_USERS_PASSWORD\",\"roles\":[\"kibana_admin\",\"logs-reader\"]}"

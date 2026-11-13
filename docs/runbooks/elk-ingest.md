@@ -9,6 +9,9 @@ Why client side: the ingest route (`apps/elk/elasticsearch.yaml`) passes only `/
 and the Kibana account (`kibana-users`) has no cluster privilege. No pipeline or template is
 needed in the cluster; the parsing lives in `elk-ingest.pipeline.conf` (next to this file).
 
+Logstash reads the server version with `GET /` at start; `ingest` (role `logs-writer`) needs
+the cluster privilege `monitor` for it, which `elk-setup` grants. Without it, `GET /` returns 403.
+
 Status of the pipeline: written, **not yet run**. Dry-run first (below) and delete this line
 once the tags and timestamps check out.
 

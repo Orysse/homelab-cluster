@@ -20,7 +20,7 @@ metadata:
   name: lidarr
   namespace: music
 spec:
-  replicas: 1   # 0 frees RAM for ELK
+  replicas: 0   # 0 frees RAM for ELK
   revisionHistoryLimit: 3
   strategy:
     type: Recreate

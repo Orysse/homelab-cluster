@@ -42,7 +42,7 @@ metadata:
   name: qbittorrent
   namespace: music
 spec:
-  replicas: 0   # down for ELK's RAM (1 when running); slskd's first share scan (once, then cached in /app) with Syncthing and Navidrome scanning took k3s down on 2026-11-07
+  replicas: 1   # 0 frees ~2 Gi for ELK when not downloading; slskd's first share scan (once, then cached in /app) with Syncthing and Navidrome scanning took k3s down on 2026-11-07
   revisionHistoryLimit: 3
   strategy:
     type: Recreate

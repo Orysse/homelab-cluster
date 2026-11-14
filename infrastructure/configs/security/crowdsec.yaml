@@ -72,6 +72,16 @@ spec:
               reason: "TREK place photos"
               expression:
                 - "evt.Meta.http_verb == 'GET' && evt.Meta.http_status == '200' && evt.Meta.http_path startsWith '/api/maps/place-photo/'"
+          # Kibana polls its own internal API; expired async searches and profile calls answer
+          # 404/403 in bursts, which http-probing counted (2026-11-14: banned the owner's school
+          # address). The log has no host, so only these Kibana-specific paths, behind Pocket-ID.
+          kibana-internal.yaml: |
+            name: homelab/kibana-internal
+            description: "Ignore Kibana internal API errors"
+            whitelist:
+              reason: "Kibana internal API"
+              expression:
+                - "evt.Meta.http_status in ['403', '404'] && any(['/internal/search/', '/internal/security/user_profile', '/internal/user_storage/', '/internal/api/intercepts/'], {evt.Meta.http_path startsWith #})"
     lapi:
       persistentVolume:
         data: { enabled: false }

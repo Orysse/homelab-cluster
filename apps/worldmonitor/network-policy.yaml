@@ -1,0 +1,131 @@
+# World Monitor: each pod gets what it needs and nothing else.
+#   oauth2-proxy  from the Gateway; DNS, Pocket-ID (auth.${DOMAIN}), the app
+#   app           from the proxy and the relay; DNS, redis-rest, the relay, the Internet (the API handlers
+#                 fetch their sources, 80/443)
+#   ais-relay     from the app; DNS, redis-rest, the app, the Internet (AIS stream, markets, feeds)
+#   redis-rest    from the app and the relay; DNS, Redis
+#   redis         from redis-rest only; nothing out
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-worldmonitor
+  namespace: worldmonitor
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-worldmonitor }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: worldmonitor }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: worldmonitor
+  namespace: worldmonitor
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: worldmonitor }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-worldmonitor }
+        - matchLabels: { app.kubernetes.io/name: ais-relay }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: redis-rest }
+      toPorts: [{ ports: [{ port: "8079", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: ais-relay }
+      toPorts: [{ ports: [{ port: "3004", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ais-relay
+  namespace: worldmonitor
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: ais-relay }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: worldmonitor }
+      toPorts: [{ ports: [{ port: "3004", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: redis-rest }
+      toPorts: [{ ports: [{ port: "8079", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: worldmonitor }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: redis-rest
+  namespace: worldmonitor
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: redis-rest }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: worldmonitor }
+        - matchLabels: { app.kubernetes.io/name: ais-relay }
+      toPorts: [{ ports: [{ port: "8079", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: redis }
+      toPorts: [{ ports: [{ port: "6379", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: redis
+  namespace: worldmonitor
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: redis }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: redis-rest }
+      toPorts: [{ ports: [{ port: "6379", protocol: TCP }] }]
+  egress:
+    - {}   # nothing out

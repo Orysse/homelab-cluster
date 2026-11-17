@@ -1,0 +1,262 @@
+# The app: nginx (static front end, port 8080) and the node API under supervisord, as appuser (101:102,
+# the image's own user: its nginx and log directories belong to it).
+# WORLDMONITOR_SELFHOST_RELAY=off: no "desktop key" relay to the World Monitor cloud, nothing leaves on its own.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worldmonitor
+  namespace: worldmonitor
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worldmonitor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worldmonitor
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 102
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ghcr.io/koala73/worldmonitor-selfhosted:main@sha256:9639a0cbd3f152fe15c688b0828419b83ddbac9ad370d1b5b92cc57d79206a44
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: UPSTASH_REDIS_REST_URL, value: "http://redis-rest" }
+            - { name: UPSTASH_REDIS_REST_TOKEN, valueFrom: { secretKeyRef: { name: keys, key: REDIS_TOKEN } } }
+            - { name: WM_SESSION_SECRET, valueFrom: { secretKeyRef: { name: keys, key: WM_SESSION_SECRET } } }
+            - { name: RELAY_SHARED_SECRET, valueFrom: { secretKeyRef: { name: keys, key: RELAY_SHARED_SECRET } } }
+            - { name: WS_RELAY_URL, value: "http://ais-relay:3004" }
+            - { name: LOCAL_API_MODE, value: docker }
+            - { name: LOCAL_API_CLOUD_FALLBACK, value: "false" }
+            - { name: WORLDMONITOR_SELFHOST_RELAY, value: "off" }
+            - { name: WORLDMONITOR_PUBLIC_HTTPS, value: "1" }     # TLS ends at the Gateway: Secure cookies
+          readinessProbe:
+            httpGet: { path: /api/sidecar-health, port: http }
+          livenessProbe:
+            httpGet: { path: /api/sidecar-health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { memory: 640Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worldmonitor
+  namespace: worldmonitor
+spec:
+  selector:
+    app.kubernetes.io/name: worldmonitor
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+# AIS relay: ship positions and the market/news loops that write to Redis. Image runs as root by default:
+# the node user (1000) is enough, it only reads /app.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ais-relay
+  namespace: worldmonitor
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ais-relay
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ais-relay
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: relay
+          image: ghcr.io/koala73/worldmonitor-ais-relay:main@sha256:8402fa247c68ba6b951509d5829f02e7f1ae572cc43df57819e3e31894347303
+          ports:
+            - { name: http, containerPort: 3004 }
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: PORT, value: "3004" }
+            - { name: RELAY_SHARED_SECRET, valueFrom: { secretKeyRef: { name: keys, key: RELAY_SHARED_SECRET } } }
+            - { name: UPSTASH_REDIS_REST_URL, value: "http://redis-rest" }
+            - { name: UPSTASH_REDIS_REST_TOKEN, valueFrom: { secretKeyRef: { name: keys, key: REDIS_TOKEN } } }
+            - { name: UPSTASH_ALLOW_INSECURE_HTTP, value: "true" }   # plain http inside the namespace
+            - { name: API_BASE_URL, value: "http://worldmonitor" }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ais-relay
+  namespace: worldmonitor
+spec:
+  selector:
+    app.kubernetes.io/name: ais-relay
+  ports:
+    - { name: http, port: 3004, targetPort: http }
+---
+# Redis, password required, capped at 192 MB (LRU), no persistence. The password goes into a config file
+# in /tmp rather than the command line, where any process listing would show it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: worldmonitor
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: docker.io/redis:7.4.12-alpine
+          command:
+            - sh
+            - -c
+            - |
+              umask 077
+              echo "requirepass $REDIS_PASSWORD" > /tmp/redis.conf
+              exec redis-server /tmp/redis.conf --maxmemory 192mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+          env:
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: keys, key: REDIS_PASSWORD } } }
+          ports:
+            - { name: redis, containerPort: 6379 }
+          readinessProbe:
+            tcpSocket: { port: redis }
+          livenessProbe:
+            tcpSocket: { port: redis }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 320Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 16Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: worldmonitor
+spec:
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }
+---
+# Upstash-style REST front for Redis (upstream's own proxy). Listens on 8079 here: the image's default,
+# port 80, is below what a non-root user may bind.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-rest
+  namespace: worldmonitor
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis-rest
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis-rest
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis-rest
+          image: ghcr.io/koala73/worldmonitor-redis-rest:main@sha256:dcf4ea0f40450d96134313c8051083839840ad8a8630387f102605ddab74aa8f
+          ports:
+            - { name: http, containerPort: 8079 }
+          env:
+            - { name: PORT, value: "8079" }
+            - { name: SRH_TOKEN, valueFrom: { secretKeyRef: { name: keys, key: REDIS_TOKEN } } }
+            - { name: SRH_CONNECTION_STRING, valueFrom: { secretKeyRef: { name: keys, key: SRH_CONNECTION_STRING } } }
+          readinessProbe:
+            tcpSocket: { port: http }
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-rest
+  namespace: worldmonitor
+spec:
+  selector:
+    app.kubernetes.io/name: redis-rest
+  ports:
+    - { name: http, port: 80, targetPort: http }

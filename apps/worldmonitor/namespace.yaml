@@ -1,0 +1,20 @@
+# World Monitor (github.com/koala73/worldmonitor, AGPL-3.0) at worldmonitor.int.${DOMAIN}: LAN and VPN
+# only, behind an oauth2-proxy (auth.yaml), admins only. Four workloads as in the upstream
+# docker-compose.yml: the app (nginx + node API), the AIS relay, Redis and its REST proxy. The images are
+# pinned by digest: upstream publishes only `main` and sha-* tags. Redis is a cache with no volume: what
+# the seeders and the relay write is refetched.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: worldmonitor
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: worldmonitor
+automountServiceAccountToken: false

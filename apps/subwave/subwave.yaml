@@ -49,6 +49,7 @@ spec:
             - { name: ADMIN_USER, value: admin }
             - { name: ADMIN_PASS, valueFrom: { secretKeyRef: { name: admin, key: ADMIN_PASS } } }
             - { name: SITE_URL, value: "https://radio.int.${DOMAIN}" }
+            - { name: NAVIDROME_URL, value: "http://navidrome.music.svc.cluster.local:4533" }   # the user and password go through /onboarding
           startupProbe:
             httpGet: { path: /api/health, port: http }
             periodSeconds: 10

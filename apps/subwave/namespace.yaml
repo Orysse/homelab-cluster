@@ -1,0 +1,25 @@
+# SUB/WAVE (github.com/perminder-klair/subwave, MIT): a personal internet radio. An AI DJ picks tracks
+# from Navidrome (Subsonic API) and talks between them; one Icecast stream for everyone. Internal only:
+# radio.int.${DOMAIN}. Sign-in to the admin console is its own (ADMIN_USER / ADMIN_PASS, secrets.yaml): the
+# listener side must stay open to players that cannot do OIDC.
+#
+# EXCEPTION to the restricted namespaces: the image (subwave-aio, upstream's all-in-one) runs as ROOT. Its
+# entrypoint renders /etc/icecast2 and /etc/liquidsoap, chowns, and starts icecast and liquidsoap as their own
+# users. So this namespace is `baseline` (the cluster default): no privileged pod, no host path or network,
+# seccomp on, every capability dropped but the seven the entrypoint needs (subwave.yaml), NetworkPolicy
+# default-deny (network-policy.yaml). Replace by a non-root image when upstream ships one.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: subwave
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: subwave
+automountServiceAccountToken: false

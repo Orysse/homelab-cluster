@@ -1,0 +1,112 @@
+# One pod: icecast2 + liquidsoap, the controller (AI DJ, Piper/Kokoro voices), the web UI and a Caddy edge on
+# :80, all supervised by upstream's supervisor. No analyzer sidecar, no heavy voices. State (SQLite library
+# cache in WAL mode, voices, jingles) on `local`, never on a FUSE volume: WAL does not work over FUSE.
+# First run: https://radio.int.${DOMAIN}/onboarding (Navidrome URL http://navidrome.music.svc.cluster.local,
+# a Subsonic user you create in Navidrome, then the LLM provider and key).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: state
+  namespace: subwave
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subwave
+  namespace: subwave
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate        # one ReadWriteOnce volume
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: subwave
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: subwave
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: subwave
+          image: ghcr.io/perminder-klair/subwave-aio:1.33.0@sha256:73125097fccd9a08e2fe5f2358f48711cc6a8e0a750a881553a8d8284c2d45d2
+          ports:
+            - { name: http, containerPort: 80 }
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: ADMIN_USER, value: admin }
+            - { name: ADMIN_PASS, valueFrom: { secretKeyRef: { name: admin, key: ADMIN_PASS } } }
+            - { name: SITE_URL, value: "https://radio.int.${DOMAIN}" }
+          startupProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 384Mi }
+            limits: { memory: 1536Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              # chown/chmod the state and config dirs, run icecast and liquidsoap as their own users, Caddy on :80
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL, NET_BIND_SERVICE]
+          volumeMounts:
+            - { name: state, mountPath: /var/sub-wave }
+      volumes:
+        - name: state
+          persistentVolumeClaim: { claimName: state }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subwave
+  namespace: subwave
+spec:
+  selector:
+    app.kubernetes.io/name: subwave
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: subwave
+  namespace: subwave
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - radio.int.${DOMAIN}
+  rules:
+    - timeouts:
+        request: 0s      # the Icecast stream never ends
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: subwave
+          port: 80

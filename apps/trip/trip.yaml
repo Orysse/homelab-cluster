@@ -57,7 +57,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: trek
-          image: mauriceboe/trek:5.1.1
+          image: mauriceboe/trek:5.1.4
           envFrom:
             - secretRef: { name: keys }
           env:

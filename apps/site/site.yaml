@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: site
-          image: ghcr.io/static-web-server/static-web-server:2.44.1
+          image: ghcr.io/static-web-server/static-web-server:2.44.3
           env:
             - { name: SERVER_PORT, value: "8080" }
             - { name: SERVER_ROOT, value: /public }

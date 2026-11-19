@@ -1,7 +1,8 @@
 # Navidrome: listening at home, on the library (read-only). Its database (users, play
 # counts, playlists) is on a `local` volume: lost, a rescan rebuilds the library, not the
 # users. It rescans hourly (new albums arrive from Lidarr). navidrome.${DOMAIN}: public, the UI
-# only there; navidrome.int.${DOMAIN} serves /rest/ to Music Assistant.
+# (Pocket-ID) and /rest/ for Subsonic apps; navidrome-api.int.${DOMAIN}: clients that sign in with their own
+# Navidrome password (Feishin, Music Assistant), LAN and VPN only, at the end of this file.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -111,17 +112,13 @@ metadata:
   namespace: music
 spec:
   # Public: listening away from home (Pocket-ID for the UI; Subsonic apps on /rest/ with their
-  # own Navidrome password). Internal too: Music Assistant reads /rest/ from the LAN.
+  # own Navidrome password). No internal name any more: the LAN uses navidrome-api.int.
   parentRefs:
     - name: public
       namespace: gateway
       sectionName: navidrome
-    - name: internal
-      namespace: gateway
-      sectionName: https
   hostnames:
     - navidrome.${DOMAIN}
-    - navidrome.int.${DOMAIN}
   rules:
     - filters:
         - type: ResponseHeaderModifier

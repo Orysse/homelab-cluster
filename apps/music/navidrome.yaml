@@ -51,6 +51,10 @@ spec:
             - { name: ND_LOGLEVEL, value: info }
             - { name: ND_ENABLEGRAVATAR, value: "false" }
             - { name: ND_ENABLEINSIGHTSCOLLECTOR, value: "false" }
+            # Transcoding is the one thing that can eat kube-0: a few at a time, and stop ffmpeg when the client leaves.
+            - { name: ND_TRANSCODING_MAXCONCURRENT, value: "3" }
+            - { name: ND_TRANSCODING_MAXCONCURRENTPERUSER, value: "2" }
+            - { name: ND_TRANSCODING_ENABLECANCELLATION, value: "true" }
             # Logged in by its oauth2-proxy (auth.yaml): the Pocket-ID username, which must match a
             # Navidrome user. Any pod address is trusted because only that proxy may connect
             # (network-policy.yaml), and it strips this header from what clients send.
@@ -129,4 +133,37 @@ spec:
               - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
       backendRefs:
         - name: oauth2-proxy-navidrome
+          port: 80
+---
+# Clients that cannot do OIDC (Feishin, Symfonium...): straight to Navidrome, which authenticates them
+# itself (its own user and password, then its JWT on the native API). INTERNAL Gateway only, LAN and VPN.
+# The Gateway's Envoy reaches the pod from the pod network, which ND_EXTAUTH_TRUSTEDSOURCES trusts, so a
+# client could send X-Forwarded-Preferred-Username and become anyone, admin included: this route REMOVES
+# that header. Test it after any change (a request with the header must get 401 on /api/).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: navidrome-api
+  namespace: music
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - navidrome-api.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-Forwarded-Preferred-Username
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: navidrome
           port: 80

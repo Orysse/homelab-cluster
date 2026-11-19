@@ -55,6 +55,8 @@ spec:
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: oauth2-proxy-navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    - fromEntities: [ingress]   # the Gateway, for navidrome-api.int (navidrome.yaml): the route strips the ExtAuth header
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEndpoints:   # SUB/WAVE (apps/subwave): Subsonic API, with its own Navidrome user
         - matchLabels: { k8s:io.kubernetes.pod.namespace: subwave, app.kubernetes.io/name: subwave }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]

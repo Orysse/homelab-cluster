@@ -1,8 +1,8 @@
 # One pod: icecast2 + liquidsoap, the controller (AI DJ, Piper/Kokoro voices), the web UI and a Caddy edge on
 # :80, all supervised by upstream's supervisor. No analyzer sidecar, no heavy voices. State (SQLite library
 # cache in WAL mode, voices, jingles) on `local`, never on a FUSE volume: WAL does not work over FUSE.
-# First run: https://radio.int.${DOMAIN}/onboarding (Navidrome URL http://navidrome.music.svc.cluster.local (Service port 80),
-# a Subsonic user you create in Navidrome, then the LLM provider and key).
+# First run: https://radio.int.${DOMAIN}/onboarding (Navidrome URL, user and password come from the env below,
+# so only the LLM provider and its key are left).
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -49,7 +49,9 @@ spec:
             - { name: ADMIN_USER, value: admin }
             - { name: ADMIN_PASS, valueFrom: { secretKeyRef: { name: admin, key: ADMIN_PASS } } }
             - { name: SITE_URL, value: "https://radio.int.${DOMAIN}" }
-            - { name: NAVIDROME_URL, value: "http://navidrome.music.svc.cluster.local" }   # the user and password go through /onboarding
+            - { name: NAVIDROME_URL, value: "http://navidrome.music.svc.cluster.local" }
+            - { name: NAVIDROME_USER, value: subwave }
+            - { name: NAVIDROME_PASS, valueFrom: { secretKeyRef: { name: navidrome, key: NAVIDROME_PASS } } }
           startupProbe:
             httpGet: { path: /api/health, port: http }
             periodSeconds: 10

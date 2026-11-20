@@ -21,5 +21,10 @@ spec:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    - toFQDNs:   # Navidrome through the Gateway (navidrome-api.int strips the ExtAuth header), see navidrome.yaml
+        - matchName: navidrome-api.int.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]   # navidrome-api.int.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]

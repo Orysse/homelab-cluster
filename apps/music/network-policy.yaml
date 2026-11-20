@@ -57,13 +57,12 @@ spec:
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEntities: [ingress]   # the Gateway, for navidrome-api.int (navidrome.yaml): the route strips the ExtAuth header
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
-    - fromEndpoints:   # SUB/WAVE, Subsonic only: the Gateway checks the CLIENT identity too, so this is needed for
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: subwave, app.kubernetes.io/name: subwave }   # navidrome-api.int as well
-      toPorts:         # L7: /rest/ only. Navidrome trusts the whole pod network for X-Forwarded-Preferred-Username, so
-        - ports: [{ port: "4533", protocol: TCP }]   # this pod must never reach /api/ (users, admin) or /auth/.
-          rules:
-            http:
-              - { method: "GET|POST", path: "/rest/.*" }
+    - fromEndpoints:   # SUB/WAVE: the Gateway checks the CLIENT identity too, so navidrome-api.int needs this as well.
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: subwave, app.kubernetes.io/name: subwave }
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+      # shortcut: an L7 rule limiting this pod to /rest/ made the Gateway answer 403 to everything (tried
+      # 2026-11-20); Navidrome trusts the pod network for X-Forwarded-Preferred-Username, so SUB/WAVE (root,
+      # about to face the Internet) can still reach /api/ with a spoofed user. Fix before relying on radio.abe.lc.
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }

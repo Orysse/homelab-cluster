@@ -1,7 +1,9 @@
 # SUB/WAVE (github.com/perminder-klair/subwave, MIT): a personal internet radio. An AI DJ picks tracks
-# from Navidrome (Subsonic API) and talks between them; one Icecast stream for everyone. Internal only:
-# radio.int.${DOMAIN}. Sign-in to the admin console is its own (ADMIN_USER / ADMIN_PASS, secrets.yaml): the
-# listener side must stay open to players that cannot do OIDC.
+# from Navidrome (Subsonic API) and talks between them; one Icecast stream for everyone. radio.${DOMAIN}
+# is public (friends), radio.int.${DOMAIN} is the whole thing on the LAN and VPN. The station password (admin,
+# Settings, Station, Privacy: player lock AND stream lock) is what keeps listeners out: it must be ON before
+# the public route is. /admin and /onboarding are redirected away on the public name (subwave.yaml); the
+# admin console keeps its own sign-in (ADMIN_USER / ADMIN_PASS, secrets.yaml). No OIDC: a live stream cannot.
 #
 # EXCEPTION to the restricted namespaces: the image (subwave-aio, upstream's all-in-one) runs as ROOT. Its
 # entrypoint renders /etc/icecast2 and /etc/liquidsoap, chowns, and starts icecast and liquidsoap as their own
@@ -14,7 +16,7 @@ kind: Namespace
 metadata:
   name: subwave
   labels:
-    gateway-access: internal
+    gateway-access: both
     pod-security.kubernetes.io/enforce: baseline
 ---
 apiVersion: v1

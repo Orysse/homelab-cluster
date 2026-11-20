@@ -1,0 +1,78 @@
+# Beszel's UI at beszel.int.${DOMAIN}. The hub is not in the cluster: it runs on the monitoring
+# host (homelab-nix modules/host/beszel.nix, D35), so it still works when the cluster does not.
+# Here: the route (a Service without selector, its endpoint written by hand, as for
+# Home Assistant) and its Pocket-ID client. Beszel keeps the provider in its own database:
+# paste the client ID and secret (secret beszel-oidc, namespace beszel) in the hub, under
+# /_/#/collections?collection=_pb_users_auth_ > Options > OAuth2 > OpenID Connect (the
+# provider's URLs are auth.${DOMAIN}/authorize, /api/oidc/token and /api/oidc/userinfo, PKCE on).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: beszel
+  labels:
+    gateway-access: internal
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: beszel
+  namespace: beszel
+spec:
+  callbackUrls: ["https://beszel.int.${DOMAIN}/api/oauth2-redirect"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://beszel.int.${DOMAIN}
+  secret:
+    name: beszel-oidc
+    keys:
+      clientID: CLIENT_ID
+      clientSecret: CLIENT_SECRET
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beszel
+  namespace: beszel
+spec:
+  ports:
+    - { name: http, port: 80, targetPort: 8090 }
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: beszel
+  namespace: beszel
+  labels:
+    kubernetes.io/service-name: beszel
+addressType: IPv4
+ports:
+  - { name: http, port: 8090, protocol: TCP }
+endpoints:
+  - addresses: ["${MONITORING_ADDRESS}"]   # the monitoring host, where the hub runs
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: beszel
+  namespace: beszel
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - beszel.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: beszel
+          port: 80

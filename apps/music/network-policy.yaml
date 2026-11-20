@@ -1,7 +1,7 @@
 # Music: each pod gets what it needs and nothing else.
 #   Lidarr       from its oauth2-proxy (auth.yaml) and beets; to PostgreSQL, qBittorrent and slskd, DNS, the Internet
 #                (metadata and indexers, 80/443)
-#   Navidrome    from its oauth2-proxy and SUB/WAVE; DNS, 443 (cover art, artist info)
+#   Navidrome    from its oauth2-proxy and the Gateway (navidrome-api.int); DNS, 443 (cover art, artist info)
 #   qBittorrent  (and slskd, same pod) from their oauth2-proxies and Lidarr; the tunnel (any UDP: gluetun's
 #                firewall already drops all else), DNS
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
@@ -56,9 +56,6 @@ spec:
         - matchLabels: { app.kubernetes.io/name: oauth2-proxy-navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEntities: [ingress]   # the Gateway, for navidrome-api.int (navidrome.yaml): the route strips the ExtAuth header
-      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
-    - fromEndpoints:   # SUB/WAVE (apps/subwave): Subsonic API, with its own Navidrome user
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: subwave, app.kubernetes.io/name: subwave }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
   egress:
     - toEndpoints:

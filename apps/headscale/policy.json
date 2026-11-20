@@ -6,7 +6,7 @@
 // tag:gamehost: Sunshine game-streaming host (laptop at home), reachable by admins only, on the
 // Sunshine ports (no web UI 47990: pair locally) and SSH (22, Windows OpenSSH). It has no rule of its own as a source.
 {
-  "groups": { "group:admins": ["abelc@"] },
+  "groups": { "group:admins": ["abelc@", "kenny@"] },
   "tagOwners": { "tag:gamehost": ["group:admins"] },
   "acls": [
     { "action": "accept", "src": ["group:admins"], "dst": ["tag:gamehost:22,47984,47989,48010,47998-48000,48002"] },

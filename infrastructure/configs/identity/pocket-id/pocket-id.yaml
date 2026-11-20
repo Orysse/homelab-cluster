@@ -76,7 +76,7 @@ spec:
     capabilities: { drop: [ALL] }
 ---
 # Groups. Membership is managed in Pocket-ID's UI (people, not git).
-#   admins    cluster-admin (oidc-rbac.yaml), OpenBao admin, Grafana admin, Headscale exit node
+#   admins    cluster-admin (oidc-rbac.yaml), OpenBao admin, Headscale exit node
 #   visitors  read-only on the cluster
 #   family    the trip planner (apps/trip) and Navidrome
 #   users     Navidrome only (created in the UI first, adopted by name)

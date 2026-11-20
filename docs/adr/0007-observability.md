@@ -1,6 +1,6 @@
 # ADR 0007: Observability with the OpenTelemetry Collector
 
-Status: accepted (2026-10-29). Series and log fields compared with v2 at cutover.
+Status: accepted (2026-10-29), mostly superseded on 2026-11-20: the collector now ships logs only; metrics, Grafana, vmalert and Trivy are gone and Beszel (on the hosts) replaces them (D35 in homelab-nix, `docs/03-decisions-and-open-questions.md`).
 
 ## Context
 

@@ -15,7 +15,7 @@ Ce compte sert partout. Ton groupe décide de tes droits :
 
 | Groupe | Droits |
 |---|---|
-| `admins` | tout le cluster, Grafana, OpenBao (les secrets) |
+| `admins` | tout le cluster, OpenBao (les secrets) |
 | `visitors` | lecture seule, sans les secrets ([visite guidée](03-visiteur.md)) |
 
 ## 2. Le VPN (Tailscale)
@@ -51,7 +51,6 @@ Toutes se connectent avec Pocket-ID.
 | Page d'accueil, état des services | https://home.int.abe.lc | VPN |
 | Console Kubernetes (Headlamp) | https://k8s.int.abe.lc | VPN |
 | Page de statut | https://status.abe.lc | Internet |
-| Dashboards, logs, électricité (Grafana) | https://grafana.int.abe.lc | VPN |
 | Secrets (OpenBao), admins | https://bao.int.abe.lc, méthode *OIDC*, mount path `sso` | VPN |
 | Flux réseau (Hubble) | https://hubble.int.abe.lc | VPN |
 

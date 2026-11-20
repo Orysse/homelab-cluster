@@ -14,7 +14,6 @@ spec:
     - fromEntities: [ingress]          # the Gateway (status.${DOMAIN})
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: glance, app.kubernetes.io/name: glance }   # the front page reads the state
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
@@ -33,9 +32,6 @@ spec:
       toPorts: [{ ports: [{ port: "80", protocol: TCP }, { port: "443", protocol: TCP }] }]
     # The internal tools' checks go through the internal Gateway, and Cilium evaluates the
     # request from the original client (Gatus) to the backend too: the backends' ports.
-    - toEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: grafana }
-      toPorts: [{ ports: [{ port: "3000", protocol: TCP }] }]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: openbao, app.kubernetes.io/name: openbao }
       toPorts: [{ ports: [{ port: "8200", protocol: TCP }] }]

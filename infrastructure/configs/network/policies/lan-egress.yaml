@@ -4,7 +4,7 @@
 # app's own policy includes it. A deny wins over every allow, in any policy.
 # Exempt, each with its own default-deny policy naming the one LAN address it needs:
 #   kube-system  CoreDNS forwards to the router (and the rest of it talks to the node only)
-#   monitoring   otel-collector and Grafana to VictoriaMetrics/VictoriaLogs on nuc1
+#   monitoring   otel-collector to VictoriaLogs on nuc1
 #   postgres     backups to Garage on nuc1
 #   syncthing    the DAP, on the LAN (its policy: 443 and 22000 only)
 # Not affected: the node's own addresses (API server, kubelet): CIDR rules do not select nodes

@@ -24,7 +24,7 @@ infrastructure/
    ├─ postgres/            the shared PostgreSQL cluster, its backups, one file per database
    ├─ identity/            Pocket-ID, oauth2-proxy, OIDC RBAC, Headlamp
    ├─ security/            CrowdSec (detection; bans are enforced on the hosts)
-   └─ monitoring/          OpenTelemetry Collector, exporters, Grafana and its dashboards
+   └─ monitoring/          OpenTelemetry Collector (logs only)
 
 apps/                      one app = one directory, listed in apps/kustomization.yaml
 ├─ site/                   plain-text page at the domain apex
@@ -92,8 +92,7 @@ the app, visible. Every request is written to the Gateways' access log, in nginx
 
 A `CiliumNetworkPolicy` per namespace (`network-policy.yaml` next to each app,
 `infrastructure/configs/network/policies/` for the platform): **deny by default in both
-directions**, then what each component needs. Pods on the host network (Cilium,
-node-exporter) are not policed.
+directions**, then what each component needs. Pods on the host network (Cilium agents) are not policed.
 
 | Building block | Rule |
 |---|---|
@@ -153,10 +152,10 @@ base as `flux-system/sops-age`. If that key changes: update `.sops.yaml`, then
 Everyone logs in through **Pocket-ID** (`auth.${DOMAIN}`, passkeys); its groups decide the
 rights:
 
-| Group | Kubernetes (`oidc-rbac.yaml`) | Grafana | OpenBao | Network (Headscale ACL) |
-|---|---|---|---|---|
-| `admins` | cluster-admin | Admin | admin | the homelab (users listed in `apps/headscale/policy.json`) |
-| `visitors` | `view` (no Secrets, no exec), plus the network CRDs | Viewer | none | internal gateway and Kubernetes API only |
+| Group | Kubernetes (`oidc-rbac.yaml`) | OpenBao | Network (Headscale ACL) |
+|---|---|---|---|
+| `admins` | cluster-admin | admin | the homelab (users listed in `apps/headscale/policy.json`) |
+| `visitors` | `view` (no Secrets, no exec), plus the network CRDs | none | internal gateway and Kubernetes API only |
 
 Pocket-ID is run by its operator; the groups are `PocketIDUserGroup`s, each app declares
 its OIDC client ([ADR 0004](docs/adr/0004-oidc-clients.md)). The internal network is
@@ -166,16 +165,13 @@ for the owner's laptop.
 
 Break-glass when Pocket-ID is down: the base's admin kubeconfig (client certificate,
 `homelab-nix` context); OpenBao through the `break-glass` role (header of
-`secrets/openbao.yaml`); Grafana with the chart's admin password
-(`kubectl -n monitoring get secret grafana`).
+`secrets/openbao.yaml`).
 
 ## Observability
 
-One OpenTelemetry Collector per node sends metrics and logs to VictoriaMetrics and
-VictoriaLogs on nuc1, below the cluster: alerts (vmalert, on nuc1) still fire when the
-cluster is down ([ADR 0007](docs/adr/0007-observability.md)). Grafana
-(`grafana.int.${DOMAIN}`) keeps nothing: datasources and dashboards are provisioned. Our
-dashboards: overview, network, vulnerabilities, electricity (a software estimate from RAPL).
+One OpenTelemetry Collector per node sends the container logs to VictoriaLogs on nuc1, below
+the cluster ([ADR 0007](docs/adr/0007-observability.md), reduced by D35 in homelab-nix). No
+metrics and no Grafana: Beszel, on the hosts, shows the machines and sends its alerts.
 
 ## Scanner blocking
 

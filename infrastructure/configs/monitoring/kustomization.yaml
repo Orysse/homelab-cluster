@@ -4,3 +4,22 @@ resources:
   - namespace.yaml
   - network-policy.yaml
   - otel-collector.yaml
+  - kube-state-metrics.yaml
+  - node-exporter.yaml
+  - grafana.yaml
+  - grafana-route.yaml
+# Our dashboards (Grafana: dashboardsConfigMaps). Their queries are full of {{...}} and
+# $__ variables: Flux must not substitute them. Fixed name: the chart refers to it.
+# Each <name>.json is generated from <name>.jq (jq -n -f <name>.jq > <name>.json).
+configMapGenerator:
+  - name: grafana-dashboards-homelab
+    namespace: monitoring
+    files:
+      - dashboards/overview.json
+      - dashboards/network.json
+      - dashboards/electricity.json
+      - dashboards/vulnerabilities.json
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

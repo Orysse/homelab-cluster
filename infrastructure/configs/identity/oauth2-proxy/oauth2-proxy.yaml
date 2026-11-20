@@ -1,7 +1,7 @@
 # oauth2-proxy: Pocket-ID login in front of Hubble UI (hubble.int.${DOMAIN}), the one
 # internal UI without login of its own. A reverse proxy: every request goes through it,
 # and only a Pocket-ID "admins" session gets through to hubble-ui (flows include visitors'
-# public IPs). Apps with native OIDC (OpenBao, Headlamp) do not use it.
+# public IPs). Apps with native OIDC (Grafana, OpenBao, Headlamp) do not use it.
 ---
 apiVersion: v1
 kind: Namespace

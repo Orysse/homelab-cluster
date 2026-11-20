@@ -9,6 +9,5 @@ resources:
   - headscale
   - music
   - home-assistant
-  - beszel
   - trip
   - subwave

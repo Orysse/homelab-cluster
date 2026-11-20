@@ -18,6 +18,11 @@ spec:
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
     - fromEntities: [world]          # the physical hosts' bouncers
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring }
+      toPorts:
+        - ports:
+            - { port: "6060", protocol: TCP }
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }

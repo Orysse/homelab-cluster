@@ -13,6 +13,9 @@ spec:
   ingress:
     - fromEntities: [ingress]          # the Gateway (Cilium's Envoy), TLS passthrough
       toPorts: [{ ports: [{ port: "8443", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: monitoring, app.kubernetes.io/name: otel-collector }
+      toPorts: [{ ports: [{ port: "9090", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }

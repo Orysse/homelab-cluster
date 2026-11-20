@@ -1,6 +1,7 @@
-# The log collector; the log store (VictoriaLogs) runs on the monitoring host, below the
-# cluster (homelab-nix modules/host/monitoring.nix).
-# privileged: the OpenTelemetry Collector reads /var/log/pods (a hostPath).
+# Collectors and Grafana; the backends (VictoriaMetrics, VictoriaLogs, vmalert) run on the
+# monitoring host, below the cluster (homelab-nix modules/host/monitoring.nix).
+# privileged: node-exporter needs the host's network, PIDs and filesystem; the OpenTelemetry
+# Collector reads /var/log/pods.
 ---
 apiVersion: v1
 kind: Namespace
@@ -17,3 +18,21 @@ metadata:
   name: default
   namespace: monitoring
 automountServiceAccountToken: false
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://grafana.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://prometheus-community.github.io/helm-charts

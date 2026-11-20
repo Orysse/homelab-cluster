@@ -70,7 +70,7 @@ flux diff ks apps --path ./apps                           # what would change in
 ```bash
 flux suspend ks apps        # stop reconciling (e.g. to test a manual change)
 flux resume ks apps         # re-apply git, undoing manual changes
-flux suspend hr otel-collector -n monitoring
+flux suspend hr grafana -n monitoring
 ```
 
 A suspended object shows `SUSPENDED=True` in `flux get`. Do not leave it that way.
@@ -79,7 +79,7 @@ A suspended object shows `SUSPENDED=True` in `flux get`. Do not leave it that wa
 
 ```bash
 flux get hr -A
-flux reconcile hr otel-collector -n monitoring --with-source
+flux reconcile hr grafana -n monitoring --with-source
 kubectl -n flux-system get fluxinstance flux   # the Flux Operator's FluxInstance: installs Flux itself
 helm -n cert-manager history cert-manager
 ```
@@ -110,9 +110,10 @@ or wrong (`public` / `internal`).
 
 ```bash
 curl -sI https://abe.lc
+curl -s -o /dev/null -w '%{http_code}\n' https://grafana.int.abe.lc/api/health   # LAN/VPN only
 ```
 
-Status page: https://status.abe.lc. Gateway access log: VictoriaLogs on nuc1 (vmui, over an SSH tunnel to port 9428).
+Status page: https://status.abe.lc. Gateway access log: Grafana, dashboard Réseau.
 
 ## k9s
 

@@ -228,8 +228,8 @@ le crée et écrit ses identifiants dans un Secret de ton namespace (`client_id`
 | `503` ou « no available server » | aucun pod prêt : la sonde échoue, ou le port est faux |
 | L'app n'arrive pas à joindre une API ou sa base | `network-policy.yaml` : le flux n'est pas ouvert. Les paquets refusés sont visibles dans Hubble (https://hubble.int.abe.lc) |
 
-Les logs en direct : `kubectl -n monapp logs deploy/monapp`. L'historique est dans VictoriaLogs sur nuc1
-(admins : `ssh -L 9428:127.0.0.1:9428 nuc1`, puis http://localhost:9428/select/vmui, filtre `namespace:monapp`). Pour tester sans passer par Internet :
+Tous les logs sont dans Grafana (https://grafana.int.abe.lc, *Explore* → VictoriaLogs,
+filtre `namespace="monapp"`). Pour tester sans passer par Internet :
 `kubectl -n monapp port-forward svc/monapp 8080:80`, puis http://localhost:8080.
 
 ## Supprimer une app

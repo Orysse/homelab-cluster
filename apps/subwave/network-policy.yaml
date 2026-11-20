@@ -1,4 +1,4 @@
-# SUB/WAVE: from the Gateway only; to DNS, Navidrome (only through the Gateway, never the pod) and the
+# SUB/WAVE: from the Gateway only; to DNS, Navidrome (Subsonic API, its policy lets this pod in) and the
 # Internet on 80/443 (LLM provider, weather, news feeds, cloud voices).
 ---
 apiVersion: cilium.io/v2
@@ -18,10 +18,8 @@ spec:
       toPorts:
         - ports: [{ port: "53", protocol: ANY }]
           rules: { dns: [{ matchPattern: "*" }] }
-    - toFQDNs:   # Navidrome through the Gateway (navidrome-api.int strips the ExtAuth header), see navidrome.yaml
-        - matchName: navidrome-api.int.${DOMAIN}
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
-    - toEntities: [ingress]   # navidrome-api.int.${DOMAIN}, once Cilium hands it to Envoy
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:   # Navidrome, straight. Going through the Gateway (navidrome-api.int) does not help: the Gateway checks
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: navidrome }   # this egress rule too
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]

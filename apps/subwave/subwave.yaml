@@ -49,7 +49,7 @@ spec:
             - { name: ADMIN_USER, value: admin }
             - { name: ADMIN_PASS, valueFrom: { secretKeyRef: { name: admin, key: ADMIN_PASS } } }
             - { name: SITE_URL, value: "https://radio.${DOMAIN}" }
-            - { name: NAVIDROME_URL, value: "https://navidrome-api.int.${DOMAIN}" }   # through the Gateway, never straight to the pod (ExtAuth trust)
+            - { name: NAVIDROME_URL, value: "http://navidrome.music.svc.cluster.local" }   # straight: the Gateway route needs the same network allowances anyway
             - { name: NAVIDROME_USER, value: subwave }
             - { name: NAVIDROME_PASS, valueFrom: { secretKeyRef: { name: navidrome, key: NAVIDROME_PASS } } }
           startupProbe:

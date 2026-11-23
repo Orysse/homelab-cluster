@@ -85,6 +85,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+              add: ["DAC_READ_SEARCH"]   # read the 0600 files beets writes (cover art) as root
           volumeMounts:
             - { name: src, mountPath: /src, readOnly: true }
             - { name: dst, mountPath: /dst }

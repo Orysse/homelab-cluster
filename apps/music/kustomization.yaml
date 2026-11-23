@@ -4,6 +4,7 @@ resources:
   - namespace.yaml
   - network-policy.yaml
   - library.yaml
+  - nas.yaml
   - secrets.yaml
   - lidarr.yaml
   - qbittorrent.yaml

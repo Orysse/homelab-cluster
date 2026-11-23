@@ -83,6 +83,7 @@ spec:
           image: ghcr.io/lklynet/aurral:3.0.1@sha256:dfca50e61cfdea54506c9836431a3c6b526873e0650f4a348a4a032a1324b7dc
           env:
             - { name: TZ, value: Europe/Paris }
+            - { name: FILE_BROWSE_ROOTS, value: "/data,/music" }   # folders the settings may point at; /music is refused without it
             - { name: OIDC_ENABLED, value: "true" }
             - { name: OIDC_ISSUER, value: "https://auth.${DOMAIN}" }
             - { name: OIDC_REDIRECT_URI, value: "https://aurral.int.${DOMAIN}/sso/callback" }

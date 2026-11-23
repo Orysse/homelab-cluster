@@ -7,8 +7,8 @@
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   beets        DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
-#   essentia     DNS and 443, only to pypi.org and files.pythonhosted.org (its wheels, installed once)
-#   mixes        DNS and 443, only to ws.audioscrobbler.com (Last.fm similar artists)
+#   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), public
+#                443/80 (MusicBrainz, Last.fm, ListenBrainz...); not cloudflared's 7844
 # SeaweedFS is not listed: the FUSE mount lives in the CSI mount service, not in these pods.
 ---
 apiVersion: cilium.io/v2
@@ -26,6 +26,9 @@ spec:
       toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: beets }
+      toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: aurral }
       toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
   egress:
     - toEndpoints:
@@ -56,6 +59,9 @@ spec:
         - matchLabels: { app.kubernetes.io/name: oauth2-proxy-navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEntities: [ingress]   # the Gateway, for navidrome-api.int (navidrome.yaml): the route strips the ExtAuth header
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    - fromEndpoints:   # Aurral: listening history over the Subsonic API (user and password, not the ExtAuth header)
+        - matchLabels: { app.kubernetes.io/name: aurral }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEndpoints:   # SUB/WAVE: the Gateway checks the CLIENT identity too, so navidrome-api.int needs this as well.
         - matchLabels: { k8s:io.kubernetes.pod.namespace: subwave, app.kubernetes.io/name: subwave }
@@ -93,6 +99,9 @@ spec:
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: lidarr }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }, { port: "5030", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: aurral }
+      toPorts: [{ ports: [{ port: "5030", protocol: TCP }] }]   # slskd
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
@@ -207,24 +216,6 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: essentia
-  namespace: music
-spec:
-  endpointSelector:
-    matchLabels: { app.kubernetes.io/name: essentia }
-  enableDefaultDeny: { ingress: true, egress: true }
-  egress:
-    - toEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
-      toPorts:
-        - ports: [{ port: "53", protocol: ANY }]
-          rules: { dns: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }] }
-    - toFQDNs: [{ matchName: pypi.org }, { matchName: files.pythonhosted.org }]
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
----
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
   name: oauth2-proxy-qbittorrent
   namespace: music
 spec:
@@ -279,17 +270,35 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: mixes
+  name: aurral
   namespace: music
 spec:
   endpointSelector:
-    matchLabels: { app.kubernetes.io/name: mixes }
+    matchLabels: { app.kubernetes.io/name: aurral }
   enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "3001", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
       toPorts:
         - ports: [{ port: "53", protocol: ANY }]
-          rules: { dns: [{ matchName: ws.audioscrobbler.com }] }
-    - toFQDNs: [{ matchName: ws.audioscrobbler.com }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [ingress]             # Pocket-ID, once Cilium hands the connection to Envoy
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: qbittorrent }
+      toPorts: [{ ports: [{ port: "5030", protocol: TCP }] }]   # slskd
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: lidarr }
+      toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: navidrome }
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    # shortcut: any public host, no per-service list (MetaBrainz, AurralBrainz, Last.fm, ListenBrainz,
+    # Spotify imports...); narrow to toFQDNs once the calls are known.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]

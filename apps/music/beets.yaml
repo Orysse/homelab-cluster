@@ -63,7 +63,7 @@ data:
     embedart:
       maxwidth: 1200
       auto: yes
-    lastgenre:             # Last.fm genres (the first is the main one): Navidrome, the DAP, the mixes (mixes.yaml)
+    lastgenre:             # Last.fm genres (the first is the main one): Navidrome, the DAP
       count: 3
       force: yes           # replaces the files' own genres: one vocabulary for the whole library
       whitelist: /config/genres.txt   # beets' list + genres-extra.yaml, written by the CronJob each run
@@ -72,7 +72,7 @@ data:
       synced: yes            # LRCLIB timed lyrics when they exist
       sources: [lrclib]
   # Genres beets' whitelist lacks (Last.fm tags of this library, 2026-11-12), each with the genre
-  # of lastgenre's tree it belongs to: the mixes (mixes.yaml) group a small genre with its parent.
+  # of lastgenre's tree it belongs to (only the keys feed the whitelist).
   # `~`: a top-level genre. A genre added here applies to an album on its next lastgenre run.
   genres-extra.yaml: |
     hardcore: hardcore techno        # here always Angerfist & co, never the punk one

@@ -10,7 +10,6 @@ resources:
   - navidrome.yaml
   - syncthing.yaml
   - beets.yaml
-  - essentia.yaml
-  - mixes.yaml
+  - aurral.yaml
   - music-assistant.yaml
   - auth.yaml

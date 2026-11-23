@@ -1,0 +1,165 @@
+# Aurral: discovery, requests and self-renewing playlists ("Flows"). aurral.int.${DOMAIN}.
+# Its own library, data/aurral/ (what it downloads, Flows under _flows/, M3U files under
+# _playlists/), next to beets' library/, which it mounts read-only at /music, the path
+# Navidrome uses, so its playlists can point at both. Navidrome shows data/aurral/ as a second
+# library (navidrome.yaml; add it once in Navidrome's Settings > Libraries, path /data/aurral).
+# Downloads: slskd only (Settings > Downloads), FLAC only (Settings > Downloads > Quality); turn
+# off the built-in yt-dlp fallback. slskd writes to downloads/slskd/; Aurral moves its finished
+# files from there into data/aurral/, so it mounts the volume root at /data, the paths slskd reports.
+# shortcut: beets also imports settled folders of downloads/slskd/ (beets.yaml); an Aurral
+# transfer stalled > 10 min that MusicBrainz knows could be taken by beets first. Upgrade: a
+# separate slskd download folder for Aurral, if slskd ever supports one per request.
+# Sign-in: OIDC with Pocket-ID (client below, admins only: it downloads). The image also ships
+# cloudflared (a tunnel feature); the network policy leaves its port (7844) closed.
+# Settings, users and its database are on the `local` volume /config.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: aurral-config
+  namespace: music
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 2Gi
+---
+# Pocket-ID client, created by the operator; the Secret aurral-oidc-credentials appears next to the pod.
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: aurral
+  namespace: music
+spec:
+  callbackUrls: ["https://aurral.int.${DOMAIN}/sso/callback"]
+  pkceEnabled: false   # Aurral's docs do not say it sends PKCE; it authenticates with the client secret
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://aurral.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aurral
+  namespace: music
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aurral
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aurral
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000       # started as non-root, the entrypoint skips its chown and user switch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Its library folder; Navidrome mounts it too, and a subPath mount of a missing directory fails.
+        - name: dirs
+          image: docker.io/library/busybox:1.38
+          command: [sh, -ec, "mkdir -p /data/aurral"]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: music, mountPath: /data }
+      containers:
+        - name: aurral
+          image: ghcr.io/lklynet/aurral:3.0.1@sha256:dfca50e61cfdea54506c9836431a3c6b526873e0650f4a348a4a032a1324b7dc
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: OIDC_ENABLED, value: "true" }
+            - { name: OIDC_ISSUER, value: "https://auth.${DOMAIN}" }
+            - { name: OIDC_REDIRECT_URI, value: "https://aurral.int.${DOMAIN}/sso/callback" }
+            - { name: OIDC_GROUPS_CLAIM, value: groups }
+            - { name: OIDC_ADMIN_GROUPS, value: admins }
+            - { name: OIDC_ADMIN_USERS, value: "abelc,Kenny" }   # in case the groups claim does not arrive
+            - { name: OIDC_DEFAULT_ROLE, value: user }
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: aurral-oidc-credentials, key: client_id }
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: aurral-oidc-credentials, key: client_secret }
+          ports:
+            - { name: http, containerPort: 3001 }
+          startupProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: { port: http }
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 20m, memory: 192Mi }
+            limits: { memory: 768Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: music, mountPath: /data }                                   # downloads/slskd -> aurral
+            - { name: music, mountPath: /data/library, subPath: library, readOnly: true }   # hides beets' library from writes
+            - { name: music, mountPath: /music, subPath: library, readOnly: true }          # Settings > Library > Read-only folders
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: aurral-config
+        - name: music
+          persistentVolumeClaim:
+            claimName: music
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aurral
+  namespace: music
+spec:
+  selector:
+    app.kubernetes.io/name: aurral
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: aurral
+  namespace: music
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - aurral.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: aurral
+          port: 80

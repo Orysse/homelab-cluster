@@ -1,6 +1,6 @@
-# beets: the only writer into library/. Every 5 minutes, and at once when Aurral calls
-# http://beets.music.svc:8080 (Settings > Notifications > webhook, event "Request available"),
-# it imports, without asking, the albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
+# beets: the only writer into library/. Every 5 minutes, and at once when Aurral (Settings >
+# Notifications > webhook, event "Request available") or slskd (qbittorrent.yaml) calls
+# http://beets.music.svc:8080, it imports, without asking, the albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
 # skipped and left in place for a manual pass. Sources, one folder per album:
 #   inbox/                          the owner (CD rips, purchases)       moved
 #   inbox/asis/                     the owner, albums not on MusicBrainz  moved, tags kept as they are
@@ -11,7 +11,7 @@
 #   downloads/torrents/complete/    qBittorrent, category `music`        copied: a hardlink would
 #                                   share the file, and beets' tag writes would break the seed
 # A folder is imported once nothing in it changed for 10 minutes (a download or a copy still
-# in progress). The incremental state (/config/state.pickle) remembers every folder imported;
+# in progress), or at once when slskd reports it complete. The incremental state (/config/state.pickle) remembers every folder imported;
 # a skipped one is retried every run (one MusicBrainz lookup each).
 # shortcut: retried skips cost a lookup per run, move them to a skipped/ folder if they pile up.
 # A skipped folder MusicBrainz will never know: fix its tags (artist, album, title), then move
@@ -186,7 +186,9 @@ spec:
                   for d in "$src"/*/; do
                     [ -d "$d" ] || continue
                     case "$d" in /data/inbox/asis/|/data/inbox/singles/|/data/inbox/aurral/|*/_*/) continue ;; esac   # aurral/: per artist below; _*/: Aurral's playlists and Flows
-                    [ -z "$(find "$d" -mmin -"$settle" | head -n 1)" ] || continue
+                    # a folder slskd reported complete needs no settling
+                    awk -v d="${d%/}" '$0 == d || index($0, d "/") == 1 { f = 1 } END { exit !f }' /tmp/ready-run ||
+                      [ -z "$(find "$d" -mmin -"$settle" | head -n 1)" ] || continue
                     set -- "$@" "${d%/}"
                   done
                 done
@@ -212,11 +214,20 @@ spec:
                   -H "Content-Type: application/json" -d '{"name":"RescanFolders"}' \
                   http://lidarr.music.svc.cluster.local/api/v1/command || echo "Lidarr rescan request failed"
               }
-              # Aurral's webhook (any method, any path) asks for a run now.
+              # The webhook (any method, any path) asks for a run now: Aurral (a request is complete,
+              # no body) and slskd (DownloadDirectoryComplete, its localDirectoryName is ready).
               /lsiopy/bin/python -c '
-              import http.server
+              import http.server, json
               class H(http.server.BaseHTTPRequestHandler):
                   def do_GET(self):
+                      n = int(self.headers.get("Content-Length") or 0)
+                      try:
+                          d = json.loads(self.rfile.read(n) or b"{}").get("localDirectoryName")
+                      except Exception:
+                          d = None
+                      if isinstance(d, str) and d.startswith("/data/"):
+                          with open("/tmp/ready-dirs", "a") as f:
+                              f.write(d.rstrip("/") + "\n")
                       open("/tmp/import-now", "w").close(); self.send_response(204); self.end_headers()
                   do_POST = do_GET
                   def log_message(self, *a): pass
@@ -224,6 +235,7 @@ spec:
               while :; do
                 aurral_settle=10
                 [ ! -e /tmp/import-now ] || { rm -f /tmp/import-now; aurral_settle=0; }
+                mv /tmp/ready-dirs /tmp/ready-run 2>/dev/null || : > /tmp/ready-run
                 [ -e /config/pause ] || run || echo "run failed, next one in 5 minutes"
                 # 5 minutes, or less when the webhook calls
                 i=0; while [ $i -lt 60 ] && [ ! -e /tmp/import-now ]; do sleep 5; i=$((i+1)); done

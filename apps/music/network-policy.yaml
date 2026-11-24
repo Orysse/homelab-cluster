@@ -3,10 +3,10 @@
 #                (metadata and indexers, 80/443)
 #   Navidrome    from its oauth2-proxy and the Gateway (navidrome-api.int); DNS, 443 (cover art, artist info)
 #   qBittorrent  (and slskd, same pod) from their oauth2-proxies and Lidarr; the tunnel (any UDP: gluetun's
-#                firewall already drops all else), DNS
+#                firewall already drops all else), DNS, beets (slskd's webhook)
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
-#   beets        from Aurral (its webhook, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
+#   beets        from Aurral and slskd (their webhooks, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
 #   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), beets
 #                (webhook), public
 #                443/80 (MusicBrainz, Last.fm, ListenBrainz...); not cloudflared's 7844
@@ -110,6 +110,9 @@ spec:
         - ports: [{ port: "53", protocol: ANY }]
           rules: { dns: [{ matchPattern: "*" }] }
     - toEntities: [world]       # the tunnel (WireGuard, UDP) and what goes through it
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: beets }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]   # slskd's webhook
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -205,6 +208,7 @@ spec:
   ingress:
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: aurral }
+        - matchLabels: { app.kubernetes.io/name: qbittorrent }   # slskd
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     - toEndpoints:

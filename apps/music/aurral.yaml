@@ -1,9 +1,9 @@
 # Aurral: discovery, requests and self-renewing playlists ("Flows"). aurral.int.${DOMAIN}.
-# One library, beets': Aurral's Library folder is inbox/aurral/ (LIBRARY_FOLDER; Flows under
-# _flows/, M3U files under _playlists/, which beets skips); beets imports the albums it
-# downloads into library/, which Aurral indexes as a read-only folder, /music (Settings > Library
-# > Read-only folders), the path Navidrome uses, so its playlists point at the same files.
-# data/aurral/ is its former Library folder (Navidrome still mounts it).
+# One library, beets': Aurral's Library folder is inbox/aurral/ (Settings > Library, and
+# LIBRARY_FOLDER; Flows under _flows/, M3U files under _playlists/, which beets skips). beets
+# hardlinks the albums it downloads into library/ (beets.yaml): Aurral re-downloads a file that
+# leaves its folder. It indexes library/ as a read-only folder, /music (Settings > Library >
+# Read-only folders), the path Navidrome uses, so its playlists point at the same files.
 # Downloads: slskd only (Settings > Downloads), FLAC only (Settings > Downloads > Quality); turn
 # off the built-in yt-dlp fallback. slskd writes to downloads/slskd/; Aurral moves its finished
 # files from there into inbox/aurral/, so it mounts the volume root at /data, the paths slskd reports.
@@ -66,10 +66,10 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # Its library folder; Navidrome mounts it too, and a subPath mount of a missing directory fails.
+        # Its Library folder, on the NAS volume.
         - name: dirs
           image: docker.io/library/busybox:1.38
-          command: [sh, -ec, "mkdir -p /data/aurral /data/inbox/aurral"]
+          command: [sh, -ec, "mkdir -p /data/inbox/aurral"]
           resources:
             requests: { cpu: 5m, memory: 8Mi }
             limits: { memory: 32Mi }

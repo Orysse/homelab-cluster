@@ -84,7 +84,6 @@ spec:
             - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }          # SQLite temporary files; the root is read-only
             - { name: music, mountPath: /music, subPath: library, readOnly: true }
-            - { name: music, mountPath: /data/aurral, subPath: aurral, readOnly: true }   # Aurral's library (aurral.yaml), same path as in Aurral
       volumes:
         - name: data
           persistentVolumeClaim:

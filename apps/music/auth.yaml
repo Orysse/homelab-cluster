@@ -201,6 +201,7 @@ spec:
             - --http-address=0.0.0.0:4180
             - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
             - --upstream=http://navidrome.music.svc.cluster.local
+            - --upstream=http://wall.music.svc.cluster.local:8080/wall/   # the cover wall (wall.yaml)
             - --redirect-url=https://navidrome.${DOMAIN}/oauth2/callback   # the UI is public only: a login on .int would come back here
             - --skip-auth-route=^/rest/
             - --cookie-secure=true

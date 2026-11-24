@@ -8,6 +8,7 @@
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   beets        from Aurral and slskd (their webhooks, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB),
 #                80 to Cover Art Archive / archive.org (its image URLs)
+#   wall         from Navidrome's oauth2-proxy; to DNS and Navidrome (wall.yaml)
 #   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), beets
 #                (webhook), public
 #                443/80 (MusicBrainz, Last.fm, ListenBrainz...); not cloudflared's 7844
@@ -61,6 +62,9 @@ spec:
         - matchLabels: { app.kubernetes.io/name: oauth2-proxy-navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEntities: [ingress]   # the Gateway, for navidrome-api.int (navidrome.yaml): the route strips the ExtAuth header
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    - fromEndpoints:   # the wall (wall.yaml): album list and covers, ExtAuth header
+        - matchLabels: { app.kubernetes.io/name: wall }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
     - fromEndpoints:   # Aurral: listening history over the Subsonic API (user and password, not the ExtAuth header)
         - matchLabels: { app.kubernetes.io/name: aurral }
@@ -196,6 +200,9 @@ spec:
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: wall }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -322,3 +329,26 @@ spec:
         - cidr: 0.0.0.0/0
           except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wall
+  namespace: music
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: wall }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-navidrome }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: navidrome }
+      toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]

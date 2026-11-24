@@ -12,4 +12,5 @@ resources:
   - syncthing.yaml
   - beets.yaml
   - aurral.yaml
+  - wall.yaml
   - auth.yaml

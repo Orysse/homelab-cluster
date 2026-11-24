@@ -2,7 +2,8 @@
 # Music-Abel (quota 500 GB), NFSv4.1, exported read-write to kube-0 only, all users squashed
 # to the NAS admin (files show as 1024:100, mode 777: the apps write as 1000).
 # Draft: docs/superpowers/specs/2026-11-24-music-on-nas.md (D35). Same layout as `music`
-# (library/, downloads/, inbox/, aurral/): the apps switch claims once the copy is checked.
+# (library/, downloads/, inbox/, aurral/); copied from SeaweedFS on 2026-11-24 (one-off Job
+# music-to-nas, 47 min, identical file lists), every app mounts this claim since.
 # The mount is made by kubelet on kube-0, not from the pods' network: no-lan-egress does not
 # apply to it. A NAS that is off or rebooting hangs reads (hard mount) until it is back.
 # Nothing SQLite here (D32): databases stay on class `local`.
@@ -37,63 +38,3 @@ spec:
   resources:
     requests:
       storage: 500Gi
----
-# One-off copy of the SeaweedFS volume to the NAS (SeaweedFS can be read-only: this only
-# reads it). Resumable (rsync); owners are not copied (the NAS squashes them). Delete this Job
-# from the repository once the apps run on music-nas.
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: music-to-nas
-  namespace: music
-spec:
-  backoffLimit: 3
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: music-to-nas
-    spec:
-      restartPolicy: OnFailure
-      automountServiceAccountToken: false
-      enableServiceLinks: false
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: rsync
-          image: docker.io/library/alpine:3.22
-          command:
-            - sh
-            - -ec
-            - |
-              apk add --no-cache rsync >/dev/null
-              for d in library downloads inbox aurral; do
-                mkdir -p "/src/$d"
-                echo "== $d"
-                nice -n 19 rsync -rlptH --no-owner --no-group --partial --info=stats1 \
-                  --exclude=.slskd-incomplete/ "/src/$d/" "/dst/$d/"
-              done
-              echo "== check"
-              for d in library downloads inbox aurral; do
-                s=$(find "/src/$d" -type f | wc -l); t=$(find "/dst/$d" -type f | wc -l)
-                echo "$d: source $s files, NAS $t files"
-              done
-          resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits: { memory: 512Mi }
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-              add: ["DAC_READ_SEARCH"]   # read the 0600 files beets writes (cover art) as root
-          volumeMounts:
-            - { name: src, mountPath: /src, readOnly: true }
-            - { name: dst, mountPath: /dst }
-      volumes:
-        - name: src
-          persistentVolumeClaim:
-            claimName: music
-            readOnly: true
-        - name: dst
-          persistentVolumeClaim:
-            claimName: music-nas

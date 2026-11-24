@@ -5,6 +5,8 @@
 #   inbox/asis/                     the owner, albums not on MusicBrainz  moved, tags kept as they are
 #   inbox/singles/                  the owner, loose tracks (remixes...)  moved as singletons, tags kept
 #   downloads/slskd/                slskd, downloads made in its UI     moved
+#   inbox/aurral/<artist>/          Aurral (its Library folder)          hardlinked: Aurral keeps its
+#                                   files where it put them; library/ holds full files all the same
 #   downloads/torrents/complete/    qBittorrent, category `music`        copied: a hardlink would
 #                                   share the file, and beets' tag writes would break the seed
 # A folder is imported once nothing in it changed for 10 minutes (a download or a copy still
@@ -181,7 +183,7 @@ spec:
                   # lastgenre's whitelist: the image's list and ours (genres-extra.yaml keys)
                   lg=$(/lsiopy/bin/python -c 'import importlib.util as u; print(u.find_spec("beetsplug.lastgenre").submodule_search_locations[0])')
                   { cat "$lg/genres.txt"; sed -n 's/^\([^#: ][^:]*\):.*/\1/p' /config/genres-extra.yaml; } > /config/genres.txt
-                  # $1: beet import flags, then the source trees; imports their settled album folders.
+                  # $1: beet arguments up to the import flags, then the source trees; imports their settled album folders.
                   import_settled() {
                     flags=$1; shift
                     srcs=$*
@@ -195,12 +197,16 @@ spec:
                         set -- "$@" "${d%/}"
                       done
                     done
-                    [ $# -eq 0 ] || { /lsiopy/bin/beet import $flags "$@"; ran=1; }
+                    [ $# -eq 0 ] || { /lsiopy/bin/beet $flags "$@"; ran=1; }
                   }
-                  import_settled --move /data/inbox /data/inbox/aurral /data/downloads/slskd
-                  import_settled "--move -A" /data/inbox/asis
-                  import_settled "--move -A -s" /data/inbox/singles
-                  import_settled --copy /data/downloads/torrents/complete
+                  import_settled "import --move" /data/inbox /data/downloads/slskd
+                  # Aurral checks the files it downloaded stay where it put them (it downloads them again
+                  # otherwise): hardlinked, the same files are in library/ and in its folder.
+                  printf "import:\n  hardlink: yes\n" > /config/hardlink.yaml
+                  import_settled "-c /config/hardlink.yaml import" /data/inbox/aurral
+                  import_settled "import --move -A" /data/inbox/asis
+                  import_settled "import --move -A -s" /data/inbox/singles
+                  import_settled "import --copy" /data/downloads/torrents/complete
                   # Lidarr sees an arrival only on a rescan (no inotify on FUSE); until then the
                   # album stays "missing" in Lidarr.
                   [ -z "${ran:-}" ] || curl -fsS -o /dev/null -X POST -H "X-Api-Key: $LIDARR_API_KEY" \

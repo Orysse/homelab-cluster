@@ -227,7 +227,7 @@ spec:
     - toFQDNs:
         - matchName: coverartarchive.org
         - matchName: archive.org
-        - matchPattern: "*.archive.org"
+        - matchPattern: "**.archive.org"   # dn711308.ca.archive.org: `*` is one label
       toPorts: [{ ports: [{ port: "80", protocol: TCP }] }]
 ---
 apiVersion: cilium.io/v2

@@ -46,6 +46,9 @@ data:
       duplicate_action: remove      # a complete download replaces the partial album (btrbk snapshots keep the old one 14 days)
       # no `languages`: with fr, beets took MusicBrainz's fr alias ("Le Wanski" -> his legal name)
     match:
+      # 0.04 by default, strict: an exact release with one small difference (0.04, 2026-11-24)
+      # was only a medium match, skipped in quiet mode at every run.
+      strong_rec_thresh: 0.10
       distance_weights:   # Soulseek rips often number tracks per disc or vinyl side: titles and lengths still match
         track_index: 0.1
         mediums: 0.1

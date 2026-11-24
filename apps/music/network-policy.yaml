@@ -6,7 +6,8 @@
 #                firewall already drops all else), DNS, beets (slskd's webhook)
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
-#   beets        from Aurral and slskd (their webhooks, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
+#   beets        from Aurral and slskd (their webhooks, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB),
+#                80 to Cover Art Archive / archive.org (its image URLs)
 #   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), beets
 #                (webhook), public
 #                443/80 (MusicBrainz, Last.fm, ListenBrainz...); not cloudflared's 7844
@@ -221,6 +222,12 @@ spec:
       toPorts: [{ ports: [{ port: "8686", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    # Cover Art Archive answers with http:// image URLs (on archive.org): without port 80 every
+    # cover failed and fetchart fell back to iTunes' first search hit (a remix single's cover).
+    - toFQDNs:
+        - matchName: coverartarchive.org
+        - matchPattern: "*.archive.org"
+      toPorts: [{ ports: [{ port: "80", protocol: TCP }] }]
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

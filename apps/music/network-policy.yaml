@@ -226,6 +226,7 @@ spec:
     # cover failed and fetchart fell back to iTunes' first search hit (a remix single's cover).
     - toFQDNs:
         - matchName: coverartarchive.org
+        - matchName: archive.org
         - matchPattern: "*.archive.org"
       toPorts: [{ ports: [{ port: "80", protocol: TCP }] }]
 ---

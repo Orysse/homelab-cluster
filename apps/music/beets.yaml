@@ -1,5 +1,6 @@
-# beets: the only writer into library/. Every 5 minutes it imports, without asking, the
-# albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
+# beets: the only writer into library/. Every 5 minutes, and at once when Aurral calls
+# http://beets.music.svc:8080 (Settings > Notifications > webhook, event "Request available"),
+# it imports, without asking, the albums it matches with certainty (MusicBrainz), with cover and lyrics; anything else is
 # skipped and left in place for a manual pass. Sources, one folder per album:
 #   inbox/                          the owner (CD rips, purchases)       moved
 #   inbox/asis/                     the owner, albums not on MusicBrainz  moved, tags kept as they are
@@ -15,15 +16,12 @@
 # shortcut: retried skips cost a lookup per run, move them to a skipped/ folder if they pile up.
 # A skipped folder MusicBrainz will never know: fix its tags (artist, album, title), then move
 # it into inbox/asis/ (an album) or inbox/singles/ (loose tracks, still inside a folder).
-# Manual pass on what was skipped ("skip" lines in /config/import.log), the CronJob paused:
-#   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":true}}'
-#   kubectl -n music create job beets-manual --from=cronjob/beets --dry-run=client -o json \
-#     | jq '.spec.template.spec.containers[0].command = ["sleep", "3600"]' | kubectl apply -f -
-#   kubectl -n music exec job/beets-manual -- sh -c 'printf "import:\n  quiet: no\n" > /config/manual.yaml'
-#   kubectl -n music exec -it job/beets-manual -- /lsiopy/bin/beet -c /config/manual.yaml import -I --move "/data/inbox/<album>"
+# Manual pass on what was skipped ("skip" lines in /config/import.log), the loop paused:
+#   kubectl -n music exec deploy/beets -- touch /config/pause      # after its current run
+#   kubectl -n music exec deploy/beets -- sh -c 'printf "import:\n  quiet: no\n" > /config/manual.yaml'
+#   kubectl -n music exec -it deploy/beets -- /lsiopy/bin/beet -c /config/manual.yaml import -I --move "/data/inbox/<album>"
 #     (--copy for downloads/torrents/complete/; without -c manual.yaml it stays quiet and skips silently)
-#   kubectl -n music delete job beets-manual
-#   kubectl -n music patch cronjob beets -p '{"spec":{"suspend":false}}'
+#   kubectl -n music exec deploy/beets -- rm /config/pause
 # The library database is on a `local` PVC: SQLite does not belong on the SeaweedFS FUSE mount.
 ---
 apiVersion: v1
@@ -141,101 +139,128 @@ spec:
     requests:
       storage: 1Gi
 ---
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: beets
   namespace: music
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled   # shell ${...} in the script
 spec:
-  schedule: "*/5 * * * *"
-  concurrencyPolicy: Forbid
-  startingDeadlineSeconds: 300
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
-  jobTemplate:
+  replicas: 1
+  strategy: { type: Recreate }   # one writer of library.db
+  selector:
+    matchLabels: { app.kubernetes.io/name: beets }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: beets
     spec:
-      backoffLimit: 0
-      activeDeadlineSeconds: 10800   # a first run on a big drop takes a while (MusicBrainz: 1 req/s)
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: beets
-        spec:
-          restartPolicy: Never
-          automountServiceAccountToken: false
-          enableServiceLinks: false
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: beets
+          image: ghcr.io/linuxserver/beets:2.14.1-ls359
+          # The image's s6 init is skipped: beets runs directly as 1000.
+          ports: [{ name: hook, containerPort: 8080 }]
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # lastgenre's whitelist: the image's list and ours (genres-extra.yaml keys)
+              lg=$(/lsiopy/bin/python -c 'import importlib.util as u; print(u.find_spec("beetsplug.lastgenre").submodule_search_locations[0])')
+              { cat "$lg/genres.txt"; sed -n 's/^\([^#: ][^:]*\):.*/\1/p' /config/genres-extra.yaml; } > /config/genres.txt
+              # $1: beet arguments up to the import flags, then the source trees; imports their settled album folders.
+              import_settled() {
+                flags=$1; shift
+                srcs=$*
+                set --
+                for src in $srcs; do
+                  mkdir -p "$src"
+                  for d in "$src"/*/; do
+                    [ -d "$d" ] || continue
+                    case "$d" in /data/inbox/asis/|/data/inbox/singles/|/data/inbox/aurral/|*/_*/) continue ;; esac   # aurral/: per artist below; _*/: Aurral's playlists and Flows
+                    [ -z "$(find "$d" -mmin -"$settle" | head -n 1)" ] || continue
+                    set -- "$@" "${d%/}"
+                  done
+                done
+                [ $# -eq 0 ] || { /lsiopy/bin/beet $flags "$@"; ran=1; }
+              }
+              # One run of every source; the loop below calls it.
+              run() {
+                ran=; settle=10
+                import_settled "import --move" /data/inbox /data/downloads/slskd
+                # Aurral checks the files it downloaded stay where it put them (it downloads them again
+                # otherwise): hardlinked, the same files are in library/ and in its folder.
+                printf "import:\n  hardlink: yes\n" > /config/hardlink.yaml
+                # Aurral calls once a request is complete: its folders need no settling then.
+                settle=$aurral_settle
+                import_settled "-c /config/hardlink.yaml import" /data/inbox/aurral
+                settle=10
+                import_settled "import --move -A" /data/inbox/asis
+                import_settled "import --move -A -s" /data/inbox/singles
+                import_settled "import --copy" /data/downloads/torrents/complete
+                # Lidarr sees an arrival only on a rescan (no inotify on FUSE); until then the
+                # album stays "missing" in Lidarr.
+                [ -z "${ran:-}" ] || curl -fsS -o /dev/null -X POST -H "X-Api-Key: $LIDARR_API_KEY" \
+                  -H "Content-Type: application/json" -d '{"name":"RescanFolders"}' \
+                  http://lidarr.music.svc.cluster.local/api/v1/command || echo "Lidarr rescan request failed"
+              }
+              # Aurral's webhook (any method, any path) asks for a run now.
+              /lsiopy/bin/python -c '
+              import http.server
+              class H(http.server.BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      open("/tmp/import-now", "w").close(); self.send_response(204); self.end_headers()
+                  do_POST = do_GET
+                  def log_message(self, *a): pass
+              http.server.HTTPServer(("", 8080), H).serve_forever()' &
+              while :; do
+                aurral_settle=10
+                [ ! -e /tmp/import-now ] || { rm -f /tmp/import-now; aurral_settle=0; }
+                [ -e /config/pause ] || run || echo "run failed, next one in 5 minutes"
+                # 5 minutes, or less when the webhook calls
+                i=0; while [ $i -lt 60 ] && [ ! -e /tmp/import-now ]; do sleep 5; i=$((i+1)); done
+              done
+          env:
+            - { name: BEETSDIR, value: /config }
+            - { name: HOME, value: /config }
+            - name: LIDARR_API_KEY
+              valueFrom: { secretKeyRef: { name: beets-lidarr, key: api_key } }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 768Mi }
           securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-          containers:
-            - name: beets
-              image: ghcr.io/linuxserver/beets:2.14.1-ls359
-              # The image's s6 init is skipped: beets runs directly as 1000.
-              command:
-                - /bin/sh
-                - -ec
-                - |
-                  # lastgenre's whitelist: the image's list and ours (genres-extra.yaml keys)
-                  lg=$(/lsiopy/bin/python -c 'import importlib.util as u; print(u.find_spec("beetsplug.lastgenre").submodule_search_locations[0])')
-                  { cat "$lg/genres.txt"; sed -n 's/^\([^#: ][^:]*\):.*/\1/p' /config/genres-extra.yaml; } > /config/genres.txt
-                  # $1: beet arguments up to the import flags, then the source trees; imports their settled album folders.
-                  import_settled() {
-                    flags=$1; shift
-                    srcs=$*
-                    set --
-                    for src in $srcs; do
-                      mkdir -p "$src"
-                      for d in "$src"/*/; do
-                        [ -d "$d" ] || continue
-                        case "$d" in /data/inbox/asis/|/data/inbox/singles/|/data/inbox/aurral/|*/_*/) continue ;; esac   # aurral/: per artist below; _*/: Aurral's playlists and Flows
-                        [ -z "$(find "$d" -mmin -10 | head -n 1)" ] || continue
-                        set -- "$@" "${d%/}"
-                      done
-                    done
-                    [ $# -eq 0 ] || { /lsiopy/bin/beet $flags "$@"; ran=1; }
-                  }
-                  import_settled "import --move" /data/inbox /data/downloads/slskd
-                  # Aurral checks the files it downloaded stay where it put them (it downloads them again
-                  # otherwise): hardlinked, the same files are in library/ and in its folder.
-                  printf "import:\n  hardlink: yes\n" > /config/hardlink.yaml
-                  import_settled "-c /config/hardlink.yaml import" /data/inbox/aurral
-                  import_settled "import --move -A" /data/inbox/asis
-                  import_settled "import --move -A -s" /data/inbox/singles
-                  import_settled "import --copy" /data/downloads/torrents/complete
-                  # Lidarr sees an arrival only on a rescan (no inotify on FUSE); until then the
-                  # album stays "missing" in Lidarr.
-                  [ -z "${ran:-}" ] || curl -fsS -o /dev/null -X POST -H "X-Api-Key: $LIDARR_API_KEY" \
-                    -H "Content-Type: application/json" -d '{"name":"RescanFolders"}' \
-                    http://lidarr.music.svc.cluster.local/api/v1/command || echo "Lidarr rescan request failed"
-              env:
-                - { name: BEETSDIR, value: /config }
-                - { name: HOME, value: /config }
-                - name: LIDARR_API_KEY
-                  valueFrom: { secretKeyRef: { name: beets-lidarr, key: api_key } }
-              resources:
-                requests: { cpu: 100m, memory: 192Mi }
-                limits: { memory: 768Mi }
-              securityContext:
-                allowPrivilegeEscalation: false
-                capabilities:
-                  drop: ["ALL"]
-              volumeMounts:
-                - { name: music, mountPath: /data }
-                - { name: config, mountPath: /config }
-                - { name: beets-config, mountPath: /config/config.yaml, subPath: config.yaml }
-                - { name: beets-config, mountPath: /config/genres-extra.yaml, subPath: genres-extra.yaml }
-          volumes:
-            - name: music
-              persistentVolumeClaim:
-                claimName: music-nas   # the family NAS (nas.yaml, D35); `music` (SeaweedFS) kept read-only as a fallback until removed
-            - name: config
-              persistentVolumeClaim:
-                claimName: beets-config
-            - name: beets-config
-              configMap:
-                name: beets-config
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: music, mountPath: /data }
+            - { name: config, mountPath: /config }
+            - { name: beets-config, mountPath: /config/config.yaml, subPath: config.yaml }
+            - { name: beets-config, mountPath: /config/genres-extra.yaml, subPath: genres-extra.yaml }
+      volumes:
+        - name: music
+          persistentVolumeClaim:
+            claimName: music-nas   # the family NAS (nas.yaml, D35); `music` (SeaweedFS) kept read-only as a fallback until removed
+        - name: config
+          persistentVolumeClaim:
+            claimName: beets-config
+        - name: beets-config
+          configMap:
+            name: beets-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beets
+  namespace: music
+spec:
+  selector: { app.kubernetes.io/name: beets }
+  ports: [{ name: hook, port: 8080, targetPort: hook }]

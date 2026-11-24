@@ -6,8 +6,9 @@
 #                firewall already drops all else), DNS
 #   Syncthing    its sync port (22000) from the LAN, the tailnet and the DAP: the sources
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
-#   beets        DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
-#   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), public
+#   beets        from Aurral (its webhook, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB)
+#   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), beets
+#                (webhook), public
 #                443/80 (MusicBrainz, Last.fm, ListenBrainz...); not cloudflared's 7844
 # SeaweedFS is not listed: the FUSE mount lives in the CSI mount service, not in these pods.
 ---
@@ -201,6 +202,10 @@ spec:
   endpointSelector:
     matchLabels: { app.kubernetes.io/name: beets }
   enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: aurral }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
@@ -296,6 +301,9 @@ spec:
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: navidrome }
       toPorts: [{ ports: [{ port: "4533", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: beets }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]   # its webhook
     # shortcut: any public host, no per-service list (MetaBrainz, AurralBrainz, Last.fm, ListenBrainz,
     # Spotify imports...); narrow to toFQDNs once the calls are known.
     - toCIDRSet:

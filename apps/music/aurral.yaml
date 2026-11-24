@@ -1,11 +1,12 @@
 # Aurral: discovery, requests and self-renewing playlists ("Flows"). aurral.int.${DOMAIN}.
-# Its own library, data/aurral/ (what it downloads, Flows under _flows/, M3U files under
-# _playlists/), next to beets' library/, which it mounts read-only at /music, the path
-# Navidrome uses, so its playlists can point at both. Navidrome shows data/aurral/ as a second
-# library (navidrome.yaml; add it once in Navidrome's Settings > Libraries, path /data/aurral).
+# One library, beets': Aurral's Library folder is inbox/aurral/ (LIBRARY_FOLDER; Flows under
+# _flows/, M3U files under _playlists/, which beets skips); beets imports the albums it
+# downloads into library/, which Aurral indexes as a read-only folder, /music (Settings > Library
+# > Read-only folders), the path Navidrome uses, so its playlists point at the same files.
+# data/aurral/ is its former Library folder (Navidrome still mounts it).
 # Downloads: slskd only (Settings > Downloads), FLAC only (Settings > Downloads > Quality); turn
 # off the built-in yt-dlp fallback. slskd writes to downloads/slskd/; Aurral moves its finished
-# files from there into data/aurral/, so it mounts the volume root at /data, the paths slskd reports.
+# files from there into inbox/aurral/, so it mounts the volume root at /data, the paths slskd reports.
 # shortcut: beets also imports settled folders of downloads/slskd/ (beets.yaml); an Aurral
 # transfer stalled > 10 min that MusicBrainz knows could be taken by beets first. Upgrade: a
 # separate slskd download folder for Aurral, if slskd ever supports one per request.
@@ -68,7 +69,7 @@ spec:
         # Its library folder; Navidrome mounts it too, and a subPath mount of a missing directory fails.
         - name: dirs
           image: docker.io/library/busybox:1.38
-          command: [sh, -ec, "mkdir -p /data/aurral"]
+          command: [sh, -ec, "mkdir -p /data/aurral /data/inbox/aurral"]
           resources:
             requests: { cpu: 5m, memory: 8Mi }
             limits: { memory: 32Mi }
@@ -84,6 +85,7 @@ spec:
           env:
             - { name: TZ, value: Europe/Paris }
             - { name: FILE_BROWSE_ROOTS, value: "/data,/music" }   # folders the settings may point at; /music is refused without it
+            - { name: LIBRARY_FOLDER, value: /data/inbox/aurral }      # beets imports from here (beets.yaml)
             - { name: OIDC_ENABLED, value: "true" }
             - { name: OIDC_ISSUER, value: "https://auth.${DOMAIN}" }
             - { name: OIDC_REDIRECT_URI, value: "https://aurral.int.${DOMAIN}/sso/callback" }

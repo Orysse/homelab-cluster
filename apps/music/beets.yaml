@@ -190,14 +190,14 @@ spec:
                       mkdir -p "$src"
                       for d in "$src"/*/; do
                         [ -d "$d" ] || continue
-                        case "$d" in /data/inbox/asis/|/data/inbox/singles/) continue ;; esac
+                        case "$d" in /data/inbox/asis/|/data/inbox/singles/|/data/inbox/aurral/|*/_*/) continue ;; esac   # aurral/: per artist below; _*/: Aurral's playlists and Flows
                         [ -z "$(find "$d" -mmin -10 | head -n 1)" ] || continue
                         set -- "$@" "${d%/}"
                       done
                     done
                     [ $# -eq 0 ] || { /lsiopy/bin/beet import $flags "$@"; ran=1; }
                   }
-                  import_settled --move /data/inbox /data/downloads/slskd
+                  import_settled --move /data/inbox /data/inbox/aurral /data/downloads/slskd
                   import_settled "--move -A" /data/inbox/asis
                   import_settled "--move -A -s" /data/inbox/singles
                   import_settled --copy /data/downloads/torrents/complete

@@ -8,7 +8,7 @@
 #                are outside the cluster; 443 and 22000 out (discovery, relays, the DAP)
 #   beets        from Aurral and slskd (their webhooks, 8080); DNS, Lidarr (rescan), 443 (MusicBrainz, Cover Art Archive, iTunes, LRCLIB),
 #                80 to Cover Art Archive / archive.org (its image URLs)
-#   wall         from Navidrome's oauth2-proxy; to DNS and Navidrome (wall.yaml)
+#   wall         from Navidrome's oauth2-proxy and the Gateway (wall.int); to DNS and Navidrome (wall.yaml)
 #   Aurral       from the Gateway; to DNS, Pocket-ID, slskd, Lidarr, Navidrome (listening history), beets
 #                (webhook), public
 #                443/80 (MusicBrainz, Last.fm, ListenBrainz...); not cloudflared's 7844
@@ -342,6 +342,8 @@ spec:
   ingress:
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: oauth2-proxy-navidrome }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - fromEntities: [ingress]   # the Gateway, for wall.int (wall.yaml)
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
   egress:
     - toEndpoints:

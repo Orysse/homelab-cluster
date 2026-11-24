@@ -161,3 +161,28 @@ spec:
     app.kubernetes.io/name: wall
   ports:
     - { name: http, port: 8080, targetPort: http }
+---
+# wall.int.${DOMAIN}: LAN and VPN only, no login, for the laptop's live wallpaper (music-wall in the
+# NixOS flake), which mirrors it to work offline. It shows covers and album names, nothing else.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wall
+  namespace: music
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - wall.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+      backendRefs:
+        - name: wall
+          port: 8080

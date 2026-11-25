@@ -1,0 +1,472 @@
+# Pocket-ID in front of Radarr, Sonarr, Prowlarr (admins) and Seerr (admins, users, family): one
+# oauth2-proxy each, its own Pocket-ID client and cookie key (same image and settings as
+# apps/music/auth.yaml). The proxy is the only way in (network-policy.yaml): the *arr apps run with
+# Auth Method External. The proxy skips /api/ on the *arr apps (API key, for Prowlarr and Seerr,
+# which in practice call the Services directly). Jellyfin has no proxy: see jellyfin.yaml.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-radarr-cookie
+  namespace: media
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-radarr-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-radarr
+  namespace: media
+spec:
+  callbackUrls: ["https://radarr.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://radarr.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-radarr
+  namespace: media
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-radarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-radarr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://radarr.media.svc.cluster.local
+            - --redirect-url=https://radarr.int.${DOMAIN}/oauth2/callback
+            - --skip-auth-route=^/api/
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-radarr-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-radarr-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-radarr-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-radarr
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-radarr
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-sonarr-cookie
+  namespace: media
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-sonarr-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-sonarr
+  namespace: media
+spec:
+  callbackUrls: ["https://sonarr.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://sonarr.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-sonarr
+  namespace: media
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-sonarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-sonarr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://sonarr.media.svc.cluster.local
+            - --redirect-url=https://sonarr.int.${DOMAIN}/oauth2/callback
+            - --skip-auth-route=^/api/
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-sonarr-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-sonarr-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-sonarr-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-sonarr
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-sonarr
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-prowlarr-cookie
+  namespace: media
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-prowlarr-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-prowlarr
+  namespace: media
+spec:
+  callbackUrls: ["https://prowlarr.int.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+  launchUrl: https://prowlarr.int.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-prowlarr
+  namespace: media
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-prowlarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-prowlarr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://prowlarr.media.svc.cluster.local
+            - --redirect-url=https://prowlarr.int.${DOMAIN}/oauth2/callback
+            - --skip-auth-route=^/api/
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-prowlarr-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-prowlarr-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-prowlarr-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-prowlarr
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-prowlarr
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-seerr-cookie
+  namespace: media
+spec:
+  refreshInterval: "0"
+  target:
+    name: oauth2-proxy-seerr-cookie
+    template:
+      data:
+        secret: "{{ .password | trunc 32 }}"    # 32 bytes: an AES-256 key
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: pocketid.internal/v1alpha1
+kind: PocketIDOIDCClient
+metadata:
+  name: oauth2-proxy-seerr
+  namespace: media
+spec:
+  callbackUrls: ["https://seerr.${DOMAIN}/oauth2/callback"]
+  pkceEnabled: true
+  allowedUserGroups:
+    - { name: admins, namespace: pocket-id }
+    - { name: users, namespace: pocket-id }
+    - { name: family, namespace: pocket-id }
+  launchUrl: https://seerr.${DOMAIN}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-seerr
+  namespace: media
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-seerr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-seerr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.${DOMAIN}
+            - --scope=openid email profile groups
+            - --oidc-groups-claim=groups
+            - --allowed-group=admins
+            - --allowed-group=users
+            - --allowed-group=family
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --code-challenge-method=S256
+            - --skip-provider-button=true
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
+            - --upstream=http://seerr.media.svc.cluster.local
+            - --redirect-url=https://seerr.${DOMAIN}/oauth2/callback
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-secret-file=/secrets/cookie/secret
+            - --client-secret-file=/secrets/oidc/client_secret
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: oauth2-proxy-seerr-oidc-credentials, key: client_id }
+          ports:
+            - { name: http, containerPort: 4180 }
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 5m, memory: 24Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: oidc, mountPath: /secrets/oidc, readOnly: true }
+            - { name: cookie, mountPath: /secrets/cookie, readOnly: true }
+      volumes:
+        - name: oidc
+          secret: { secretName: oauth2-proxy-seerr-oidc-credentials }
+        - name: cookie
+          secret: { secretName: oauth2-proxy-seerr-cookie }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-seerr
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-seerr
+  ports:
+    - { name: http, port: 80, targetPort: http }

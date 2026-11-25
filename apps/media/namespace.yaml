@@ -1,0 +1,21 @@
+# Films and series: Radarr (films), Sonarr (series), Prowlarr (indexers), Jellyfin (watching),
+# Seerr (requests). Spec: docs/superpowers/specs/2026-11-25-media-stack.md. One NFS volume on the
+# family NAS (nas.yaml): downloads/, films/ and series/ in one mount, so an import is a hardlink.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media
+  labels:
+    gateway-access: both   # Jellyfin and Seerr public (*.${DOMAIN}), the *arr apps *.int
+    # baseline: the linuxserver images start as root (s6-overlay) and drop to PUID, with the
+    # capabilities baseline allows (CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER).
+    pod-security.kubernetes.io/enforce: baseline
+---
+# The namespace's default account: pods that do not name one get no API token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: media
+automountServiceAccountToken: false

@@ -38,3 +38,36 @@ spec:
   resources:
     requests:
       storage: 500Gi
+---
+# ABEL, the films and series volume (apps/media/nas.yaml, same export, own PV): qBittorrent mounts
+# it at /abel to write downloads/ beside films/ and series/, where Radarr and Sonarr hardlink.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: abel-nas-music
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions: [nfsvers=4.1, hard, timeo=600, noatime]
+  nfs:
+    server: 192.168.1.151
+    path: /volume1/ABEL
+  claimRef:
+    namespace: music
+    name: abel-nas
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: abel-nas
+  namespace: music
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: abel-nas-music
+  resources:
+    requests:
+      storage: 1Ti

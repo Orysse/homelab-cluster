@@ -144,6 +144,7 @@ spec:
           volumeMounts:
             - { name: config, mountPath: /config }
             - { name: music, mountPath: /data }
+            - { name: abel, mountPath: /abel }   # films and series volume (nas.yaml): downloads/ for Radarr and Sonarr
         - name: slskd
           image: ghcr.io/slskd/slskd:0.26.2
           env:
@@ -199,6 +200,9 @@ spec:
         - name: music
           persistentVolumeClaim:
             claimName: music-nas   # the family NAS (nas.yaml, D35); `music` (SeaweedFS) kept read-only as a fallback until removed
+        - name: abel
+          persistentVolumeClaim:
+            claimName: abel-nas
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,230 @@
+# Radarr (films) and Sonarr (series): wanted, then import from downloads/ to films/ or series/ by
+# hardlink (one mount). qBittorrent is in `music` (qbittorrent.music:8080, categories radarr and
+# sonarr, no password for pod addresses). Prowlarr feeds both their indexers.
+# Remote path mapping, once in each: host qbittorrent.music, remote /abel/ -> local /data/.
+# Database: SQLite on a `local` volume (Lidarr is on PostgreSQL; these are not: see the spec).
+# <app>.int.${DOMAIN}, admins only.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radarr-config
+  namespace: media
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: radarr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: radarr
+          image: ghcr.io/linuxserver/radarr:version-7.0.3.10918
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
+            - { name: PGID, value: "1000" }
+            # Login is Pocket-ID in front (auth.yaml); the network policy lets only that proxy
+            # (and the apps that call the API with its key) reach this pod.
+            - { name: Radarr__Auth__Method, value: External }
+          ports:
+            - { name: http, containerPort: 7878 }
+          startupProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 20m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]   # s6-overlay setup
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: radarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: abel-nas   # nas.yaml: downloads/, films/, series/ in one mount (hardlinks)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: radarr
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - radarr.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: oauth2-proxy-radarr
+          port: 80
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config
+  namespace: media
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarr
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sonarr
+          image: ghcr.io/linuxserver/sonarr:version-4.0.20.3014
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
+            - { name: PGID, value: "1000" }
+            # Login is Pocket-ID in front (auth.yaml); the network policy lets only that proxy
+            # (and the apps that call the API with its key) reach this pod.
+            - { name: Sonarr__Auth__Method, value: External }
+          ports:
+            - { name: http, containerPort: 8989 }
+          startupProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 20m, memory: 192Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]   # s6-overlay setup
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: abel-nas   # nas.yaml: downloads/, films/, series/ in one mount (hardlinks)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: sonarr
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  parentRefs:
+    - name: internal
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - sonarr.int.${DOMAIN}
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - { name: Strict-Transport-Security, value: "max-age=31536000; includeSubDomains" }
+              - { name: X-Content-Type-Options, value: nosniff }
+              - { name: X-Frame-Options, value: DENY }
+              - { name: Referrer-Policy, value: strict-origin-when-cross-origin }
+      backendRefs:
+        - name: oauth2-proxy-sonarr
+          port: 80

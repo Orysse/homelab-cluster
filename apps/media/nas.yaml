@@ -1,0 +1,38 @@
+# ABEL on the family NAS (Synology, 192.168.1.151): NFSv4.1, exported read-write to kube-0 only
+# (rule already set on the NAS), same squash as Music-Abel (apps write as 1000). One mount holds
+# downloads/, films/ and series/, so an import is a hardlink. qBittorrent stays in `music` (one
+# gluetun tunnel) and mounts the same export there as the claim abel-nas, in apps/music/nas.yaml
+# (a PV binds to one claim). The capacity is nominal (NFS enforces nothing): the NAS quota is the
+# limit. A NAS that is off or rebooting hangs reads (hard mount) until it is back. Nothing SQLite
+# here (D32): databases stay on class `local`.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: abel-nas
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain   # deleting the claim never touches the NAS
+  storageClassName: ""
+  mountOptions: [nfsvers=4.1, hard, timeo=600, noatime]
+  nfs:
+    server: 192.168.1.151
+    path: /volume1/ABEL
+  claimRef:
+    namespace: media
+    name: abel-nas
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: abel-nas
+  namespace: media
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: abel-nas
+  resources:
+    requests:
+      storage: 1Ti

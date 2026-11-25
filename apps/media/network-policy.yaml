@@ -1,0 +1,285 @@
+# Media: each pod gets what it needs and nothing else.
+#   Radarr, Sonarr  from their oauth2-proxy, Prowlarr and Seerr; to qBittorrent (music), Prowlarr,
+#                   Jellyfin (library refresh), DNS, the Internet (metadata, 443/80)
+#   Prowlarr        from its proxy, Radarr and Sonarr; to them, DNS, the Internet (indexers)
+#   Jellyfin        from the Gateway (public); DNS, 443/80 out (metadata, images, plugin repository)
+#   Seerr           from its proxy; to Jellyfin, Radarr, Sonarr, DNS, 443 (TMDB)
+# qBittorrent's side (Radarr and Sonarr may call it) is in apps/music/network-policy.yaml.
+# The NFS mount is made by kubelet on kube-0, not from the pods' network.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: radarr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-radarr }
+      toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: prowlarr }
+      toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: seerr }
+      toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: qbittorrent }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: prowlarr }
+      toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: jellyfin }
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: sonarr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-sonarr }
+      toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: prowlarr }
+      toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: seerr }
+      toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: qbittorrent }
+      toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: prowlarr }
+      toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: jellyfin }
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prowlarr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: prowlarr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-prowlarr }
+      toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: radarr }
+      toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: sonarr }
+      toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: radarr }
+      toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: sonarr }
+      toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jellyfin
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: jellyfin }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: seerr }
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: radarr }
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: sonarr }
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: seerr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: seerr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: oauth2-proxy-seerr }
+      toPorts: [{ ports: [{ port: "5055", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: jellyfin }
+      toPorts: [{ ports: [{ port: "8096", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: radarr }
+      toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: sonarr }
+      toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
+    - toEntities: [world]
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-radarr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-radarr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: radarr }
+      toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-sonarr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-sonarr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: sonarr }
+      toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-prowlarr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-prowlarr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: prowlarr }
+      toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-seerr
+  namespace: media
+spec:
+  endpointSelector:
+    matchLabels: { app.kubernetes.io/name: oauth2-proxy-seerr }
+  enableDefaultDeny: { ingress: true, egress: true }
+  ingress:
+    - fromEntities: [ingress]
+      toPorts: [{ ports: [{ port: "4180", protocol: TCP }] }]
+  egress:
+    - toEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toFQDNs:
+        - matchName: auth.${DOMAIN}
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEntities: [ingress]             # auth.${DOMAIN}, once Cilium hands it to Envoy
+      toPorts: [{ ports: [{ port: "443", protocol: TCP }] }]
+    - toEndpoints:
+        - matchLabels: { app.kubernetes.io/name: seerr }
+      toPorts: [{ ports: [{ port: "5055", protocol: TCP }] }]

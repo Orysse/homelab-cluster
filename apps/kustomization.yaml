@@ -8,5 +8,6 @@ resources:
   - glance
   - headscale
   - music
+  - media
   - trip
   - subwave

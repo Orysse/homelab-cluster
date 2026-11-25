@@ -307,6 +307,7 @@ spec:
             - --http-address=0.0.0.0:4180
             - --reverse-proxy=true             # behind the Gateway: trusts X-Forwarded-*
             - --upstream=http://prowlarr.media.svc.cluster.local
+            - --upstream-timeout=120s          # testing an indexer behind Cloudflare takes 30-60 s (FlareSolverr); the default 30 s gave a 502
             - --redirect-url=https://prowlarr.int.${DOMAIN}/oauth2/callback
             - --skip-auth-route=^/api/
             - --cookie-secure=true

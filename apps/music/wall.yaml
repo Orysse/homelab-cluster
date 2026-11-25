@@ -76,10 +76,13 @@ data:
 
     def build():
         found = albums()
-        tiles = []
+        tiles, data = [], []
         for album, span in zip(found, spans([a.get("playCount", 0) for a in found])):
             label = html.escape(f'{album.get("artist", "")} — {album.get("name", "")}')
             name = cover(album.get("coverArt"))
+            data.append({"id": album["id"], "artist": album.get("artist", ""), "name": album.get("name", ""),
+                         "year": album.get("year"), "plays": album.get("playCount", 0),
+                         "created": album.get("created"), "cover": name})
             inner = f'<img src="c/{name}.jpg" alt="{label}" loading="lazy">' if name else ""
             cls = f"s{span}" + ("" if name else " n")
             href = "/app/#/album/" + urllib.parse.quote(album["id"]) + "/show"
@@ -87,6 +90,9 @@ data:
         with open(OUT + "/index.tmp", "w") as f:
             f.write(PAGE % (len(found), "".join(tiles)))
         os.replace(OUT + "/index.tmp", OUT + "/index.html")
+        with open(OUT + "/albums.tmp", "w") as f:   # for the laptop's widget (music-wall in the NixOS flake)
+            json.dump(data, f, ensure_ascii=False)
+        os.replace(OUT + "/albums.tmp", OUT + "/albums.json")
         print(f"{len(found)} albums", flush=True)
 
     os.makedirs(COVERS, exist_ok=True)
@@ -163,7 +169,7 @@ spec:
     - { name: http, port: 8080, targetPort: http }
 ---
 # wall.int.${DOMAIN}: LAN and VPN only, no login, for the laptop's live wallpaper (music-wall in the
-# NixOS flake), which mirrors it to work offline. It shows covers and album names, nothing else.
+# NixOS flake, albums.json), which mirrors it to work offline. Covers, album names and play counts only.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

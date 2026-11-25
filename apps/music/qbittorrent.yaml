@@ -103,7 +103,7 @@ spec:
             - { name: SERVER_COUNTRIES, value: Netherlands }   # gluetun picks a server, fails over
             - { name: FIREWALL_VPN_INPUT_PORTS, value: "2417,54429" }   # the forwarded ports, through the tunnel only
             # The UIs, and the cluster's pod and service ranges (DNS, Lidarr), stay reachable.
-            - { name: FIREWALL_INPUT_PORTS, value: "8080,5030,8888" }
+            - { name: FIREWALL_INPUT_PORTS, value: "8080,5030,8888,8191" }
             # HTTP proxy for Prowlarr (media): its indexer searches, DNS included, leave through the tunnel.
             # No login: the network policy lets only Prowlarr connect.
             - { name: HTTPPROXY, value: "on" }
@@ -185,7 +185,47 @@ spec:
             - { name: slskd-yml, mountPath: /etc/slskd, readOnly: true }
             - { name: music, mountPath: /data/library, subPath: library, readOnly: true }
             - { name: music, mountPath: /data/downloads, subPath: downloads }
+        # FlareSolverr (v3.5.2): headless Chrome that solves the Cloudflare challenge of some indexers
+        # for Prowlarr (media). Here, behind gluetun, so its DNS and traffic leave through the tunnel
+        # (Prowlarr does not hand it its indexer proxy). Prowlarr reaches it at
+        # http://qbittorrent.music.svc.cluster.local:8191, set once in Prowlarr: Settings > Indexers >
+        # Add proxy > FlareSolverr, tag `flaresolverr`, then the same tag on the indexers that need it.
+        # No readiness probe: a stuck Chrome must not take the pod out of the Service.
+        - name: flaresolverr
+          image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
+          env:
+            - { name: TZ, value: Europe/Paris }
+            - { name: LOG_LEVEL, value: info }
+          ports:
+            - { name: flaresolverr, containerPort: 8191 }
+          startupProbe:
+            httpGet: { path: /health, port: flaresolverr }
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /health, port: flaresolverr }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 20m, memory: 256Mi }
+            limits: { memory: 1Gi }   # Chrome; estimate, not measured
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: flaresolverr-shm, mountPath: /dev/shm }   # Chrome crashes on the default 64 MB
+            - { name: flaresolverr-tmp, mountPath: /tmp }
       volumes:
+        - name: flaresolverr-shm
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
+        - name: flaresolverr-tmp
+          emptyDir: { sizeLimit: 512Mi }
         - name: slskd-yml
           configMap:
             name: slskd-yml
@@ -219,6 +259,7 @@ spec:
   ports:
     - { name: http, port: 80, targetPort: http }
     - { name: proxy, port: 8888, targetPort: 8888 }   # gluetun's HTTP proxy, for Prowlarr
+    - { name: flaresolverr, port: 8191, targetPort: flaresolverr }   # for Prowlarr
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

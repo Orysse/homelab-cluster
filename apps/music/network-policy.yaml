@@ -109,9 +109,9 @@ spec:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: media, app.kubernetes.io/name: radarr }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: media, app.kubernetes.io/name: sonarr }
       toPorts: [{ ports: [{ port: "8080", protocol: TCP }] }]
-    - fromEndpoints:   # Prowlarr (apps/media): gluetun's HTTP proxy for the indexers
+    - fromEndpoints:   # Prowlarr (apps/media): gluetun's HTTP proxy (8888) and FlareSolverr (8191) for the indexers
         - matchLabels: { k8s:io.kubernetes.pod.namespace: media, app.kubernetes.io/name: prowlarr }
-      toPorts: [{ ports: [{ port: "8888", protocol: TCP }] }]
+      toPorts: [{ ports: [{ port: "8888", protocol: TCP }, { port: "8191", protocol: TCP }] }]
     - fromEndpoints:
         - matchLabels: { app.kubernetes.io/name: aurral }
       toPorts: [{ ports: [{ port: "5030", protocol: TCP }] }]   # slskd

@@ -8,5 +8,4 @@ resources:
   - prowlarr.yaml
   - jellyfin.yaml
   - seerr.yaml
-  - flaresolverr.yaml
   - auth.yaml

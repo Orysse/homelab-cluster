@@ -3,7 +3,7 @@
 #                   Jellyfin (library refresh), DNS, the Internet (metadata, 443/80)
 #   Prowlarr        from its proxy, Radarr and Sonarr; to them, DNS, the Internet (indexers)
 #   Jellyfin        from the Gateway (public); DNS, 443/80 out (metadata, images, plugin repository)
-#   FlareSolverr    from Prowlarr only; DNS, the Internet (443/80: the indexers it opens in Chrome)
+#   FlareSolverr    not here: it runs in the qBittorrent pod (apps/music/qbittorrent.yaml), behind the VPN
 #   Seerr           from its proxy; to Jellyfin, Radarr, Sonarr, DNS, 443 (TMDB)
 # qBittorrent's side (Radarr and Sonarr may call it) is in apps/music/network-policy.yaml.
 # The NFS mount is made by kubelet on kube-0, not from the pods' network.
@@ -113,12 +113,9 @@ spec:
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: sonarr }
       toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
-    - toEndpoints:
-        - matchLabels: { app.kubernetes.io/name: flaresolverr }
-      toPorts: [{ ports: [{ port: "8191", protocol: TCP }] }]
-    - toEndpoints:   # gluetun's HTTP proxy (music): the indexers' searches go out through the VPN
+    - toEndpoints:   # gluetun's HTTP proxy (8888) and FlareSolverr (8191), both in the qBittorrent pod (music): the searches go out through the VPN
         - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: qbittorrent }
-      toPorts: [{ ports: [{ port: "8888", protocol: TCP }] }]
+      toPorts: [{ ports: [{ port: "8888", protocol: TCP }, { port: "8191", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
 ---
@@ -290,25 +287,3 @@ spec:
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: seerr }
       toPorts: [{ ports: [{ port: "5055", protocol: TCP }] }]
----
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: flaresolverr
-  namespace: media
-spec:
-  endpointSelector:
-    matchLabels: { app.kubernetes.io/name: flaresolverr }
-  enableDefaultDeny: { ingress: true, egress: true }
-  ingress:
-    - fromEndpoints:
-        - matchLabels: { app.kubernetes.io/name: prowlarr }
-      toPorts: [{ ports: [{ port: "8191", protocol: TCP }] }]
-  egress:
-    - toEndpoints:
-        - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
-      toPorts:
-        - ports: [{ port: "53", protocol: ANY }]
-          rules: { dns: [{ matchPattern: "*" }] }
-    - toEntities: [world]
-      toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]

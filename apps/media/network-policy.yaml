@@ -116,6 +116,9 @@ spec:
     - toEndpoints:
         - matchLabels: { app.kubernetes.io/name: flaresolverr }
       toPorts: [{ ports: [{ port: "8191", protocol: TCP }] }]
+    - toEndpoints:   # gluetun's HTTP proxy (music): the indexers' searches go out through the VPN
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: qbittorrent }
+      toPorts: [{ ports: [{ port: "8888", protocol: TCP }] }]
     - toEntities: [world]
       toPorts: [{ ports: [{ port: "443", protocol: TCP }, { port: "80", protocol: TCP }] }]
 ---

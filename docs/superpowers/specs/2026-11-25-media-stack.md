@@ -33,7 +33,7 @@ A new namespace `media` (`apps/media/`), five apps, one volume on the family NAS
 - Radarr and Sonarr call it over the cluster network (`qbittorrent.music:8080`), categories
   `radarr` and `sonarr`. Remote path mapping once in each app: `/abel/downloads` to the
   downloads directory of their own mount.
-- Prowlarr goes out directly (searches only, not downloads): the indexers see the home IP.
+- Prowlarr's searches go through gluetun's HTTP proxy (qbittorrent.music:8888, Prowlarr indexer proxy tag `vpn`): the cluster DNS is filtered in France (1337x.to resolves to 127.0.0.1) and the home IP stays hidden from the indexers.
 
 ## Network and access
 

@@ -1,5 +1,9 @@
-# Prowlarr: the indexers, pushed to Radarr and Sonarr. No library mount. Its searches leave
-# directly (not through the VPN): the indexers see the home IP; downloads go through gluetun.
+# Prowlarr: the indexers, pushed to Radarr and Sonarr. No library mount. Its searches go
+# through gluetun's HTTP proxy (qbittorrent.music:8888): the VPN does the DNS (the cluster's
+# is filtered in France) and the indexers do not see the home IP. By hand once: Settings >
+# Indexers > add an HTTP proxy "vpn" (host qbittorrent.music.svc.cluster.local, port 8888, no
+# login), then give the tag "vpn" to the proxy and to every indexer. An untagged indexer goes
+# out directly (the policy still allows 443/80: definitions, updates).
 # prowlarr.int.${DOMAIN}, admins only.
 ---
 apiVersion: v1

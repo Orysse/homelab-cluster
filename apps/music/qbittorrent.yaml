@@ -103,7 +103,11 @@ spec:
             - { name: SERVER_COUNTRIES, value: Netherlands }   # gluetun picks a server, fails over
             - { name: FIREWALL_VPN_INPUT_PORTS, value: "2417,54429" }   # the forwarded ports, through the tunnel only
             # The UIs, and the cluster's pod and service ranges (DNS, Lidarr), stay reachable.
-            - { name: FIREWALL_INPUT_PORTS, value: "8080,5030" }
+            - { name: FIREWALL_INPUT_PORTS, value: "8080,5030,8888" }
+            # HTTP proxy for Prowlarr (media): its indexer searches, DNS included, leave through the tunnel.
+            # No login: the network policy lets only Prowlarr connect.
+            - { name: HTTPPROXY, value: "on" }
+            - { name: HTTPPROXY_LISTENING_ADDRESS, value: ":8888" }
             - { name: FIREWALL_OUTBOUND_SUBNETS, value: "10.42.0.0/16,10.43.0.0/16" }
           envFrom:
             - secretRef:
@@ -214,6 +218,7 @@ spec:
     app.kubernetes.io/name: qbittorrent
   ports:
     - { name: http, port: 80, targetPort: http }
+    - { name: proxy, port: 8888, targetPort: 8888 }   # gluetun's HTTP proxy, for Prowlarr
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

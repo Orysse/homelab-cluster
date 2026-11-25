@@ -1,9 +1,9 @@
 # Radarr (films) and Sonarr (series): wanted, then import from downloads/ to films/ or series/ by
-# hardlink (one mount). qBittorrent is in `music` (qbittorrent.music:8080, categories radarr and
-# sonarr, no password for pod addresses). Prowlarr feeds both their indexers.
-# Remote path mapping, once in each: host qbittorrent.music, remote /abel/ -> local /data/.
-# Database: SQLite on a `local` volume (Lidarr is on PostgreSQL; these are not: see the spec).
-# <app>.int.${DOMAIN}, admins only.
+# hardlink (one mount). qBittorrent is in `music` (qbittorrent.music.svc.cluster.local, port 80
+# -> its 8080, categories radarr and sonarr, no password for pod addresses). Prowlarr feeds both
+# their indexers. Database: the cluster PostgreSQL (role media, databases <app> and <app>-log),
+# backed up by barman; API key and database password from OpenBao (secrets.yaml). What stays in
+# the database and is set by hand once: README.md. <app>.int.${DOMAIN}, admins only.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -43,7 +43,14 @@ spec:
       containers:
         - name: radarr
           image: ghcr.io/linuxserver/radarr:version-7.0.3.10918
+          envFrom:
+            - secretRef: { name: arr-db }     # Radarr__Postgres__User/Password
+            - secretRef: { name: arr-keys }   # Radarr__Auth__ApiKey
           env:
+            - { name: Radarr__Postgres__Host, value: main-rw.postgres.svc.cluster.local }
+            - { name: Radarr__Postgres__Port, value: "5432" }
+            - { name: Radarr__Postgres__MainDb, value: radarr }
+            - { name: Radarr__Postgres__LogDb, value: radarr-log }
             - { name: TZ, value: Europe/Paris }
             - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
             - { name: PGID, value: "1000" }
@@ -155,7 +162,14 @@ spec:
       containers:
         - name: sonarr
           image: ghcr.io/linuxserver/sonarr:version-4.0.20.3014
+          envFrom:
+            - secretRef: { name: arr-db }     # Sonarr__Postgres__User/Password
+            - secretRef: { name: arr-keys }   # Sonarr__Auth__ApiKey
           env:
+            - { name: Sonarr__Postgres__Host, value: main-rw.postgres.svc.cluster.local }
+            - { name: Sonarr__Postgres__Port, value: "5432" }
+            - { name: Sonarr__Postgres__MainDb, value: sonarr }
+            - { name: Sonarr__Postgres__LogDb, value: sonarr-log }
             - { name: TZ, value: Europe/Paris }
             - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
             - { name: PGID, value: "1000" }

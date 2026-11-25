@@ -17,6 +17,9 @@ spec:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: headscale }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: seaweedfs }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: music, app.kubernetes.io/name: lidarr }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: media, app.kubernetes.io/name: radarr }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: media, app.kubernetes.io/name: sonarr }
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: media, app.kubernetes.io/name: prowlarr }
         - matchLabels: { k8s:io.kubernetes.pod.namespace: paperclip, app.kubernetes.io/name: paperclip }
       toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - fromEndpoints:

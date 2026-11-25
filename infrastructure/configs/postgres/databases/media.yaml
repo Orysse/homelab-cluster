@@ -1,0 +1,85 @@
+# media: Radarr, Sonarr and Prowlarr keep two databases each (main and log), all owned by the
+# role media (cluster.yaml): one role per namespace, because the writer store only writes
+# kv/apps/<namespace>/db. The password: generated once, kept in OpenBao at kv/apps/media/db, read
+# back from there; the apps read the same entry (apps/media/secrets.yaml).
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: media-db-generated
+  namespace: postgres
+spec:
+  refreshInterval: "0"            # generated once
+  target:
+    name: media-db-generated
+    template:
+      data:
+        username: media
+        password: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: password
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: media-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  updatePolicy: IfNotExists       # never replaces what OpenBao holds
+  secretStoreRefs:
+    - { kind: SecretStore, name: openbao-writer }
+  selector:
+    secret: { name: media-db-generated }
+  data:
+    - match:
+        remoteRef: { remoteKey: media/db }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: media-db
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: SecretStore, name: openbao-writer }
+  target:
+    name: media-db
+    template:
+      type: kubernetes.io/basic-auth
+  dataFrom:
+    - extract: { key: media/db }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata: { name: radarr, namespace: postgres }
+spec: { cluster: { name: main }, name: radarr, owner: media }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata: { name: radarr-log, namespace: postgres }
+spec: { cluster: { name: main }, name: radarr-log, owner: media }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata: { name: sonarr, namespace: postgres }
+spec: { cluster: { name: main }, name: sonarr, owner: media }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata: { name: sonarr-log, namespace: postgres }
+spec: { cluster: { name: main }, name: sonarr-log, owner: media }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata: { name: prowlarr, namespace: postgres }
+spec: { cluster: { name: main }, name: prowlarr, owner: media }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata: { name: prowlarr-log, namespace: postgres }
+spec: { cluster: { name: main }, name: prowlarr-log, owner: media }

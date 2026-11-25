@@ -4,7 +4,8 @@
 # Indexers > add an HTTP proxy "vpn" (host qbittorrent.music.svc.cluster.local, port 8888, no
 # login), then give the tag "vpn" to the proxy and to every indexer. An untagged indexer goes
 # out directly (the policy still allows 443/80: definitions, updates).
-# prowlarr.int.${DOMAIN}, admins only.
+# Database: the cluster PostgreSQL (arr.yaml, secrets.yaml); indexers, proxies and apps set by
+# hand once in it (README.md). prowlarr.int.${DOMAIN}, admins only.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -44,7 +45,14 @@ spec:
       containers:
         - name: prowlarr
           image: ghcr.io/linuxserver/prowlarr:version-3.1.0.5799
+          envFrom:
+            - secretRef: { name: arr-db }     # Prowlarr__Postgres__User/Password
+            - secretRef: { name: arr-keys }   # Prowlarr__Auth__ApiKey
           env:
+            - { name: Prowlarr__Postgres__Host, value: main-rw.postgres.svc.cluster.local }
+            - { name: Prowlarr__Postgres__Port, value: "5432" }
+            - { name: Prowlarr__Postgres__MainDb, value: prowlarr }
+            - { name: Prowlarr__Postgres__LogDb, value: prowlarr-log }
             - { name: TZ, value: Europe/Paris }
             - { name: PUID, value: "1000" }       # the image starts as root, then drops to this user
             - { name: PGID, value: "1000" }

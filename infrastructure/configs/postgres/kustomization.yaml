@@ -11,4 +11,5 @@ resources:
   - databases/headscale.yaml
   - databases/seaweedfs.yaml
   - databases/lidarr.yaml
+  - databases/media.yaml
   - databases/paperclip.yaml

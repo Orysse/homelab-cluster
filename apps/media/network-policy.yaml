@@ -28,6 +28,9 @@ spec:
         - matchLabels: { app.kubernetes.io/name: seerr }
       toPorts: [{ ports: [{ port: "7878", protocol: TCP }] }]
   egress:
+    - toEndpoints:   # PostgreSQL (infrastructure/configs/postgres/databases/media.yaml)
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
       toPorts:
@@ -65,6 +68,9 @@ spec:
         - matchLabels: { app.kubernetes.io/name: seerr }
       toPorts: [{ ports: [{ port: "8989", protocol: TCP }] }]
   egress:
+    - toEndpoints:   # PostgreSQL (infrastructure/configs/postgres/databases/media.yaml)
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
       toPorts:
@@ -102,6 +108,9 @@ spec:
         - matchLabels: { app.kubernetes.io/name: sonarr }
       toPorts: [{ ports: [{ port: "9696", protocol: TCP }] }]
   egress:
+    - toEndpoints:   # PostgreSQL (infrastructure/configs/postgres/databases/media.yaml)
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: postgres, cnpg.io/cluster: main }
+      toPorts: [{ ports: [{ port: "5432", protocol: TCP }] }]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
       toPorts:

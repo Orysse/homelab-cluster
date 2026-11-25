@@ -8,4 +8,5 @@ resources:
   - prowlarr.yaml
   - jellyfin.yaml
   - seerr.yaml
+  - secrets.yaml
   - auth.yaml

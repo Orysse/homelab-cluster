@@ -79,7 +79,7 @@ spec:
             claimName: radarr-config
         - name: data
           persistentVolumeClaim:
-            claimName: abel-nas   # nas.yaml: downloads/, films/, series/ in one mount (hardlinks)
+            claimName: abel-video   # nas.yaml: downloads/, films/, series/ in one mount (hardlinks)
 ---
 apiVersion: v1
 kind: Service
@@ -191,7 +191,7 @@ spec:
             claimName: sonarr-config
         - name: data
           persistentVolumeClaim:
-            claimName: abel-nas   # nas.yaml: downloads/, films/, series/ in one mount (hardlinks)
+            claimName: abel-video   # nas.yaml: downloads/, films/, series/ in one mount (hardlinks)
 ---
 apiVersion: v1
 kind: Service

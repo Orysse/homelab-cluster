@@ -44,7 +44,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: abel-nas-music
+  name: abel-video-music
 spec:
   capacity:
     storage: 1Ti
@@ -53,21 +53,21 @@ spec:
   storageClassName: ""
   mountOptions: [nfsvers=4.1, hard, timeo=600, noatime]
   nfs:
-    server: 192.168.1.151
+    server: 100.64.0.10
     path: /volume1/ABEL
   claimRef:
     namespace: music
-    name: abel-nas
+    name: abel-video
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: abel-nas
+  name: abel-video
   namespace: music
 spec:
   accessModes: [ReadWriteMany]
   storageClassName: ""
-  volumeName: abel-nas-music
+  volumeName: abel-video-music
   resources:
     requests:
       storage: 1Ti

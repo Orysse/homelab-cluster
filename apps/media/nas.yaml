@@ -1,15 +1,17 @@
-# ABEL on the family NAS (Synology, 192.168.1.151): NFSv4.1, exported read-write to kube-0 only
-# (rule already set on the NAS), same squash as Music-Abel (apps write as 1000). One mount holds
-# downloads/, films/ and series/, so an import is a hardlink. qBittorrent stays in `music` (one
-# gluetun tunnel) and mounts the same export there as the claim abel-nas, in apps/music/nas.yaml
-# (a PV binds to one claim). The capacity is nominal (NFS enforces nothing): the NAS quota is the
-# limit. A NAS that is off or rebooting hangs reads (hard mount) until it is back. Nothing SQLite
-# here (D32): databases stay on class `local`.
+# ABEL on the video NAS (Lenny's Synology, tailnet node home-nas, 100.64.0.10): NFSv4.1. kube-0 is
+# not on the tailnet: its route to that one address goes through nuc1, which masquerades NFS (2049)
+# into tailscale0 (homelab-nix tailscale.nix, Headscale policy.json). The NAS exports to nuc1's
+# tailnet address; apps write as 1000 (squash, mode 777). One mount holds downloads/, films/ and
+# series/, so an import is a hardlink. qBittorrent stays in `music` (one gluetun tunnel) and mounts
+# the same export there as the claim abel-video, in apps/music/nas.yaml (a PV binds to one claim).
+# The capacity is nominal (NFS enforces nothing). Over the Internet: the speed is Lenny's upload,
+# and a NAS or a line that is down hangs reads (hard mount) until it is back. Nothing SQLite here
+# (D32): databases stay on class `local`.
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: abel-nas
+  name: abel-video
 spec:
   capacity:
     storage: 1Ti
@@ -18,21 +20,21 @@ spec:
   storageClassName: ""
   mountOptions: [nfsvers=4.1, hard, timeo=600, noatime]
   nfs:
-    server: 192.168.1.151
+    server: 100.64.0.10
     path: /volume1/ABEL
   claimRef:
     namespace: media
-    name: abel-nas
+    name: abel-video
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: abel-nas
+  name: abel-video
   namespace: media
 spec:
   accessModes: [ReadWriteMany]
   storageClassName: ""
-  volumeName: abel-nas
+  volumeName: abel-video
   resources:
     requests:
       storage: 1Ti

@@ -81,7 +81,7 @@ spec:
           emptyDir: { sizeLimit: 5Gi }   # transcodes and image cache: on the VM disk, gone at restart
         - name: data
           persistentVolumeClaim:
-            claimName: abel-nas
+            claimName: abel-video
             readOnly: true
 ---
 apiVersion: v1

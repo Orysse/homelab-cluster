@@ -7,9 +7,11 @@
 # 54429 TCP slskd. UIs internal only, behind Pocket-ID (auth.yaml): qbittorrent.int.${DOMAIN},
 # slskd.int.${DOMAIN} (slskd: account and keys in kv/apps/music/slskd). Only their proxies and
 # Lidarr may connect (network-policy.yaml), so neither asks for its own password:
-# - qBittorrent: WebUI > Authentication > "Bypass authentication for clients in whitelisted IP
-#   subnets" = 10.42.0.0/16, set by hand once (its config file is its own). Keep its "reverse
-#   proxy support" off: the bypass must check the proxy's address, not X-Forwarded-For.
+# - qBittorrent: its whole configuration is the ConfigMap qbittorrent-conf, copied over
+#   /config/qBittorrent at every start: a change made in the WebUI lasts until the next restart.
+#   The WebUI skips authentication for 10.42.0.0/16 (the pods); "reverse proxy support" stays
+#   off, so the bypass checks the proxy's address, not X-Forwarded-For. No WebUI password is
+#   kept: qBittorrent makes a temporary one at each start, which nobody needs.
 # - slskd: SLSKD_NO_AUTH. Lidarr's API key (Tubifarry) is then not checked either.
 # slskd's settings are environment variables, but webhooks exist only in its YAML file
 # (ConfigMap slskd-yml): a finished download folder wakes beets (beets.yaml).
@@ -30,6 +32,68 @@ data:
           timeout: 5000
           retry:
             attempts: 3
+---
+# qBittorrent's settings (copied by the init container `config`). What matters:
+# - Session\Interface tun0: traffic only through the tunnel, nothing if the VPN is down.
+# - DisableAutoTMMByDefault=false: automatic management, so a torrent goes to its category's
+#   folder; the default folder and the categories are on the video NAS (/abel = /volume1/ABEL),
+#   which Radarr and Sonarr mount as /data (remote path mapping /abel/ -> /data/ in each).
+# - Port 2417: the port AirVPN forwards. Lidarr does not use qBittorrent (slskd only).
+# Editing this ConfigMap does not restart the pod: `kubectl -n music rollout restart deploy/qbittorrent`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbittorrent-conf
+  namespace: music
+data:
+  qBittorrent.conf: |
+    [Application]
+    FileLogger\Age=1
+    FileLogger\AgeType=1
+    FileLogger\Backup=true
+    FileLogger\DeleteOld=true
+    FileLogger\Enabled=true
+    FileLogger\MaxSizeBytes=66560
+    FileLogger\Path=/config/qBittorrent/logs
+
+    [BitTorrent]
+    Session\AddTorrentStopped=false
+    Session\DefaultSavePath=/abel/downloads
+    Session\DisableAutoTMMByDefault=false
+    Session\ExcludedFileNames=
+    Session\Interface=tun0
+    Session\InterfaceName=tun0
+    Session\Port=2417
+    Session\QueueingSystemEnabled=true
+    Session\ShareLimitAction=Stop
+    Session\TempPath=/abel/downloads/incomplete/
+    Session\UseAlternativeGlobalSpeedLimit=false
+
+    [Core]
+    AutoDeleteAddedTorrentFile=Never
+
+    [LegalNotice]
+    Accepted=true
+
+    [Meta]
+    MigrationVersion=8
+
+    [Network]
+    PortForwardingEnabled=false
+
+    [Preferences]
+    Connection\UPnP=false
+    Downloads\SavePath=/abel/downloads/
+    General\Locale=en
+    WebUI\Address=*
+    WebUI\AuthSubnetWhitelist=10.42.0.0/16
+    WebUI\AuthSubnetWhitelistEnabled=true
+    WebUI\ServerDomains=*
+  categories.json: |
+    {
+        "radarr": { "save_path": "/abel/downloads/radarr" },
+        "sonarr": { "save_path": "/abel/downloads/sonarr" }
+    }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -94,6 +158,25 @@ spec:
               drop: ["ALL"]
           volumeMounts:
             - { name: music, mountPath: /data/downloads, subPath: downloads }
+        # The repository's qBittorrent settings replace whatever the WebUI saved (qbittorrent-conf).
+        - name: config
+          image: docker.io/library/busybox:1.38
+          command: [sh, -ec, "mkdir -p /config/qBittorrent && cp /conf/qBittorrent.conf /conf/categories.json /config/qBittorrent/"]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: qbittorrent-conf, mountPath: /conf, readOnly: true }
       containers:
         - name: gluetun
           image: ghcr.io/qdm12/gluetun:v3.41.3
@@ -222,6 +305,9 @@ spec:
             - { name: flaresolverr-shm, mountPath: /dev/shm }   # Chrome crashes on the default 64 MB
             - { name: flaresolverr-tmp, mountPath: /tmp }
       volumes:
+        - name: qbittorrent-conf
+          configMap:
+            name: qbittorrent-conf
         - name: flaresolverr-shm
           emptyDir: { medium: Memory, sizeLimit: 256Mi }
         - name: flaresolverr-tmp

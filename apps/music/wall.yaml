@@ -3,6 +3,7 @@
 # Every 10 minutes it reads the owner's albums over Navidrome's Subsonic API (ExtAuth header, no
 # password: Navidrome trusts the pod network, network-policy.yaml), fetches only new covers and
 # rewrites one static page. Covers live in an emptyDir: a restart fetches them again (~30 MB).
+# /wall/h/<cover>.jpg serves a wall cover at 1200 px, fetched on demand (the laptop's lock screen).
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -17,6 +18,7 @@ data:
     HEADERS = {"X-Forwarded-Preferred-Username": os.environ["ND_USER"]}
     OUT = "/srv/wall"
     COVERS = OUT + "/c"
+    KNOWN = {}   # cover file name -> Navidrome cover id, for the large-cover route
 
     def api(method, **query):
         query |= {"v": "1.16.1", "c": "wall", "f": "json"}
@@ -80,6 +82,8 @@ data:
         for album, span in zip(found, spans([a.get("playCount", 0) for a in found])):
             label = html.escape(f'{album.get("artist", "")} — {album.get("name", "")}')
             name = cover(album.get("coverArt"))
+            if name:
+                KNOWN[name] = album.get("coverArt")
             data.append({"id": album["id"], "artist": album.get("artist", ""), "name": album.get("name", ""),
                          "year": album.get("year"), "plays": album.get("playCount", 0),
                          "created": album.get("created"), "cover": name})
@@ -96,7 +100,30 @@ data:
         print(f"{len(found)} albums", flush=True)
 
     os.makedirs(COVERS, exist_ok=True)
-    handler = lambda *a: http.server.SimpleHTTPRequestHandler(*a, directory="/srv")
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        # /wall/h/<cover>.jpg: the same cover at 1200 px, fetched from Navidrome on each request (no
+        # disk cache: hundreds of them would not fit the emptyDir; the laptop keeps its own). Only
+        # covers on the wall are served, so this never proxies arbitrary Navidrome ids.
+        def do_GET(self):
+            m = re.fullmatch(r"/wall/h/([A-Za-z0-9_-]{1,100})\.jpg", self.path)
+            if not m:
+                return super().do_GET()
+            cover_id = KNOWN.get(m.group(1))
+            if not cover_id:
+                return self.send_error(404)
+            try:
+                data = api("getCoverArt", id=cover_id, size=1200)
+            except OSError as e:
+                print(f"large cover {cover_id}: {e}", flush=True)
+                return self.send_error(502)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            self.wfile.write(data)
+
+    handler = lambda *a: Handler(*a, directory="/srv")
     threading.Thread(target=http.server.ThreadingHTTPServer(("", 8080), handler).serve_forever, daemon=True).start()
     while True:
         try:
